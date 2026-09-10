@@ -454,6 +454,44 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
       );
     }
   }
+  if (kind === "tanqueElevadoColumnas") {
+    if (part === "mColumna") {
+      const pts = unpackMomentos(sv(values, "mPtsColumna"));
+      return (
+        <MomentoZonaFig
+          zona="Torre — columna más solicitada (diagrama exacto del modelo matricial)"
+          formula="M(y) = √(My(y)²+Mz(y)²)   —   resultado directo del método de la rigidez directa (sismo), superpuesto a la carga axial de gravedad"
+          L={nv(values, "Htorre", 14)}
+          shape="polyline"
+          pts={pts.length >= 2 ? pts : undefined}
+          acero={sv(values, "asCol", "ver diseño P–M")}
+          cara="tracción en la cara de sotavento bajo sismo"
+          unidad="t·m"
+          leftLabel="Base (empotrada)"
+          rightLabel="Corona (bajo la cuba)"
+          note="Diagrama de la columna gobernante, extraído nudo a nudo del análisis matricial 3D (no es una envolvente aproximada)."
+        />
+      );
+    }
+    if (part === "mViga") {
+      const pts = unpackMomentos(sv(values, "mPtsViga"));
+      return (
+        <MomentoZonaFig
+          zona="Torre — viga de arriostre más solicitada (diagrama exacto del modelo matricial)"
+          formula="M(x) — resultado directo del elemento de anillo más solicitado bajo sismo"
+          L={1}
+          shape="polyline"
+          pts={pts.length >= 2 ? pts : undefined}
+          acero={sv(values, "asArr", "ver diseño")}
+          cara="según el sentido del sismo — se arma simétrica en ambas caras"
+          unidad="t·m"
+          leftLabel="Columna izquierda"
+          rightLabel="Columna derecha"
+          note="Elemento entre dos columnas adyacentes en el nivel de arriostre más solicitado."
+        />
+      );
+    }
+  }
   return null;
 }
 

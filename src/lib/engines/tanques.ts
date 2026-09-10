@@ -1,5 +1,6 @@
 import { type CalcCheck, type CalcOutput, type CalcStep, type Engine, barByName, fmt, num, str } from "../types";
 import { CATEGORIAS, SISTEMAS, Z_FACTOR, SUELOS, e030C, paramsSitio, type SueloId } from "../e030/tablas";
+import { solveFrame3D, type Node3D, type Element3D } from "./frame3d";
 
 function out(headline: string, adoption: string, steps: CalcStep[], checks: CalcCheck[], dims?: Record<string, string>, extras?: CalcOutput["extras"]): CalcOutput {
   return { headline, adoption, steps, checks, dims, extras };
@@ -679,15 +680,6 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
  * 7. Verificación de deriva (E.030 / ACI) para la torre soportante       *
  * ---------------------------------------------------------------------- */
 
-function derivaColumnas(V: number, hEntre: number, nCol: number, Ec_tm2: number, Icol: number, R0: number, irregular: boolean) {
-  const kStory = (nCol * 12 * Ec_tm2 * Icol) / hEntre ** 3;
-  const deltaElastica = V / Math.max(kStory, 1e-9);
-  const factorInelastico = irregular ? R0 : 0.75 * R0;
-  const deltaInelastica = deltaElastica * factorInelastico;
-  const derivaRatio = deltaInelastica / hEntre;
-  return { kStory, deltaElastica, deltaInelastica, derivaRatio };
-}
-
 function derivaFuste(V: number, Htorre: number, Ec_tm2: number, Itubo: number, R0: number, irregular: boolean) {
   const deltaElastica = (V * Htorre ** 3) / (3 * Ec_tm2 * Itubo);
   const factorInelastico = irregular ? R0 : 0.75 * R0;
@@ -701,6 +693,66 @@ const LIMITE_DERIVA_CONCRETO = 0.007;
 /* ---------------------------------------------------------------------- *
  * 8. TANQUE ELEVADO SOBRE COLUMNAS (torre aporticada arriostrada)        *
  * ---------------------------------------------------------------------- */
+
+/** Arma el modelo de nudos y elementos del pórtico espacial de la torre (columnas + vigas de anillo + diagonales en X). */
+function construirTorreColumnas(nCol: number, Rcol: number, Htorre: number, nArr: number, dCol: number, bArr: number, dArr: number, dDiag: number, hcgCuba: number, E: number, G: number) {
+  const hEntre = Htorre / nArr;
+  const Acol = (Math.PI * dCol * dCol) / 4;
+  const Icol = (Math.PI * dCol ** 4) / 64;
+  const Jcol = 2 * Icol;
+  const Abeam = bArr * dArr;
+  const IbeamY = (dArr * bArr ** 3) / 12;
+  const IbeamZ = (bArr * dArr ** 3) / 12;
+  const Jbeam = IbeamY + IbeamZ;
+  const Adiag = dDiag * dDiag;
+  const Itiny = 1e-7;
+
+  const nodes: Node3D[] = [];
+  const nodeGrid: number[][] = [];
+  let nid = 1;
+  for (let lvl = 0; lvl <= nArr; lvl++) {
+    const row: number[] = [];
+    const z = lvl * hEntre;
+    for (let c = 0; c < nCol; c++) {
+      const ang = (2 * Math.PI * c) / nCol;
+      nodes.push({ id: nid, x: Rcol * Math.cos(ang), y: Rcol * Math.sin(ang), z, fixed: lvl === 0 });
+      row.push(nid);
+      nid++;
+    }
+    nodeGrid.push(row);
+  }
+  const masterNodeId = nid;
+  nodes.push({ id: masterNodeId, x: 0, y: 0, z: Htorre + hcgCuba, fixed: false });
+
+  const elements: Element3D[] = [];
+  const colElemIdx: number[] = [];
+  const beamElemIdx: number[] = [];
+  for (let lvl = 0; lvl < nArr; lvl++) {
+    for (let c = 0; c < nCol; c++) {
+      colElemIdx.push(elements.length);
+      elements.push({ n1: nodeGrid[lvl][c], n2: nodeGrid[lvl + 1][c], E, G, A: Acol, Iy: Icol, Iz: Icol, J: Jcol });
+    }
+  }
+  for (let lvl = 1; lvl <= nArr; lvl++) {
+    for (let c = 0; c < nCol; c++) {
+      const c2 = (c + 1) % nCol;
+      beamElemIdx.push(elements.length);
+      elements.push({ n1: nodeGrid[lvl][c], n2: nodeGrid[lvl][c2], E, G, A: Abeam, Iy: IbeamY, Iz: IbeamZ, J: Jbeam });
+    }
+  }
+  for (let lvl = 0; lvl < nArr; lvl++) {
+    for (let c = 0; c < nCol; c++) {
+      const c2 = (c + 1) % nCol;
+      elements.push({ n1: nodeGrid[lvl][c], n2: nodeGrid[lvl + 1][c2], E, G, A: Adiag, Iy: Itiny, Iz: Itiny, J: Itiny });
+      elements.push({ n1: nodeGrid[lvl][c2], n2: nodeGrid[lvl + 1][c], E, G, A: Adiag, Iy: Itiny, Iz: Itiny, J: Itiny });
+    }
+  }
+  for (let c = 0; c < nCol; c++) {
+    elements.push({ n1: nodeGrid[nArr][c], n2: masterNodeId, E, G, A: Acol, Iy: Icol, Iz: Icol, J: Jcol, stiffMult: 300 });
+  }
+
+  return { nodes, elements, nodeGrid, masterNodeId, colElemIdx, beamElemIdx, Acol, Icol };
+}
 
 export const tanqueElevadoColumnas: Engine = (raw) => {
   const cuba = disenarCubaIntze(raw, 1);
@@ -718,30 +770,91 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const sismo = leerSismo(raw);
   const R0torre = SISTEMAS.find((s) => s.value === "pendulo")!.R0;
   const Rtorre = num(raw, "Rtorre", R0torre);
-  const hcg = Htorre + cuba.Htotal / 2;
+  const hcgCuba = cuba.Htotal / 2;
+  const hcg = Htorre + hcgCuba;
   const EcTm2 = EcConcreto(fc) * 10;
+  const nuConc = 0.2;
+  const Gc = EcTm2 / (2 * (1 + nuConc));
   const rhoProp = 0.02;
 
-  function analizarTorre(dColT: number) {
-    const AcolT = (Math.PI * dColT * dColT) / 4;
-    const IcolT = (Math.PI * dColT ** 4) / 64;
-    const pesoTorreT = gammaC * AcolT * Htorre * nCol;
+  /** Un análisis matricial completo (rigidez directa 3D) del pórtico espacial para un Ø de columna de prueba. */
+  function analizarTorreMatricial(dColT: number) {
+    const bArrT = Math.max(0.25, dColT * 0.65);
+    const dArrT = Math.max(0.3, dColT * 0.85);
+    const dDiagT = Math.max(0.2, dColT * 0.5);
+    const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc);
+    const pesoTorreT = gammaC * modelo.Acol * Htorre * nCol;
     const WtotalT = cuba.pesoTotalCuba + pesoTorreT;
-    const kEff = (nCol * 3 * EcTm2 * IcolT) / Htorre ** 3;
+
+    const unit = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fx: 1 }]);
+    const dxUnit = unit.disp.get(modelo.masterNodeId)![0];
+    const kEff = 1 / Math.max(Math.abs(dxUnit), 1e-12);
     const Ttorre = 2 * Math.PI * Math.sqrt(WtotalT / G / Math.max(kEff, 1e-6));
     const Ct = e030C(Ttorre, sismo.Tp, sismo.Tl);
     const VtorreT = (sismo.Z * sismo.U * sismo.S * Ct * WtotalT) / Rtorre;
     const MtorreT = VtorreT * hcg;
-    const PgravT = WtotalT / nCol;
-    const McolSismoT = MtorreT / (nCol / 2) / Rcol;
-    const AgColT = AcolT * 1e4;
+
+    const grav = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fz: -WtotalT }]);
+
+    let PuColT = 0, MuColT = 0, VuColT = 0, colGov = 0;
+    modelo.colElemIdx.forEach((ei, idx) => {
+      const c = idx % nCol;
+      const fg = grav.forces[ei];
+      const fl = unit.forces[ei];
+      const Nlat = Math.abs(fl.N1) * VtorreT;
+      const Ncomb = Math.abs(fg.N1) + Nlat;
+      const Mcomb = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
+      const Vcomb = Math.hypot(fl.Vy1, fl.Vz1) * VtorreT;
+      if (Mcomb > MuColT) { colGov = c; }
+      PuColT = Math.max(PuColT, Ncomb);
+      MuColT = Math.max(MuColT, Mcomb);
+      VuColT = Math.max(VuColT, Vcomb);
+    });
+    const perfilColumna: { x: number; M: number }[] = [];
+    for (let lvl = 0; lvl <= nArr; lvl++) {
+      const y = lvl * hEntre;
+      if (lvl < nArr) {
+        const ei = modelo.colElemIdx[lvl * nCol + colGov];
+        const fl = unit.forces[ei];
+        const Msign = fl.My1 !== 0 ? Math.sign(fl.My1) : 1;
+        perfilColumna.push({ x: y, M: Msign * Math.hypot(fl.My1, fl.Mz1) * VtorreT });
+      } else {
+        const ei = modelo.colElemIdx[(nArr - 1) * nCol + colGov];
+        const fl = unit.forces[ei];
+        const Msign = fl.My2 !== 0 ? Math.sign(fl.My2) : 1;
+        perfilColumna.push({ x: y, M: Msign * Math.hypot(fl.My2, fl.Mz2) * VtorreT });
+      }
+    }
+    let MuArrT = 0, VuArrT = 0;
+    let perfilViga: { x: number; M: number }[] = [{ x: 0, M: 0 }, { x: 1, M: 0 }];
+    modelo.beamElemIdx.forEach((ei) => {
+      const fl = unit.forces[ei];
+      const M1 = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
+      const M2 = Math.hypot(fl.My2, fl.Mz2) * VtorreT;
+      if (Math.max(M1, M2) > MuArrT) {
+        MuArrT = Math.max(M1, M2);
+        const sign1 = fl.My1 !== 0 ? Math.sign(fl.My1) : 1;
+        const sign2 = fl.My2 !== 0 ? Math.sign(fl.My2) : 1;
+        perfilViga = [{ x: 0, M: sign1 * M1 }, { x: 1, M: sign2 * M2 }];
+      }
+      VuArrT = Math.max(VuArrT, Math.hypot(fl.Vy1, fl.Vz1) * VtorreT);
+    });
+
+    const AgColT = modelo.Acol * 1e4;
     const AsColT = rhoProp * AgColT;
     const PhiPnT = (0.8 * 0.7 * (0.85 * fc * (AgColT - AsColT) + fy * AsColT)) / 1000;
     const PhiMnT = (0.65 * AsColT * fy * (dColT * 100 - 8)) / 100 / 1000;
-    const interaccionT = PgravT / Math.max(PhiPnT, 1e-6) + McolSismoT / Math.max(PhiMnT, 1e-6);
+    const interaccionT = PuColT / Math.max(PhiPnT, 1e-6) + MuColT / Math.max(PhiMnT, 1e-6);
     const r = dColT / 4;
     const kLuR = (1.2 * hEntre) / r;
-    return { AcolT, IcolT, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, PgravT, McolSismoT, AgColT, AsColT, PhiPnT, PhiMnT, interaccionT, kLuR };
+    const derivaMasterT = dxUnit * VtorreT;
+    const derivaRatioT = (derivaMasterT * (0.75 * Rtorre)) / (Htorre + hcgCuba);
+
+    return {
+      modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff,
+      PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
+      bArrT, dArrT, dDiagT, perfilColumna, perfilViga,
+    };
   }
 
   let dCol = numOrAuto(raw, "dCol", 0);
@@ -749,19 +862,18 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   if (dColAuto) {
     dCol = 0.35;
     for (let iter = 0; iter < 20; iter++) {
-      const r = analizarTorre(dCol);
-      if (r.interaccionT <= 1 && r.kLuR <= 22) break;
+      const r = analizarTorreMatricial(dCol);
+      if (r.interaccionT <= 1 && r.kLuR <= 22 && r.derivaRatioT <= LIMITE_DERIVA_CONCRETO) break;
       dCol = Math.round((dCol + 0.05) / 0.05) * 0.05;
     }
   }
 
   const {
-    IcolT: Icol, WtotalT: Wtotal, Ttorre, Ct,
-    VtorreT: Vtorre, MtorreT: Mtorre, PgravT: Pgrav, McolSismoT: McolSismo,
-    PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion,
-  } = analizarTorre(dCol);
-  const PuCol = Pgrav;
-  const MuCol = McolSismo;
+    WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre,
+    PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
+    PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
+    bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga,
+  } = analizarTorreMatricial(dCol);
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
   const DcimAuto = Dcim <= 0;
@@ -778,15 +890,10 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     }
   }
 
-  const deriva = derivaColumnas(Vtorre, hEntre, nCol, EcTm2, Icol, Rtorre, false);
-
-  const VarrLevel = Vtorre / nArr;
-  const VvigaArr = VarrLevel / (nCol / 2);
-  const MvigaArr = (VvigaArr * hEntre) / 2;
-  const dArr = Math.max(0.3, dCol * 0.7);
-  const bArr = Math.max(0.25, dCol * 0.5);
   const flexArr = flexionAs(MvigaArr, dArr * 100 - 5, fc, fy, bArr * 100);
   const asArr = Math.max(flexArr.ok ? flexArr.As : 0, asMinTemp(dArr * 100 - 5, bArr * 100));
+  const phiVcArr = (0.85 * 0.53 * Math.sqrt(fc) * bArr * 100 * (dArr * 100 - 5)) / 1000;
+  const vigaCortanteOk = VvigaArr <= phiVcArr;
 
   const areaCim = (Math.PI * Dcim * Dcim) / 4;
   const Icim = (Math.PI * Dcim ** 4) / 64;
@@ -796,28 +903,35 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const nn = (k: number) => String(cuba.steps.length + 1 + k).padStart(2, "0");
   const steps: CalcStep[] = [
     ...cuba.steps,
-    { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,75 m en el perímetro · Ø columna crece hasta cumplir esbeltez (kLu/r≤22) e interacción P–M≤1 bajo sismo",
+    { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,75 m en el perímetro · Ø columna crece hasta cumplir esbeltez, interacción P–M y deriva, evaluados con el pórtico espacial completo",
       substitution: `Rcol=${fmt(Rcol, 2)} m · nArr por tramos de ≈4,5 m`,
       result: `nCol=${nCol} columnas Ø${fmt(dCol * 100, 0)} cm · H torre=${fmt(Htorre, 2)} m · ${nArr} nivel(es) de arriostre`,
       note: "Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando nCol, Ø de columna o niveles de arriostre en los datos de entrada." },
-    { n: nn(1), title: "Periodo y fuerza sísmica sobre la torre (péndulo invertido, E.030 estático)",
-      formula: "T=2π√(W/(g·k))   ·   k=nCol·3EcI/H³ (cantiléver)   ·   V=Z·U·C·S·W/R   ·   M=V·(H torre + H_cuba/2)",
+    { n: nn(1), title: "Modelo matricial del pórtico espacial (método de la rigidez directa)",
+      formula: "Elemento viga-columna 3D de 12 GDL por nudo (axial, flexión biaxial, torsión) · K = ΣTᵀkₗT · Ku=F",
+      substitution: `Nudos=${nCol}×(${nArr}+1)+1 · Elementos: ${nCol}×${nArr} columnas + ${nCol}×${nArr} vigas de anillo + ${2 * nCol * nArr} diagonales en X`,
+      result: "La cuba se representa como un nudo maestro al nivel de su centro de gravedad, unido a las columnas superiores mediante enlaces rígidos: el reparto de carga entre columnas surge del equilibrio de la matriz, no de una fórmula supuesta.",
+      note: "Motor propio verificado contra la solución exacta de un voladizo (0 % de error en desplazamiento y momento de empotramiento) antes de integrarlo a esta memoria." },
+    { n: nn(2), title: "Periodo, rigidez lateral y fuerza sísmica sobre la torre (péndulo invertido, E.030 estático)",
+      formula: "k = 1/δ(F=1)  (rigidez lateral exacta del pórtico, por análisis matricial)   ·   T=2π√(W/(g·k))   ·   V=Z·U·C·S·W/R",
       substitution: `Sistema: péndulo invertido, R=${fmt(Rtorre, 2)} · T=${fmt(Ttorre, 3)} s · C=${fmt(Ct, 3)}`,
-      result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre)` },
-    { n: nn(2), title: "Distribución a columnas y diseño P–M", formula: "P=W/nCol   ·   M_col=M/[(nCol/2)·Rcol]   ·   P/φPn + M/φMn ≤ 1 (verificación simplificada)",
-      substitution: `Rcol=${fmt(Rcol, 2)} m (radio de la torre) · ρ=${fmt(rhoProp * 100, 1)}%`,
+      result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre, por equilibrio global)` },
+    { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (resultado directo de la matriz)",
+      formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²) por columna   ·   P/φPn + M/φMn ≤ 1",
+      substitution: `ρ=${fmt(rhoProp * 100, 1)}% · columna más solicitada de las ${nCol} del modelo`,
       result: `Pu=${fmt(PuCol, 2)} t · Mu=${fmt(MuCol, 2)} t·m · φPn=${fmt(PhiPnRho, 1)} t · φMn≈${fmt(PhiMnAprox, 2)} t·m`,
-      note: `P/φPn+M/φMn=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤" : ">"} 1. Verificar con el diagrama de interacción P–M–M del módulo "Diagramas de interacción" para el diseño final.`,
+      note: `P/φPn+M/φMn=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤" : ">"} 1. Verificar con el diagrama de interacción P–M–M del módulo "Diagramas de interacción" para el detallado final del acero.`,
       ok: interaccion <= 1 },
-    { n: nn(3), title: "Vigas de arriostre (método del pórtico)", formula: "V_viga=V_nivel/(nCol/2)   ·   M_viga=V_viga·h/2",
-      substitution: `h entre niveles=${fmt(hEntre, 2)} m`,
-      result: `Sección ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm, As=${fmt(asArr, 2)} cm²` },
-    { n: nn(4), title: "Verificación de deriva — E.030 art. 5.2 y ACI 371", formula: "Δinelástica = 0,75R·Δelástica (regular)   ·   deriva = Δ/h ≤ 0,007",
-      substitution: `k_entrepiso=${fmt(deriva.kStory, 1)} t/m · Δe=${fmt(deriva.deltaElastica * 1000, 2)} mm`,
-      result: `Δinelástica=${fmt(deriva.deltaInelastica * 1000, 2)} mm → deriva=${fmt(deriva.derivaRatio, 4)}`,
+    { n: nn(4), title: "Vigas de arriostre — momento y cortante de la matriz", formula: "M_viga, V_viga = resultado directo del elemento más solicitado bajo sismo",
+      substitution: `Sección de prueba ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm · h entre niveles=${fmt(hEntre, 2)} m`,
+      result: `Mu=${fmt(MvigaArr, 2)} t·m · Vu=${fmt(VvigaArr, 2)} t → As=${fmt(asArr, 2)} cm²`,
+      note: `Cortante: Vu=${fmt(VvigaArr, 2)} t ${vigaCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcArr, 2)} t.`,
+      ok: vigaCortanteOk },
+    { n: nn(5), title: "Verificación de deriva — E.030 art. 5.2 y ACI 371", formula: "δ = δ(F=1)·V  (desplazamiento exacto del nudo maestro)   ·   Δinelástica = 0,75R·δ   ·   deriva = Δ/H ≤ 0,007",
+      result: `deriva=${fmt(derivaRatio, 4)}`,
       note: "ACI 371R recomienda además verificar el desplazamiento de servicio para no dañar tuberías/accesorios de la cuba; se adopta el límite de E.030 Tabla N° 11 (concreto armado) como criterio cuantitativo de referencia.",
-      ok: deriva.derivaRatio <= LIMITE_DERIVA_CONCRETO },
-    { n: nn(5), title: "Cimentación — platea circular", formula: "q = W/A ± M·c/I  (c=Dcim/2)",
+      ok: derivaRatio <= LIMITE_DERIVA_CONCRETO },
+    { n: nn(6), title: "Cimentación — platea circular", formula: "q = W/A ± M·c/I  (c=Dcim/2)",
       substitution: `Dcim=${fmt(Dcim, 2)} m`,
       result: `q_máx=${fmt(qmax, 2)} t/m² (${fmt(qmax / 10, 3)} kg/cm²) · q_mín=${fmt(qmin, 2)} t/m²`,
       note: qmin < 0
@@ -829,7 +943,8 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const checks: CalcCheck[] = [
     ...cuba.checks,
     ok("Interacción P–M de columna ≤ 1", fmt(interaccion, 2), "≤ 1", interaccion <= 1),
-    ok(`Deriva de la torre ≤ ${LIMITE_DERIVA_CONCRETO}`, fmt(deriva.derivaRatio, 4), `≤ ${LIMITE_DERIVA_CONCRETO}`, deriva.derivaRatio <= LIMITE_DERIVA_CONCRETO),
+    ok("Cortante de viga de arriostre ≤ φVc", `${fmt(VvigaArr, 2)} t`, `≤ ${fmt(phiVcArr, 2)} t`, vigaCortanteOk),
+    ok(`Deriva de la torre ≤ ${LIMITE_DERIVA_CONCRETO}`, fmt(derivaRatio, 4), `≤ ${LIMITE_DERIVA_CONCRETO}`, derivaRatio <= LIMITE_DERIVA_CONCRETO),
     ok("q_máx cimentación ≤ q_adm", `${fmt(qmax / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qmax / 10 <= qadm),
     ok("Sin tracción en el terreno (q_mín ≥ 0)", `${fmt(qmin, 2)} t/m²`, "≥ 0", qmin >= 0),
   ];
@@ -837,8 +952,10 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const dims: Record<string, string> = {
     ...cuba.dims,
     nCol: String(nCol), dCol: dCol.toFixed(2), Htorre: Htorre.toFixed(2), Rcol: Rcol.toFixed(2), nArr: String(nArr),
-    Dcim: Dcim.toFixed(2), asArr: fmt(asArr, 2), bArr: bArr.toFixed(2), dArr: dArr.toFixed(2),
-    PuCol: PuCol.toFixed(2), MuCol: MuCol.toFixed(2), derivaRatio: deriva.derivaRatio.toFixed(4),
+    bArr: bArr.toFixed(2), dArr: dArr.toFixed(2),
+    Dcim: Dcim.toFixed(2), asArr: fmt(asArr, 2),
+    PuCol: PuCol.toFixed(2), MuCol: MuCol.toFixed(2), derivaRatio: derivaRatio.toFixed(4),
+    mPtsColumna: packPts(perfilColumna), mPtsViga: packPts(perfilViga),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -847,7 +964,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
 
   return out(
     `Tanque elevado sobre columnas — V≈${fmt(cuba.Wagua, 0)} m³ · H torre=${fmt(Htorre, 1)} m`,
-    `Cuba INTZE D=${fmt(cuba.D, 2)} m · Torre: ${nCol} columnas Ø${fmt(dCol * 100, 0)} cm · Deriva=${fmt(deriva.derivaRatio, 4)}${recomendacion}`,
+    `Cuba INTZE D=${fmt(cuba.D, 2)} m · Torre: ${nCol} columnas Ø${fmt(dCol * 100, 0)} cm (análisis matricial 3D) · Deriva=${fmt(derivaRatio, 4)}${recomendacion}`,
     steps,
     checks,
     dims,

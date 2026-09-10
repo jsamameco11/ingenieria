@@ -666,7 +666,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
         if (s.n === "07") blocks.push({ type: "h2", text: "3.c Diseño de acero de la cuba (pared, cúpulas, anillos)" });
         if (s.n === "12") blocks.push({ type: "h2", text: mod.engine === "tanqueElevadoColumnas" ? "3.d Torre soportante de columnas" : "3.d Fuste soportante de concreto" });
-        if (mod.engine === "tanqueElevadoColumnas" && s.n === "16") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
+        if (mod.engine === "tanqueElevadoColumnas" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
         if (mod.engine === "tanqueElevadoFuste" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
       }
       const h3 = puenteH3(mod.slug, s.n);
@@ -750,6 +750,12 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "07") {
         blocks.push({ type: "figure", part: "mMuro" });
         blocks.push({ type: "figure", part: "mAnillo" });
+      }
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "15") {
+        blocks.push({ type: "figure", part: "mColumna" });
+      }
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16") {
+        blocks.push({ type: "figure", part: "mViga" });
       }
     });
     const restExtras = (result.extras ?? []).filter((ex) => !shownTables.has(ex.title));

@@ -183,12 +183,13 @@ function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record
   const yAnilloSup = yAnilloInf - hConoPx;
   const yTechoBase = yAnilloSup - h1px;
 
+  const kApprox = 0.5523;
   const path = [
     `M ${cx - rpPx} ${yAnilloInf}`,
-    `Q ${cx} ${yAnilloInf + fInfPx * 2} ${cx + rpPx} ${yAnilloInf}`,
+    `C ${cx - rpPx} ${yAnilloInf + fInfPx * kApprox * 2} ${cx + rpPx} ${yAnilloInf + fInfPx * kApprox * 2} ${cx + rpPx} ${yAnilloInf}`,
     `L ${cx + Rpx} ${yAnilloSup}`,
     `L ${cx + Rpx} ${yTechoBase}`,
-    `Q ${cx} ${yTechoBase - fSupPx * 2} ${cx - Rpx} ${yTechoBase}`,
+    `C ${cx + Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx - Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx - Rpx} ${yTechoBase}`,
     `L ${cx - Rpx} ${yAnilloSup}`,
     `Z`,
   ].join(" ");
@@ -251,6 +252,7 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
   const nCol = Math.max(4, Math.round(nv(values, "nCol", 6)));
   const dCol = nv(values, "dCol", 0.5);
   const nArr = Math.max(1, Math.round(nv(values, "nArr", 2)));
+  const hEntreCalc = Htorre / nArr;
   const Rcol = nv(values, "Rcol", D * 0.41);
   const Dcim = nv(values, "Dcim", D * 1.15);
 
@@ -264,30 +266,58 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
   const dColPx = Math.max(4, dCol * scale);
   const DcimPx = (Dcim / 2) * scale;
 
+  // Columnas visibles en elevación: proyección ortográfica del arco frontal (la mitad del círculo que mira al observador).
+  const nVisible = Math.max(2, Math.ceil(nCol / 2) + 1);
+  const colX: number[] = [];
+  for (let i = 0; i < nVisible; i++) {
+    const t = nVisible === 1 ? 0.5 : i / (nVisible - 1);
+    const ang = Math.PI * (1 - t); // de 180° (izquierda) a 0° (derecha), arco frontal
+    colX.push(cx + RcolPx * Math.cos(ang));
+  }
+  const yTop = cubaBaseY;
+  const yBase = baseY - 16;
   const nivelesY: number[] = [];
-  for (let i = 1; i <= nArr; i++) nivelesY.push(cubaBaseY - (i / (nArr + 0.001)) * 0 + (baseY - cubaBaseY) * (1 - i / (nArr + 1)));
+  for (let i = 1; i <= nArr; i++) nivelesY.push(yBase - (i / nArr) * (yBase - yTop));
 
   const elevacion = (
     <g>
       <rect x={cx - DcimPx - 30} y={baseY} width={2 * (DcimPx + 30)} height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
       <rect x={cx - DcimPx} y={baseY - 16} width={2 * DcimPx} height="16" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
-      {Array.from({ length: nCol }).slice(0, Math.ceil(nCol / 2) + 1).map((_, i) => {
-        const frac = nCol <= 2 ? 0.5 : i / (Math.ceil(nCol / 2));
-        const x = cx - RcolPx + frac * 2 * RcolPx;
-        return <rect key={i} x={x - dColPx / 2} y={cubaBaseY} width={dColPx} height={baseY - 16 - cubaBaseY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />;
-      })}
+      {/* Diagonales en X, por panel, entre columnas adyacentes visibles */}
+      {(() => {
+        const panels: ReactNode[] = [];
+        const levels = [yBase, ...nivelesY];
+        for (let lv = 0; lv < levels.length - 1; lv++) {
+          const yA = levels[lv], yB = levels[lv + 1];
+          for (let c = 0; c < colX.length - 1; c++) {
+            panels.push(
+              <g key={`x-${lv}-${c}`}>
+                <line x1={colX[c]} y1={yA} x2={colX[c + 1]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
+                <line x1={colX[c + 1]} y1={yA} x2={colX[c]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
+              </g>,
+            );
+          }
+        }
+        return panels;
+      })()}
+      {/* Vigas de anillo horizontales en cada nivel de arriostre */}
       {nivelesY.map((y, i) => (
-        <g key={i}>
-          <line x1={cx - RcolPx} y1={y} x2={cx + RcolPx} y2={y} stroke={NAVY} strokeWidth="1.6" />
-          <line x1={cx - RcolPx} y1={y} x2={cx + RcolPx} y2={y - 26} stroke={NAVY} strokeWidth="0.8" strokeDasharray="4,2" />
-          <line x1={cx - RcolPx} y1={y - 26} x2={cx + RcolPx} y2={y} stroke={NAVY} strokeWidth="0.8" strokeDasharray="4,2" />
-        </g>
+        <line key={`beam-${i}`} x1={colX[0]} y1={y} x2={colX[colX.length - 1]} y2={y} stroke={NAVY} strokeWidth="2.2" />
+      ))}
+      <line x1={colX[0]} y1={yBase} x2={colX[colX.length - 1]} y2={yBase} stroke={NAVY} strokeWidth="2.2" />
+      {/* Columnas (dibujadas al final para que tapen las diagonales, como en un alzado real) */}
+      {colX.map((x, i) => (
+        <rect key={`col-${i}`} x={x - dColPx / 2} y={yTop} width={dColPx} height={yBase - yTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.1" />
       ))}
       <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
-      <Cota x1={cx - RcolPx} y1={baseY + 24} x2={cx + RcolPx} y2={baseY + 24} text={`2·Rcol=${(2 * Rcol).toFixed(2)} m`} side={14} />
+      <Cota x1={colX[0]} y1={baseY + 24} x2={colX[colX.length - 1]} y2={baseY + 24} text={`2·Rcol=${(2 * Rcol).toFixed(2)} m`} side={14} />
       <Cota x1={cx + RcolPx + 60} y1={baseY - 16} x2={cx + RcolPx + 60} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
+      <Cota x1={cx - RcolPx - 60} y1={yBase} x2={cx - RcolPx - 60} y2={nivelesY[0] ?? yTop} text={`h=${hEntreCalc.toFixed(2)}`} side={-16} vertical />
       <text x={cx} y={20} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
         Elevación — tanque elevado sobre columnas
+      </text>
+      <text x={cx} y={baseY + 42} fontSize="8" fill={INK} textAnchor="middle">
+        {nCol} columnas Ø{(dCol * 100).toFixed(0)} cm en el perímetro · {nArr} nivel(es) de arriostre con diagonales en X
       </text>
     </g>
   );
