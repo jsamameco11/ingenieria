@@ -1,0 +1,16 @@
+[Unit]
+Description=MemoriaCalc Culqi charges
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/memorcalc
+EnvironmentFile=/etc/memorcalc-culqi.env
+ExecStart=/usr/bin/node /opt/memorcalc/culqi-server.mjs
+Restart=always
+TimeoutSec=420
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

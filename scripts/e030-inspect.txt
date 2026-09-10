@@ -1,0 +1,306 @@
+max_row 1890 max_col 24
+=== defined names ===
+count 220
+O1_AMAZONAS => 'Cuadros E030'!$B$34:$B$40
+O1_BAGUA => 'Cuadros E030'!$C$55:$C$60
+O1_BONGARÁ => 'Cuadros E030'!$C$61:$C$72
+O1_CHACHAPOYAS => 'Cuadros E030'!$C$34:$C$54
+O1_CONDORCANQUI => 'Cuadros E030'!$C$73:$C$75
+O1_LUYA => 'Cuadros E030'!$C$76:$C$98
+O1_RODRÍGUEZ_DE_MENDOZA => 'Cuadros E030'!$C$106:$C$117
+O1_UTCUBAMBA => 'Cuadros E030'!$C$99:$C$105
+O10_AMBO => 'Cuadros E030'!$C$968:$C$975
+O10_DOS_DE_MAYO => 'Cuadros E030'!$C$987:$C$995
+O10_HUACAYBAMBA => 'Cuadros E030'!$C$938:$C$941
+O10_HUAMALÍES => 'Cuadros E030'!$C$976:$C$986
+O10_HUÁNUCO => 'Cuadros E030'!$B$926:$B$936
+O10_HUÁNUCO. => 'Cuadros E030'!$C$926:$C$937
+O10_LAURICOCHA => 'Cuadros E030'!$C$996:$C$1002
+O10_LEONCIO_PRADO => 'Cuadros E030'!$C$942:$C$947
+O10_MARAÑÓN => 'Cuadros E030'!$C$948:$C$950
+O10_PACHITEA => 'Cuadros E030'!$C$964:$C$967
+O10_PUERTO_INCA => 'Cuadros E030'!$C$951:$C$955
+O10_YAROWILCA => 'Cuadros E030'!$C$956:$C$963
+O11_CHINCHA => 'Cuadros E030'!$C$1004:$C$1014
+O11_ICA => 'Cuadros E030'!$B$1004:$B$1008
+O11_ICA. => 'Cuadros E030'!$C$1020:$C$1033
+O11_NAZCA => 'Cuadros E030'!$C$1034:$C$1038
+O11_PALPA => 'Cuadros E030'!$C$1015:$C$1019
+O11_PISCO => 'Cuadros E030'!$C$1039:$C$1046
+O12_CHANCHAMAYO => 'Cuadros E030'!$C$1048:$C$1053
+O12_CHUPACA => 'Cuadros E030'!$C$1086:$C$1094
+O12_CONCEPCIÓN => 'Cuadros E030'!$C$1071:$C$1085
+O12_HUANCAYO => 'Cuadros E030'!$C$1095:$C$1122
+O12_JAUJA => 'Cuadros E030'!$C$1123:$C$1156
+O12_JUNÍN => 'Cuadros E030'!$B$1048:$B$1056
+O12_JUNÍN. => 'Cuadros E030'!$C$1157:$C$1160
+O12_SATIPO => 'Cuadros E030'!$C$1054:$C$1061
+O12_TARMA => 'Cuadros E030'!$C$1062:$C$1070
+O12_YAULI => 'Cuadros E030'!$C$1161:$C$1170
+O13_ASCOPE => 'Cuadros E030'!$C$1228:$C$1235
+O13_BOLÍVAR => 'Cuadros E030'!$C$1172:$C$1177
+O13_CHEPÉN => 'Cuadros E030'!$C$1225:$C$1227
+O13_GRAN_CHIMÚ => 'Cuadros E030'!$C$1207:$C$1210
+O13_JULCÁN => 'Cuadros E030'!$C$1211:$C$1214
+O13_LA_LIBERTAD => 'Cuadros E030'!$B$1172:$B$1183
+O13_OTUZCO => 'Cuadros E030'!$C$1215:$C$1224
+O13_PACASMAYO => 'Cuadros E030'!$C$1236:$C$1240
+O13_PATAZ => 'Cuadros E030'!$C$1178:$C$1190
+O13_SÁNCHEZ_CARRIÓN => 'Cuadros E030'!$C$1191:$C$1198
+O13_SANTIAGO_DE_CHUCO => 'Cuadros E030'!$C$1199:$C$1206
+O13_TRUJILLO => 'Cuadros E030'!$C$1241:$C$1251
+O13_VIRÚ => 'Cuadros E030'!$C$1252:$C$1254
+O14_CHICLAYO => 'Cuadros E030'!$C$1274:$C$1293
+O14_FERREÑAFE => 'Cuadros E030'!$C$1256:$C$1261
+O14_LAMBAYEQUE => 'Cuadros E030'!$B$1256:$B$1258
+O14_LAMBAYEQUE. => 'Cuadros E030'!$C$1262:$C$1273
+O15_BARRANCA => 'Cuadros E030'!$C$1417:$C$1421
+O15_CAJATAMBO => 'Cuadros E030'!$C$1295:$C$1299
+O15_CANTA => 'Cuadros E030'!$C$1370:$C$1376
+O15_CAÑETE => 'Cuadros E030'!$C$1401:$C$1416
+O15_HUARAL => 'Cuadros E030'!$C$1377:$C$1388
+O15_HUAROCHIRÍ => 'Cuadros E030'!$C$1338:$C$1369
+O15_HUAURA => 'Cuadros E030'!$C$1389:$C$1400
+O15_LIMA => 'Cuadros E030'!$B$1295:$B$1304
+O15_LIMA. => 'Cuadros E030'!$C$1422:$C$1464
+O15_OYÓN => 'Cuadros E030'!$C$1300:$C$1305
+O15_YAUYOS => 'Cuadros E030'!$C$1306:$C$1337
+O16_ALTO_AMAZONAS => 'Cuadros E030'!$C$1499:$C$1504
+O16_DATEM_DEL_MARAÑÓN => 'Cuadros E030'!$C$1512:$C$1517
+O16_LORETO => 'Cuadros E030'!$B$1466:$B$1472
+O16_LORETO. => 'Cuadros E030'!$C$1494:$C$1498
+O16_MARISCAL_RAMÓN_CASTILLA => 'Cuadros E030'!$C$1466:$C$1469
+O16_MAYNAS => 'Cuadros E030'!$C$1470:$C$1482
+O16_REQUENA => 'Cuadros E030'!$C$1483:$C$1493
+O16_UCAYALI => 'Cuadros E030'!$C$1505:$C$1511
+O17_MADRE_DE_DIOS => 'Cuadros E030'!$B$1519:$B$1521
+O17_MANU => 'Cuadros E030'!$C$1526:$C$1529
+O17_TAHUAMANU => 'Cuadros E030'!$C$1523:$C$1525
+O17_TAMBOPATA => 'Cuadros E030'!$C$1519:$C$1522
+O18_GENERAL_SÁNCHEZ_CERRO => 'Cuadros E030'!$C$1531:$C$1541
+O18_ILO => 'Cuadros E030'!$C$1548:$C$1550
+O18_MARISCAL_NIETO => 'Cuadros E030'!$C$1542:$C$1547
+O18_MOQUEGUA => 'Cuadros E030'!$B$1531:$B$1533
+
+=== A-E rows 1-80 ===
+1 ['Tabla N° 1', None, None, 'Tabla N° 3', None]
+2 ['FACTORES DE ZONA “Z”', None, None, 'FACTOR DE SUELO "S"', None]
+3 ['ZONA', 'Z', None, 'Z \\ S', 'S0']
+4 [4, 0.45, None, 'Z4', 0.8]
+5 [3, 0.35, None, 'Z3', 0.8]
+6 [2, 0.25, None, 'Z2', 0.8]
+7 [1, 0.1, None, 'Z1', 0.8]
+9 ['Tabla N° 5', None, None, None, None]
+10 ['CATEGORÍA DE LAS EDIFICACIONES Y FACTOR “U”', None, None, None, None]
+11 ['CATEGORÍA', 'DESCRIPCIÓN', 'FACTOR U', None, None]
+12 ['A1 (Esenciales)', 'A1', 'Ver nota 1', None, None]
+13 ['A2 (Esenciales)', 'A2', 1.5, None, 'Acero:']
+14 ['B (Importantes)', '--', 1.3, None, None]
+15 ['C (Comunes)', '--', 1, None, None]
+16 ['D (Temporales)', '--', 'Ver nota 2', None, None]
+18 ['Tabla N° 11', None, None, None, None]
+19 ['LÍMITES PARA LA DISTORSIÓN DEL ENTREPISO', None, None, None, 'Concreto Armado:']
+20 ['Material Predominante', None, '(Δi/hei)', None, None]
+21 ['Concreto Armado', None, 0.007, None, None]
+22 ['Acero', None, 0.01, None, None]
+23 ['Albañilería', None, 0.005, None, None]
+24 ['Madera', None, 0.01, None, None]
+25 ['Muros de ductilidad limitada', None, 0.005, None, None]
+27 ['Nota 1: Las nuevas edificaciones de categoría A1 tendrán aislamiento sísmico en la base cuando se encuentren en las zonas sísmicas 4 y 3. En las zonas sísmicas 1 y 2, la entidad responsable podrá decidir si usa o no aislamiento sísmico. Si no se utiliza aislamiento sísmico en las zonas sísmicas 1 y 2, el valor de U será como mínimo 1,5.', None, None, None, None]
+28 ['Nota 2: En estas edificaciones deberá proveerse resistencia y rigidez adecuadas para acciones laterales, a criterio del proyectista.', None, None, None, None]
+33 ['REGIÓN (DPTO.)', 'PROVINCIA', 'DISTRITO', 'ZONA SÍSMICA', 'ÁMBITO']
+34 ['O1_AMAZONAS', 'O1_CHACHAPOYAS', '01 ASUNCIÓN', 2, 'TODOS LOS DISTRITOS']
+35 [None, 'O1_BAGUA', '01 BALSAS', 2, 'TODOS LOS DISTRITOS']
+36 [None, 'O1_BONGARÁ', '01 CHACHAPOYAS', 2, 'TODOS LOS DISTRITOS']
+37 [None, 'O1_CONDORCANQUI', '01 CHETO', 2, 'TODOS LOS DISTRITOS']
+38 [None, 'O1_LUYA', '01 CHILIQUÍN', 2, 'TODOS LOS DISTRITOS']
+39 [None, 'O1_UTCUBAMBA', '01 CHUQUIBAMBA', 2, 'TODOS LOS DISTRITOS']
+40 [None, 'O1_RODRÍGUEZ_DE_MENDOZA', '01 GRANADA', 2, 'TODOS LOS DISTRITOS']
+41 [None, None, '01 HUANCAS', 2, 'TODOS LOS DISTRITOS']
+42 [None, None, '01 LA JALCA', 2, 'TODOS LOS DISTRITOS']
+43 [None, None, '01 LEVANTO', 2, 'TODOS LOS DISTRITOS']
+44 [None, None, '01 LEYMEBAMBA', 2, 'TODOS LOS DISTRITOS']
+45 [None, None, '01 MAGDALENA', 2, 'TODOS LOS DISTRITOS']
+46 [None, None, '01 MARISCAL CASTILLA', 2, 'TODOS LOS DISTRITOS']
+47 [None, None, '01 MOLINOPAMPA', 2, 'TODOS LOS DISTRITOS']
+48 [None, None, '01 MONTEVIDEO', 2, 'TODOS LOS DISTRITOS']
+49 [None, None, '01 OLLEROS', 2, 'TODOS LOS DISTRITOS']
+50 [None, None, '01 QUINJALCA', 2, 'TODOS LOS DISTRITOS']
+51 [None, None, '01 SAN FRANCISCO DE DAGUAS', 2, 'TODOS LOS DISTRITOS']
+52 [None, None, '01 SAN ISIDRO DE MAINO', 2, 'TODOS LOS DISTRITOS']
+53 [None, None, '01 SOLOCO', 2, 'TODOS LOS DISTRITOS']
+54 [None, None, '01 SONCHE', 2, 'TODOS LOS DISTRITOS']
+55 [None, None, '01 ARAMANGO', 2, 'TODOS LOS DISTRITOS']
+56 [None, None, '01 BAGUA', 2, 'TODOS LOS DISTRITOS']
+57 [None, None, '01 COPALLIN', 2, 'TODOS LOS DISTRITOS']
+58 [None, None, '01 EL PARCO', 2, 'TODOS LOS DISTRITOS']
+59 [None, None, '01 IMAZA', 2, 'TODOS LOS DISTRITOS']
+60 [None, None, '01 LA PECA', 2, 'TODOS LOS DISTRITOS']
+61 [None, None, '01 CHISQUILLA', 2, 'TODOS LOS DISTRITOS']
+62 [None, None, '01 CHURUJA', 2, 'TODOS LOS DISTRITOS']
+63 [None, None, '01 COROSHA', 2, 'TODOS LOS DISTRITOS']
+64 [None, None, '01 CUISPES', 2, 'TODOS LOS DISTRITOS']
+65 [None, None, '01 FLORIDA', 2, 'TODOS LOS DISTRITOS']
+66 [None, None, '01 JAZAN', 2, 'TODOS LOS DISTRITOS']
+67 [None, None, '01 JUMBILLA', 2, 'TODOS LOS DISTRITOS']
+68 [None, None, '01 RECTA', 2, 'TODOS LOS DISTRITOS']
+69 [None, None, '01 SAN CARLOS', 2, 'TODOS LOS DISTRITOS']
+70 [None, None, '01 SHIPASBAMBA', 2, 'TODOS LOS DISTRITOS']
+71 [None, None, '01 VALERA', 2, 'TODOS LOS DISTRITOS']
+72 [None, None, '01 YAMBRASBAMBA', 2, 'TODOS LOS DISTRITOS']
+73 [None, None, '01 EL CENEPA', 2, 'TODOS LOS DISTRITOS']
+74 [None, None, '01 NIEVA', 2, 'TODOS LOS DISTRITOS']
+75 [None, None, '01 RÍO SANTIAGO', 2, 'TODOS LOS DISTRITOS']
+76 [None, None, '01 CAMPORREDONDO', 2, 'TODOS LOS DISTRITOS']
+77 [None, None, '01 COCABAMBA', 2, 'TODOS LOS DISTRITOS']
+78 [None, None, '01 COLCAMAR', 2, 'TODOS LOS DISTRITOS']
+79 [None, None, '01 CONILA', 2, 'TODOS LOS DISTRITOS']
+80 [None, None, '01 INGUILPATA', 2, 'TODOS LOS DISTRITOS']
+
+=== A-E rows 1800-1900 ===
+1800 [None, None, '22 YANTALO', 3, 'TODOS LOS DISTRITOS']
+1801 [None, None, '22 RIOJA', 3, 'TODOS LOS DISTRITOS']
+1802 [None, None, '22 AWAJÚN', 3, 'TODOS LOS DISTRITOS']
+1803 [None, None, '22 ELÍAS SOPLÍN VARGAS', 3, 'TODOS LOS DISTRITOS']
+1804 [None, None, '22 NUEVA CAJAMARCA', 3, 'TODOS LOS DISTRITOS']
+1805 [None, None, '22 PARDO MIGUEL', 3, 'TODOS LOS DISTRITOS']
+1806 [None, None, '22 POSIC', 3, 'TODOS LOS DISTRITOS']
+1807 [None, None, '22 SAN FERNANDO', 3, 'TODOS LOS DISTRITOS']
+1808 [None, None, '22 YORONGOS', 3, 'TODOS LOS DISTRITOS']
+1809 [None, None, '22 YURACYACU', 3, 'TODOS LOS DISTRITOS']
+1810 [None, None, '22 CHIPURANA', 2, 'CUATRO DISTRITOS']
+1811 [None, None, '22 EL PORVENIR', 2, 'CUATRO DISTRITOS']
+1812 [None, None, '22 HUIMBAYOC', 2, 'CUATRO DISTRITOS']
+1813 [None, None, '22 PAPAPLAYA', 2, 'CUATRO DISTRITOS']
+1814 [None, None, '22 TARAPOTO', 3, 'DIEZ DISTRITOS']
+1815 [None, None, '22 ALBERTO LEVEU', 3, 'DIEZ DISTRITOS']
+1816 [None, None, '22 CACATACHI', 3, 'DIEZ DISTRITOS']
+1817 [None, None, '22 CHAZUTA', 3, 'DIEZ DISTRITOS']
+1818 [None, None, '22 JUAN GUERRA', 3, 'DIEZ DISTRITOS']
+1819 [None, None, '22 LA BANDA DE SHILCAYO', 3, 'DIEZ DISTRITOS']
+1820 [None, None, '22 MORALES', 3, 'DIEZ DISTRITOS']
+1821 [None, None, '22 SAN ANTONIO', 3, 'DIEZ DISTRITOS']
+1822 [None, None, '22 SAUCE', 3, 'DIEZ DISTRITOS']
+1823 [None, None, '22 SHAPAJA', 3, 'DIEZ DISTRITOS']
+1824 [None, None, '22 TOCACHE', 2, 'TODOS LOS DISTRITOS']
+1825 [None, None, '22 NUEVO PROGRESO', 2, 'TODOS LOS DISTRITOS']
+1826 [None, None, '22 PÓLVORA', 2, 'TODOS LOS DISTRITOS']
+1827 [None, None, '22 SHUNTE', 2, 'TODOS LOS DISTRITOS']
+1828 [None, None, '22 UCHIZA', 2, 'TODOS LOS DISTRITOS']
+1829 [None, None, '22 SAN JOSÉ DE SISA', 3, 'TODOS LOS DISTRITOS']
+1830 [None, None, '22 AGUA BLANCA', 3, 'TODOS LOS DISTRITOS']
+1831 [None, None, '22 SAN MARTÍN', 3, 'TODOS LOS DISTRITOS']
+1832 [None, None, '22 SANTA ROSA', 3, 'TODOS LOS DISTRITOS']
+1833 [None, None, '22 SHANTOJA', 3, 'TODOS LOS DISTRITOS']
+1834 ['REGIÓN (DPTO.)', 'PROVINCIA', 'DISTRITO', 'ZONA SÍSMICA', 'ÁMBITO']
+1835 ['O23_TACNA', 'O23_TARATA', '23 CHUCATAMANI', 3, 'TODOS LOS DISTRITOS']
+1836 [None, 'O23_CANDARAVE', '23 ESTIQUE', 3, 'TODOS LOS DISTRITOS']
+1837 [None, 'O23_JORGE_BASADRE', '23 ESTIQUE-PAMPA', 3, 'TODOS LOS DISTRITOS']
+1838 [None, 'O23_TACNA.', '23 SITAJARA', 3, 'TODOS LOS DISTRITOS']
+1839 [None, None, '23 SUSAPAYA', 3, 'TODOS LOS DISTRITOS']
+1840 [None, None, '23 TARATA', 3, 'TODOS LOS DISTRITOS']
+1841 [None, None, '23 TARUCACHI', 3, 'TODOS LOS DISTRITOS']
+1842 [None, None, '23 TICACO', 3, 'TODOS LOS DISTRITOS']
+1843 [None, None, '23 CAIRANI', 3, 'TODOS LOS DISTRITOS']
+1844 [None, None, '23 CAMILACA', 3, 'TODOS LOS DISTRITOS']
+1845 [None, None, '23 CANDARAVE', 3, 'TODOS LOS DISTRITOS']
+1846 [None, None, '23 CURIBAYA', 3, 'TODOS LOS DISTRITOS']
+1847 [None, None, '23 HUANUARA', 3, 'TODOS LOS DISTRITOS']
+1848 [None, None, '23 QUILAHUANI', 3, 'TODOS LOS DISTRITOS']
+1849 [None, None, '23 ILABAYA', 4, 'TODOS LOS DISTRITOS']
+1850 [None, None, '23 ITE', 4, 'TODOS LOS DISTRITOS']
+1851 [None, None, '23 LOCUMBA', 4, 'TODOS LOS DISTRITOS']
+1852 [None, None, '23 PALCA', 3, 'UN DISTRITO']
+1853 [None, None, '23 ALTO DE LA ALIANZA', 4, 'OCHO DISTRITOS']
+1854 [None, None, '23 CALANA', 4, 'OCHO DISTRITOS']
+1855 [None, None, '23 CIUDAD NUEVA', 4, 'OCHO DISTRITOS']
+1856 [None, None, '23 INCLÁN', 4, 'OCHO DISTRITOS']
+1857 [None, None, '23 PACHIA', 4, 'OCHO DISTRITOS']
+1858 [None, None, '23 POCOLLAY', 4, 'OCHO DISTRITOS']
+1859 [None, None, '23 SAMA', 4, 'OCHO DISTRITOS']
+1860 [None, None, '23 TACNA', 4, 'OCHO DISTRITOS']
+1861 ['REGIÓN (DPTO.)', 'PROVINCIA', 'DISTRITO', 'ZONA SÍSMICA', 'ÁMBITO']
+1862 ['O24_TUMBES', 'O24_CONTRALMIRANTE_VILLAR', '24 CASITAS', 4, 'TODOS LOS DISTRITOS']
+1863 [None, 'O24_TUMBES.', '24 ZORRITOS', 4, 'TODOS LOS DISTRITOS']
+1864 [None, 'O24_ZARUMILLA', '24 CORRALES', 4, 'TODOS LOS DISTRITOS']
+1865 [None, None, '24 LA CRUZ', 4, 'TODOS LOS DISTRITOS']
+1866 [None, None, '24 PAMPAS DE HOSPITAL', 4, 'TODOS LOS DISTRITOS']
+1867 [None, None, '24 SAN JACINTO', 4, 'TODOS LOS DISTRITOS']
+1868 [None, None, '24 SAN JUAN DE LA VIRGEN', 4, 'TODOS LOS DISTRITOS']
+1869 [None, None, '24 TUMBES', 4, 'TODOS LOS DISTRITOS']
+1870 [None, None, '24 AGUAS VERDES', 4, 'TODOS LOS DISTRITOS']
+1871 [None, None, '24 MATAPALO', 4, 'TODOS LOS DISTRITOS']
+1872 [None, None, '24 PAPAYAL', 4, 'TODOS LOS DISTRITOS']
+1873 [None, None, '24 ZARUMILLA', 4, 'TODOS LOS DISTRITOS']
+1874 ['REGIÓN (DPTO.)', 'PROVINCIA', 'DISTRITO', 'ZONA SÍSMICA', 'ÁMBITO']
+1875 ['O25_UCAYALI', 'O25_PURÚS', '25 PURÚS', 1, 'ÚNICO DISTRITO']
+1876 [None, 'O25_ATALAYA', '25 RAIMONDI', 2, 'TODOS LOS DISTRITOS']
+1877 [None, 'O25_PADRE_ABAD', '25 SEPAHUA', 2, 'TODOS LOS DISTRITOS']
+1878 [None, 'O25_CORONEL_PORTILLO', '25 TAHUANÍA', 2, 'TODOS LOS DISTRITOS']
+1879 [None, None, '25 YURÚA', 2, 'TODOS LOS DISTRITOS']
+1880 [None, None, '25 CURIMANÁ', 2, 'TODOS LOS DISTRITOS']
+1881 [None, None, '25 IRAZOLA', 2, 'TODOS LOS DISTRITOS']
+1882 [None, None, '25 PADRE ABAD', 2, 'TODOS LOS DISTRITOS']
+1883 [None, None, '25 CALLERÍA', 2, 'TODOS LOS DISTRITOS']
+1884 [None, None, '25 CAMPOVERDE', 2, 'TODOS LOS DISTRITOS']
+1885 [None, None, '25 IPARÍA', 2, 'TODOS LOS DISTRITOS']
+1886 [None, None, '25 MANANTAY', 2, 'TODOS LOS DISTRITOS']
+1887 [None, None, '25 MASISEA', 2, 'TODOS LOS DISTRITOS']
+1888 [None, None, '25 NUEVA REQUENA', 2, 'TODOS LOS DISTRITOS']
+1889 [None, None, '25 YARINACOCHA', 2, 'TODOS LOS DISTRITOS']
+
+=== unique D values among C-looking districts ===
+[('3', 775), ('2', 646), ('4', 368), ('1', 29), ('5', 4), ('6', 3), ('7', 2), ('8', 1), ('9', 1), ('10', 1), ('11', 1), ('12', 1)]
+district-like rows 1832
+
+=== sample district rows ===
+34 O1_AMAZONAS O1_CHACHAPOYAS 01 ASUNCIÓN 2 TODOS LOS DISTRITOS
+35  O1_BAGUA 01 BALSAS 2 TODOS LOS DISTRITOS
+36  O1_BONGARÁ 01 CHACHAPOYAS 2 TODOS LOS DISTRITOS
+37  O1_CONDORCANQUI 01 CHETO 2 TODOS LOS DISTRITOS
+38  O1_LUYA 01 CHILIQUÍN 2 TODOS LOS DISTRITOS
+39  O1_UTCUBAMBA 01 CHUQUIBAMBA 2 TODOS LOS DISTRITOS
+40  O1_RODRÍGUEZ_DE_MENDOZA 01 GRANADA 2 TODOS LOS DISTRITOS
+41   01 HUANCAS 2 TODOS LOS DISTRITOS
+42   01 LA JALCA 2 TODOS LOS DISTRITOS
+43   01 LEVANTO 2 TODOS LOS DISTRITOS
+44   01 LEYMEBAMBA 2 TODOS LOS DISTRITOS
+45   01 MAGDALENA 2 TODOS LOS DISTRITOS
+46   01 MARISCAL CASTILLA 2 TODOS LOS DISTRITOS
+47   01 MOLINOPAMPA 2 TODOS LOS DISTRITOS
+48   01 MONTEVIDEO 2 TODOS LOS DISTRITOS
+49   01 OLLEROS 2 TODOS LOS DISTRITOS
+50   01 QUINJALCA 2 TODOS LOS DISTRITOS
+51   01 SAN FRANCISCO DE DAGUAS 2 TODOS LOS DISTRITOS
+52   01 SAN ISIDRO DE MAINO 2 TODOS LOS DISTRITOS
+53   01 SOLOCO 2 TODOS LOS DISTRITOS
+54   01 SONCHE 2 TODOS LOS DISTRITOS
+55   01 ARAMANGO 2 TODOS LOS DISTRITOS
+56   01 BAGUA 2 TODOS LOS DISTRITOS
+57   01 COPALLIN 2 TODOS LOS DISTRITOS
+58   01 EL PARCO 2 TODOS LOS DISTRITOS
+
+=== ANALISIS sheet location cells ===
+1 ['ANALISIS SÍSMICO ESTÁTICO (E.030)', None, None, None, None, None, None, None, None]
+4 [None, 'Caracteristicas del Proyecto:', None, 'Dirección de Analisis X - X', None, None, None, None, None]
+6 ['-', 'Zonificación (Z)', None, None, None, None, None, None, None]
+7 [None, 'Departamento :', None, 'O20_PIURA', None, None, None, None, None]
+8 [None, 'Provincia :', None, 'O20_HUANCABAMBA', None, None, None, None, None]
+9 [None, 'Distrito :', None, '20 HUARMACA', None, None, None, None, None]
+10 [None, 'Zona Sísmica :', None, 3, None, None, None, None, None]
+12 [None, None, 'Z =', 0.35, None, None, None, None, None]
+14 ['-', 'Parámetros de Sitio (S, TP y TL)', None, None, None, None, None, None, None]
+15 [None, None, 'Perfil de Suelo Tipo :', 'S3', None, None, None, None, None]
+17 [None, None, 'S =', 1.2, None, None, None, None, None]
+18 [None, None, 'TP =', 1, None, None, None, 'Figura N° 01: Zonas Sismicas', None]
+19 [None, None, 'TL =', 1.6, None, None, None, None, None]
+21 ['-', 'Categoría del Edificio (U)', None, None, None, None, None, None, None]
+23 [None, None, 'Categoria del Edificio :', 'C (Comunes)', None, None, None, None, None]
+25 [None, None, None, 'U =', 1, None, None, None, None]
+27 ['-', 'Restricciones de Irregularidad', None, None, None, None, None, None, None]
+29 [None, 'No se permiten irregularidades extremas', None, None, None, None, None, None, None]
+31 ['-', 'Coeficiente Básico de Reducción de Fuerzas Sísmicas (Ro)', None, None, None, None, None, None, None]
+33 [None, None, None, 'Sistema Estructural :', 'Concreto Armado: Dual', None, None, None, None]
+35 [None, None, None, None, 'R0 =', 7, None, None, None]
+37 ['-', 'Factores de Irregularidad (Ia e Ip)', None, None, None, None, None, None, None]
+39 [None, None, None, 'Irregularidad en Altura, Ia :', 'Regular - Sistema Estructural Continuo', None, None, None, None]

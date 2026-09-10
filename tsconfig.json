@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/vite-env.d.ts",
+    "src/lib/**/*.ts",
+    "src/lib/**/*.tsx",
+    "src/ui/**/*.tsx",
+    "src/modules/**/*.tsx",
+    "src/control/**/*.tsx",
+    "src/components/Diagram.tsx",
+    "src/components/PmExportPanel.tsx"
+  ],
+  "exclude": [
+    "src/lib/supabase.ts",
+    "src/lib/engines/edificaciones.ts",
+    "src/lib/modules.ts",
+    "src/lib/engineering.ts",
+    "src/app/**",
+    "src/components/Calculator.tsx",
+    "src/components/Shell.tsx",
+    "src/components/Header.tsx",
+    "src/components/Diagrams.tsx"
+  ]
+}

@@ -1,0 +1,15 @@
+﻿{
+    "version":  "2.0.0",
+    "urls":  {
+                 "2023":  "/addin/MemoriaCalc.Revit.Setup.exe",
+                 "2025":  "/addin/MemoriaCalc.Revit.Setup.exe",
+                 "2024":  "/addin/MemoriaCalc.Revit.Setup.exe",
+                 "2026":  "/addin/MemoriaCalc.Revit.Setup.exe"
+             },
+    "publishedAt":  "2026-09-06",
+    "schema":  "memoriacalc.revit.v1",
+    "sizeLabel":  "instalador",
+    "setupUrl":  "/addin/MemoriaCalc.Revit.Setup.exe",
+    "available":  true,
+    "notes":  "Add-in de Revit con panel acoplable. Conecta, analiza y sincroniza metrados en vivo."
+}

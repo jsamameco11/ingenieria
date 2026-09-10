@@ -1,0 +1,763 @@
+ALCOSAVI ARQUITECTURA Y CONSTRUCCIÓN S.R.L.
+Instrucción operativa para agente de inteligencia artificial · uso interno
+INSTRUCCIÓN DE METRADO: SOLO PARTIDAS VIGENTES
+El agente no crea partidas. Primero carga y congela el catálogo del presupuesto que ya existe. Después, y solo después, lee planos y cuadro de cargas para proponer el metrado de CADA código ya listado. Proyecto piloto: Los Ciruelos II · Proforma N.° 70-2026-AACSRL · 04 de septiembre de 2026.
+1. Rol del agente y resultado esperado
+Usted es un ingeniero de metrados al servicio de ALCOSAVI. Su producto no es un catálogo nuevo ni una lista de materiales inventada. Su producto es una tabla con exactamente los mismos códigos que el presupuesto vigente, cada uno con: metrado propuesto, fuente, fórmula, comparación contra el metrado que ya estaba, y una acción KEEP / ADJUST / REVIEW. El P.U. y la descripción de la partida no se tocan.
+Si el plano muestra un objeto que no tiene código en el catálogo (poste de acometida, bandeja, hydrobox como ítem aparte, luminaria LED), usted NO abre una línea nueva. Lo anota en el memorial de observaciones, fuera del presupuesto. El Gerente decide si más adelante se crea partida. Eso no es trabajo de este agente.
+2. Prohibiciones absolutas (si las incumple, el run es inválido)
+Prohibido
+Por qué
+Qué hacer en su lugar
+Inventar un código (12.01, X-01 dentro del CD, «partida nueva»)
+Rompe el presupuesto y el programa de armado
+Memorial de observaciones, fuera de la tabla de partidas
+Cambiar el texto de la descripción o el P.U.
+El precio es decisión comercial ya cerrada en N70
+Copiar descripción y P.U. tal cual del Excel vigente
+Empezar por los planos y «después acomodar partidas»
+Eso produce partidas fantasmas (poste, fleje, SEL, N2XOH…)
+FASE A primero: catálogo congelado
+Fusionar dos códigos o partir uno en dos
+El JOIN del programa es por código exacto
+Un renglón por código. Si el plano distingue IP55, va en la nota de 05.01/05.02
+Borrar una partida porque «no se ve en el plano»
+Los globales (01, 10) no se dibujan
+KEEP 1 glb, o REVIEW si el Gerente pide quitar alcance
+Usar visión para cambiar un número que ya dio el cuadro de cargas
+La visión alucina amperajes y conteos
+Cuadro manda en 04.01, 05.01, 05.02, 03.04–03.08
+Recalcular P.U. «porque el material es N2XOH»
+Eso es otra cotización, no este metrado
+REVIEW en la nota de 02.03/04.03; el P.U. THW-90 se mantiene
+Llenar metros midiendo a ojo un PDF 1/75
+No es metrado certificado
+Lineales: KEEP del vigente salvo instrucción expresa del Gerente
+3. Catálogo congelado — estas son LAS ÚNICAS partidas
+Antes de abrir un plano, el agente copia esta lista desde el archivo «CUADRO PRESUPUESTO IIEE LOS CIRUELOS N70.xlsx», hoja PROFORMA, filas de código con formato NN.NN (no las filas de capítulo NN.00). Debe haber 64 códigos. Si cuenta 63 o 65, se detiene: el Excel no es el vigente o se filtró mal.
+Código
+Und
+Metrado vigente
+P.U. (S/) — no tocar
+01.01 Trazo, replanteo y compatibilización
+glb
+1
+1 731.77
+01.02 Andamios, herramientas y equipos menores
+glb
+1
+1 259.47
+01.03 Señalización temporal y protección
+glb
+1
+354.23
+02.01 Canalización PVC SAP Ø25 alimentadores
+m
+2 967
+7.48
+02.02 Caja de pase FG alimentadores
+und
+25
+74.78
+02.03 Conductor THW-90 10 mm² a TG
+m
+8 193
+10.08
+02.04 Conductor THW-90 10 mm² a TSG
+m
+708
+10.08
+02.05 Identificación de alimentadores
+glb
+1
+511.66
+03.01 TG PVC IP40
+und
+100
+145.63
+03.02 ITM general 2×40 A TG
+und
+100
+53.53
+03.03 Diferencial 2×40 A 30 mA TG
+und
+200
+74.78
+03.04 ITM 2×10 A alumbrado c-1
+und
+100
+22.04
+03.05 ITM 2×16 A tomas c-2
+und
+100
+25.19
+03.06 ITM 2×16 A cocina c-3
+und
+100
+25.19
+03.07 ITM 2×16 A therma c-4
+und
+100
+25.19
+03.08 ITM 2×32 A cocina eléc. c-5
+und
+100
+37.78
+03.09 TSG PVC IP40
+und
+5
+173.18
+03.10 ITM general 2×25 A TSG
+und
+5
+43.29
+03.11 Diferencial 2×25 A 30 mA TSG
+und
+5
+66.91
+03.12 ITM 2×10 A alumbrado TSG
+und
+5
+22.04
+03.13 ITM 2×20 A especial TSG
+und
+5
+29.91
+03.14 Etiquetado + unifilar en puerta
+und
+105
+14.17
+04.01 Salida centro de alumbrado (caja oct.)
+pto
+1 400
+33.06
+04.02 Canalización PVC SAP Ø20 alumbrado
+m
+5 932
+4.88
+04.03 Conductor 2.5 mm² F+N+T alumbrado
+m
+13 182
+2.99
+04.04 Conductor 2.5 mm² retorno/conmutación
+m
+5 462
+2.99
+04.05 Salida interruptor simple
+pto
+500
+37.78
+04.06 Salida interruptor doble
+pto
+200
+53.53
+04.07 Salida conmutador 2 vías
+pto
+100
+59.04
+04.08 Salida emergencia (caja y acometida)
+pto
+85
+27.55
+05.01 Toma doble universal c-2
+pto
+900
+39.36
+05.02 Toma doble universal c-3 cocina
+pto
+400
+39.36
+05.03 Canalización PVC SAP Ø20 tomas
+m
+12 736
+4.88
+05.04 Conductor 4 mm² F+N tomas
+m
+18 867
+4.72
+05.05 Conductor 2.5 mm² verde tierra tomas
+m
+9 434
+2.99
+06.01 Salida therma 1500 W
+pto
+100
+47.23
+06.02 Canalización Ø20 therma
+m
+2 731
+4.88
+06.03 Conductor 4+2.5 mm² therma
+m
+8 193
+3.94
+06.04 Salida cocina 8000 W
+pto
+100
+62.97
+06.05 Canalización Ø25 cocina
+m
+1 986
+7.48
+06.06 Conductor 6+4 mm² cocina
+m
+5 958
+6.30
+06.07 Salida especial TSG 1500 W
+pto
+5
+47.23
+06.08 Canalización Ø20 especial TSG
+m
+137
+4.88
+06.09 Conductor 4+2.5 mm² especial TSG
+m
+410
+3.94
+06.10 Therma eléctrica ≥1500 W (equipo)
+und
+100
+314.87
+07.01 Pozo SPT completo
+und
+6
+944.60
+07.02 Conductor 16 mm² verde enlaces SPT
+m
+262.57
+14.17
+07.03 Protocolo medición SPT
+und
+6
+157.43
+08.01 NAP / gabinete por torre
+und
+5
+629.74
+08.02 Buzón telecom exterior
+und
+5
+472.30
+08.03 Salida data/TV (caja + faceplate)
+pto
+200
+31.49
+08.04 Canalización Ø20–25 comunicaciones
+m
+4 407
+5.51
+08.05 UTP Cat.6 / RG-6 interior
+m
+4 965
+3.15
+08.06 Timbre por departamento
+pto
+100
+47.23
+08.07 Caja de pase FG comunicaciones
+und
+25
+74.78
+09.01 Detector autónomo en departamentos
+und
+200
+62.97
+09.02 Detector autónomo halls / comunes
+und
+25
+62.97
+09.03 Prueba y protocolos de detectores
+glb
+1
+393.59
+10.01 Pruebas continuidad y aislamiento
+glb
+1
+1 259.47
+10.02 Protocolos de prueba TG/TSG
+und
+105
+31.49
+10.03 Prueba puntos alumbrado 48 h (artefacto Cliente)
+glb
+1
+787.17
+10.04 Planos as-built AutoCAD
+glb
+1
+1 574.34
+11.01 Banco de medidores por torre (hasta 20)
+und
+5
+3 148.68
+11.02 Canalización PVC SAP Ø32 banco → ducto
+m
+137
+9.62
+Suma de control: 64 partidas. CD vigente = S/ 818 847.81. Si al recargar el Excel la suma de parciales no da ese monto (tolerancia 0.05), el archivo no es el N70 que esta instrucción asume: PAUSA y avisar al Gerente.
+4. FASE A — Cargar partidas (antes de tocar un plano)
+Esta fase es obligatoria y va primero. Sin ella no hay metrado.
+Abrir el Excel de presupuesto vigente (no un Word, no una lista de materiales, no las fichas).
+Leer hoja PROFORMA. Ignorar filas 01.00, 02.00… (títulos de capítulo) y la fila TOTAL.
+Construir el arreglo CATALOGO[i] = {codigo, descripcion, und, metrado_vigente, pu, parcial_vigente, capitulo}.
+Verificar: len(CATALOGO)==64; todos los códigos únicos; ningún pu vacío; ningún codigo fuera del patrón ^\d{2}\.\d{2}$.
+Congelar. A partir de aquí está prohibido append() de un código nuevo.
+Crear, para cada código, campos vacíos: metrado_propuesto, fuente, formula, nota, accion. No rellenarlos todavía.
+PAUSA OBLIGATORIA — A1 · Inventario de códigos
+Deténgase. Imprima la lista de 64 códigos en orden. Compárela con la tabla del capítulo 3 de esta instrucción. Si falta 06.10, 09.01 o 11.02, el Excel está incompleto (error ya visto cuando se cortó la lectura en la fila 76). No pase a planos hasta que el inventario coincida. Escriba en bitácora: «FASE A OK, 64 códigos, CD = …».
+5. FASE B — Cargar fuentes de metrado (aún no se escribe cantidad)
+Ahora sí se abren archivos de diseño. Todavía NO se altera metrado_propuesto. Solo se extraen CONSTANTES y EVIDENCIAS etiquetadas por especialidad.
+5.1 Cuadro de cargas (prioridad 1)
+Archivos: 7. CUADRO DE CARGAS MÓDULO A.xlsx y 8. … MÓDULO B.xlsx.
+Hojas TG-101…TG-104: anotar por circuito cantidad, sección, ITM, L(m). En este proyecto A y B son idénticos (13 / 9 / 4 / 1 / 1).
+Hojas ALIMENTADOR-TG: L = 10 / 15 / 20 m y llave 2×40 o 2×25 (hay al menos un TG-301 en 2×25).
+Hoja TSG: 20 puntos de alumbrado de escalera; 1 salida especial; ITM 2×10 y 2×20; alimentador L=30 m, 2×25.
+Hoja MD_TOTAL: 5.837 kW/depto; 118.10 kW/torre. Sirve para validar n_torres y n_deptos, no para inventar partidas.
+5.2 Planos PDF/DWG (prioridad 2–4)
+Clasificar por nombre: 1 alimentadores, 2 alumbrado, 3 tomas, 4 data, 5 alarma, 6 unifilares/detalles.
+Extraer leyenda (Ø, tipo de caja, alturas) y unifilar (calibre, Ø, IG, diferencial) asociados a CÓDIGOS YA EXISTENTES.
+Si aparece poste, fleje, FG 100 mm, N2XOH, PVC-SEL, hydrobox: va al memorial, no al catálogo.
+Tipología: si rotulan TG-101 a TG-504, hay 20 departamentos dibujados (1 torre × 5 pisos × 4 deptos). Factor de proyecto = n_torres del cuadro (5), no «lo que se vea en un INSERT».
+PAUSA OBLIGATORIA — B1 · Constantes del proyecto
+Antes de metrar, escriba y no cambie más estas constantes (salen del cuadro, no del chat): n_torres=5; n_pisos=5; n_deptos_piso=4; n_deptos=100; n_tsg=5; n_spt=6 (MD); luces_depto=13; tomas_c2=9; tomas_c3=4; therma=1; cocina=1; luces_tsg=20; especial_tsg=1. Si el cuadro A y el B discrepan en alguno de estos números, PAUSA B2: no promedie; avise al Gerente.
+6. FASE C — Metrar código por código (única forma permitida)
+Se recorre CATALOGO en orden 01.01 … 11.02. Para cada código se aplica la ficha de abajo. Está prohibido saltar un código «porque es global». Está prohibido metrar un objeto y luego buscarle partida: siempre es partida → evidencia → número.
+Acciones posibles al cerrar cada ficha: KEEP (se mantiene el vigente), ADJUST (cambia el metrado con fórmula y fuente explícitas; el P.U. no cambia), REVIEW (el vigente se conserva para el presupuesto; se documenta la duda; no se emite OC de ese ítem en automático).
+Capítulo 01 — Preliminares
+Código
+Cómo se metra
+Acción típica
+No hacer
+01.01
+Global de obra. No hay símbolo. Verificar que el alcance (compatibilizar IIEE con arquitectura) sigue en el contrato.
+KEEP 1 glb
+No convertirlo a «horas» ni a «por torre»
+01.02
+Global de andamios y equipos menores. No se dibuja.
+KEEP 1 glb
+No crear partidas de grúa ni de herramienta por unidad
+01.03
+Global de señalización temporal.
+KEEP 1 glb
+No metrar conos o cintas como líneas nuevas
+PAUSA OBLIGATORIA — C-01
+Tres códigos, tres KEEP salvo que el Gerente haya pedido sacar preliminares del alcance. Si usted escribió un 01.04, borre el run.
+Capítulo 02 — Alimentadores
+Código
+Cómo se metra
+Acción típica
+No hacer
+02.01
+Tubería Ø25 SAP de alimentadores. Leyenda plano 1 y unifilar: Ø25. Metros: en v1 KEEP 2 967 (factor de obra sobre L). Solo ADJUST si el Gerente pide re-medición CAD de polilínea.
+KEEP 2 967 m
+No abrir partida Ø32 ni Ø50/Ø100 del poste
+02.02
+Cajas de pase en ducto vertical. Criterio vigente: 1/piso × 5 torres = 25. El INSERT «caja de paso» del DWG NO se escala (incluye detalles).
+KEEP 25 und
+No usar 45 INSERT × 5
+02.03
+3 hilos 10 mm² a cada TG. Cuadro: L=10/15/20 m según piso. El vigente 8 193 m ya incluye factor. KEEP. Nota REVIEW si el unifilar exige N2XOH (equivalencia, no nueva partida).
+KEEP 8 193 m
+No crear «02.06 N2XOH»
+02.04
+3 hilos 10 mm² a 5 TSG. Cuadro L=30 m. KEEP 708 m.
+KEEP 708 m
+No mezclar con 02.03
+02.05
+Identificación CNE. Global.
+KEEP 1 glb
+No metrar etiquetas por extremo como und
+PAUSA OBLIGATORIA — C-02
+Compare Ø del unifilar (debe ser 25 mm en alimentador) con el texto de 02.01. Si el unifilar dijera Ø32 para el alimentador a TG, NO cree 02.06: ponga REVIEW en 02.01 y deje el metrado vigente hasta el Gerente. Verifique que 02.03 y 02.04 no se hayan sumado dos veces.
+Capítulo 03 — Tableros
+Código
+Cómo se metra
+Acción típica
+No hacer
+03.01
+1 TG por departamento. n_deptos del cuadro = 100.
+KEEP 100
+No contar bloques «tabelero» del DWG
+03.02
+1 ITM general por TG. Calibre vigente 2×40. Si ALIMENTADOR-TGx dice 2×25 en algunos, REVIEW (no baje a 25 ni parta el código).
+KEEP 100 + REVIEW nota
+No crear 03.15 «ITM 2×25 TG»
+03.03
+Diferenciales TG. Vigente 200 (2/depto). Unifilar: 2×25 A 30 mA, a veces 1 por TG. REVIEW de calibre y de cantidad. No cambie 200 sin OK del Gerente. No cambie el P.U.
+REVIEW; metrado se mantiene 200 salvo ADJUST autorizado
+No crear «diferencial 2×25» como código nuevo
+03.04
+1 × c-1 por TG. Cuadro: 2×10 A. n=100.
+KEEP 100
+No cambiar a 2×16 aunque la visión del unifilar lo «lea»
+03.05
+1 × c-2 por TG. 2×16 A. n=100.
+KEEP 100
+—
+03.06
+1 × c-3 por TG. 2×16 A. n=100.
+KEEP 100
+—
+03.07
+1 × c-4 por TG. 2×16 A. n=100.
+KEEP 100
+No usar 2×20 aunque un recorte lo diga; manda el cuadro
+03.08
+1 × c-5 por TG. 2×32 A. n=100.
+KEEP 100
+No crear 2×30; el cuadro dice 2×32
+03.09
+1 TSG por torre. n_torres=5.
+KEEP 5
+—
+03.10
+1 ITM general TSG 2×25. n=5.
+KEEP 5
+—
+03.11
+1 diferencial TSG 2×25 30 mA. n=5.
+KEEP 5
+—
+03.12
+1 ITM 2×10 alumbrado TSG. n=5.
+KEEP 5
+—
+03.13
+1 ITM 2×20 especial TSG. n=5.
+KEEP 5
+—
+03.14
+1 set por tablero: 100+5=105.
+KEEP 105
+No etiquetar medidores ENSA como partida nueva
+PAUSA OBLIGATORIA — C-03
+Sume 03.01 (100) y 03.09 (5): debe ser 105 y coincidir con 03.14 y con 10.02. Si 03.03 lo bajó a 100 por su cuenta, revertir a 200 y dejar REVIEW. Compruebe que no existan códigos 03.15 o superiores en su tabla de salida.
+Capítulo 04 — Alumbrado
+Código
+Cómo se metra
+Acción típica
+No hacer
+04.01
+Fórmula contractual: 13 × n_deptos + 20 × n_tsg = 1 300 + 100 = 1 400. El plano 2 confirma orden de magnitud en 1 torre (≈13 luces/depto). El artefacto LED NO se metra (suministro Cliente; no hay partida de luminaria).
+KEEP 1 400
+No crear partida de downlight 12 W ni de sensor de movimiento
+04.02
+Metros Ø20 alumbrado. Leyenda plano 2: Ø20. KEEP 5 932 salvo re-medición CAD pedida.
+KEEP 5 932 m
+No abrir PVC-SEL como código; si la leyenda dice SEL, nota en 04.02
+04.03
+Conductor 2.5 F+N+T. KEEP 13 182. Nota REVIEW si EETT pide LSZH/NH-90.
+KEEP 13 182 m
+No crear partida LS0H
+04.04
+Retornos/conmutación. KEEP 5 462. Va atado a 04.07, no es cable de fuerza.
+KEEP 5 462 m
+No duplicar estos metros dentro de 04.03
+04.05
+Interruptores simples. El cuadro NO los metra. Vigente 5/depto=500. Planta típica puede mostrar ≈7. REVIEW; no ADJUST a 700 sin conteo 1:1 de un depto tipo aprobado por el Gerente.
+REVIEW; vigente 500
+No inventar 04.09 «triple»
+04.06
+Dobles. Vigente 2/depto=200. Planta suele mostrar 2 (2S). KEEP o REVIEW menor.
+KEEP 200
+—
+04.07
+Conmutadores. Vigente 1/depto=100. Si la planta no los rotula, KEEP (criterio de cotización), no borrar.
+KEEP 100
+—
+04.08
+Salida de emergencia (caja, no el artefacto). Vigente 85. Leyenda: caja rect. h=2.40. No está en el cuadro. KEEP salvo conteo de halls/escaleras pedido.
+KEEP 85
+No metrar la luminaria 4 W (Cliente)
+PAUSA OBLIGATORIA — C-04
+Rehaga la cuenta 13×100+20×5 y confirme que 04.01 sigue en 1 400. Si en el memorial escribió «luminarias 1 400 und LED», está mezclando suministro del Cliente con la partida de CAJA. Corrija. Los interruptores no deben haber generado códigos nuevos. Compare 04.05+04.06+04.07 (800) con lo dibujado en UN departamento; si hay gran diferencia, deje REVIEW, no ajuste los 100 departamentos.
+Capítulo 05 — Tomacorrientes
+Código
+Cómo se metra
+Acción típica
+No hacer
+05.01
+9 tomas c-2 × 100 = 900. Cuadro manda. Toma IP55 de baño/lavandería ENTRA en estas 9 o en las de cocina según circuito, no como código nuevo. Anote en nota: «incluir hydrobox IP55 donde el plano 3 lo pida».
+KEEP 900
+No crear 05.06 hydrobox ni 05.07 cachimba CCC
+05.02
+4 tomas c-3 × 100 = 400. Incluye cachimba/campana si el plano la dibuja en cocina: sigue siendo 05.02.
+KEEP 400
+No partir CCC
+05.03
+Metros Ø20 tomas. KEEP 12 736.
+KEEP 12 736 m
+—
+05.04
+4 mm² F+N. KEEP 18 867.
+KEEP 18 867 m
+—
+05.05
+Tierra 2.5 mm² verde. Unifilar puede decir 3×4 mm² (tierra 4). REVIEW de sección; NO cree 05.06 «tierra 4 mm²». El Gerente decide si se cambia el texto de 05.05 en una revisión futura del presupuesto.
+REVIEW; KEEP metros 9 434
+No duplicar tierra dentro de 05.04
+PAUSA OBLIGATORIA — C-05
+900+400 debe ser 1 300 y coincidir con (9+4)×100. Si sumó tomas de therma o cocina eléctrica aquí, está duplicando 06.01/06.04: restar de 05 y dejarlas en 06. Prohibido un renglón «tomacorriente húmedo».
+Capítulo 06 — Especiales
+Código
+Cómo se metra
+Acción típica
+No hacer
+06.01
+1 salida therma / depto = 100. Cuadro c-4.
+KEEP 100
+No fusionar con 06.10
+06.02
+Ø20 therma. KEEP 2 731. Leyenda plano 3: Ø20 para therma.
+KEEP 2 731 m
+—
+06.03
+4+2.5 mm². KEEP 8 193. Si unifilar pide 3×4, REVIEW en nota.
+KEEP 8 193 m
+—
+06.04
+1 salida cocina 8000 W / depto = 100. Cuadro c-5.
+KEEP 100
+—
+06.05
+Ø25 cocina (texto vigente). Unifilar a veces Ø20. KEEP 1 986 (conservador) o REVIEW. No cree Ø20 cocina.
+KEEP 1 986 m
+No partir 06.05 en dos Ø
+06.06
+6+4 mm². KEEP 5 958.
+KEEP 5 958 m
+—
+06.07
+1 especial / TSG = 5.
+KEEP 5
+—
+06.08
+Ø20 especial TSG. KEEP 137.
+KEEP 137 m
+—
+06.09
+Conductor especial TSG. KEEP 410.
+KEEP 410 m
+—
+06.10
+Equipo therma. 1 / depto = 100. Sigue en alcance N70. KEEP.
+KEEP 100
+No crear marca/modelo como partida
+PAUSA OBLIGATORIA — C-06
+06.01 y 06.10 son 100 y 100: una es la salida eléctrica, la otra el aparato. No las una. 06.07 debe igualar 03.09 y 03.13 (5). Si el plano no dibuja therma en un depto, igual KEEP 100: el cuadro de cargas las exige en todos.
+Capítulo 07 — SPT
+Código
+Cómo se metra
+Acción típica
+No hacer
+07.01
+Pozos. MD = 6. Detalle plano 6 (varilla 3/4×2.40, torgel). KEEP 6.
+KEEP 6
+No crear partidas sueltas de bentonita o ThorGem (ya van dentro de 07.01)
+07.02
+Enlace 16 mm² verde. KEEP 262.57 (o 270 si el Gerente pidió redondeo de compra; en presupuesto vigente es 262.57).
+KEEP 262.57 m
+No usar 10 mm² CPT del unifilar como código nuevo; es el mismo SPT
+07.03
+1 protocolo / pozo = 6.
+KEEP 6
+—
+PAUSA OBLIGATORIA — C-07
+07.01 y 07.03 deben ser iguales. Si el DWG muestra 8 bloques PUESTA A TIERRA, no escale: hay leyenda. KEEP 6.
+Capítulo 08 — Data
+Código
+Cómo se metra
+Acción típica
+No hacer
+08.01
+1 NAP / torre. Plano 4 rotula NAP+splitter 8 puertos. El MD antiguo decía 1: gana el plano + criterio 1/torre = 5. KEEP 5. No cree «splitter» aparte.
+KEEP 5
+No crear 08.08 splitter
+08.02
+1 buzón / torre = 5.
+KEEP 5
+No meter el poste de acometida aquí
+08.03
+2 salidas data-TV / depto = 200. KEEP.
+KEEP 200
+No separar TV y data en dos códigos
+08.04
+Metros Ø20–25. KEEP 4 407. La mezcla 40/60 es nota de compra, no dos partidas.
+KEEP 4 407 m
+No crear 08.04A Ø20 y 08.04B Ø25
+08.05
+UTP/RG-6. KEEP 4 965.
+KEEP 4 965 m
+No partir UTP y coaxial
+08.06
+1 timbre / depto = 100. Intercom/perifoneo del plano 4 se consideran dentro de este alcance o se anotan en memorial; NO se crean 08.09/08.10.
+KEEP 100 + nota si hay perifoneo extra
+No inventar perifoneo
+08.07
+Cajas pase data. 1/piso × 5 torres = 25. KEEP.
+KEEP 25
+—
+PAUSA OBLIGATORIA — C-08
+08.01, 08.02, 11.01 y 03.09 deben ser 5 (una por torre). Si el plano 4 muestra el detalle de poste y fleje, eso NO aumenta 08.02 ni crea capítulo 12. Va al memorial.
+Capítulo 09 — Detectores
+Código
+Cómo se metra
+Acción típica
+No hacer
+09.01
+Único ADJUST autorizado por evidencia de plano 5: 1 detector autónomo a pilas en el pasillo INTERNO de cada departamento. n_deptos=100. El vigente 200 (2/depto) queda superado por el dibujo. ADJUST a 100. Misma descripción, mismo P.U. 62.97.
+ADJUST 100 (salvo que el Gerente mantenga 2/depto por criterio)
+No crear «detector de calor» ni «central de incendio»
+09.02
+1 en hall común × 5 torres × 5 pisos = 25. KEEP 25.
+KEEP 25
+No meter los de depto aquí
+09.03
+Global de protocolos de detectores.
+KEEP 1 glb
+—
+PAUSA OBLIGATORIA — C-09 — la más sensible
+Si ajustó 09.01 a 100, recalcule solo ese parcial (100 × 62.97 = 6 297) y deje constancia. Si NO está seguro de que el símbolo H es detector (podría confundirse con hidrante en un plano mal leído), NO ajuste: REVIEW y pregunte. En Los Ciruelos la leyenda del plano 5 dice «detector de humos de estación simple (a pilas)». Prohibido un 09.04 de sirenas o pulsadores: no están en el catálogo.
+Capítulo 10 — Pruebas
+Código
+Cómo se metra
+Acción típica
+No hacer
+10.01
+Global de continuidad/aislamiento.
+KEEP 1
+—
+10.02
+1 protocolo / tablero = 105 (debe = 03.14).
+KEEP 105
+—
+10.03
+Prueba 48 h de puntos; artefactos del Cliente. KEEP 1 glb.
+KEEP 1
+No metrar horas de electricista
+10.04
+As-built. KEEP 1 glb.
+KEEP 1
+—
+PAUSA OBLIGATORIA — C-10
+10.02 = 03.01 + 03.09 = 105. Si no cuadra, hay un error de constantes. No agregue 10.05.
+Capítulo 11 — Medidores / shafts
+Código
+Cómo se metra
+Acción típica
+No hacer
+11.01
+1 banco / torre, hasta 20 medidores. Planta 1°: «BANCO DE MEDIDORES ELECT.». KEEP 5.
+KEEP 5
+No metrar el medidor ENSA (no es N70)
+11.02
+Ø32 banco→ducto. No siempre rotulado Ø32 en PDF. KEEP 137 m. No cree Ø25 para este tramo.
+KEEP 137 m
+No usar Ø32 para alimentadores (eso es 02.01 Ø25)
+PAUSA OBLIGATORIA — C-11
+Cierre de catálogo: vuelva a contar códigos en la tabla de salida. Deben ser 64. Si hay 65, elimine el extra ahora.
+7. FASE D — Comparar propuesto versus vigente (pausa de control)
+Cuando las 64 fichas están llenas, el agente NO arma todavía el total. Construye la tabla de diferencias y se detiene.
+Columna
+Regla
+codigo
+Idéntico al catálogo
+metrado_vigente
+Copiado del Excel N70
+metrado_propuesto
+El de la ficha
+delta_und
+propuesto − vigente
+delta_soles
+delta_und × P.U. (P.U. intacto)
+accion
+KEEP si delta=0; ADJUST si delta≠0 y hay fórmula+fuente; REVIEW si hay duda
+autorizado
+ADJUST solo si esta instrucción lo permite (en el piloto: 09.01) o el Gerente escribió OK
+PAUSA OBLIGATORIA — D1 · Tabla de diferencias
+Liste únicamente las filas con accion ≠ KEEP. En el piloto esperado: 09.01 ADJUST 200→100 (Δ −6 297); y varias REVIEW con delta 0 (03.02, 03.03, 04.05, 05.05). Si aparecen ADJUST en 04.01, 05.01 o 03.01, hay un error de método: esos números los fija el cuadro. Revertir a KEEP antes de seguir. Si la suma de |delta_soles| de ADJUST &gt; 1 % del CD (8 188), PAUSA D2: no genere proforma; entregue la tabla al Gerente.
+8. FASE E — Armar el presupuesto (siempre 64 filas)
+Para cada código: parcial = metrado_propuesto × P.U. vigente.
+CD = suma de los 64 parciales. No incluir memorial ni extras de plano.
+GG = 10 % × CD; SUB = CD+GG; IGV = 18 % × SUB; TOTAL = SUB+IGV; utilidad = 0.
+La descripción en el Word/Excel de salida es la del catálogo, sin reescribir.
+Si el Gerente no aprobó ADJUST, use metrado_vigente para el CD (escenario «N70 intacto») y deje el escenario «planos» en una columna auxiliar, no en una partida extra.
+PAUSA OBLIGATORIA — E1 · Cuadre aritmético
+Si no hubo ADJUST, CD debe ser 818 847.81. Si solo se aceptó 09.01=100, CD ≈ 812 550.81 y TOTAL ≈ 1 054 691.63. Cualquier otro CD exige explicación fila por fila. Cuente otra vez las filas del Excel de salida: 64. Capítulos 01.00–11.00 son títulos, no partidas.
+9. Memorial de observaciones (lo que el plano muestra y NO es partida)
+Este bloque es texto, no presupuesto. El agente está OBLIGADO a llenarlo para demostrar que vio el plano y que, a pesar de ello, no inventó códigos.
+Hallazgo típico en planos Los Ciruelos
+Dónde se anota
+Partida que NO se crea
+Poste CAC, fleje 19 mm, FG 50/100, Al 3×35, curvas 50/100
+Memorial / fuera de N70 (ENSA)
+Ninguna 12.xx
+Conductor N2XOH / NH-90 / LSZH en unifilar o EETT
+Nota REVIEW en 02.03, 04.03, 05.04
+«Conductor N2XOH»
+PVC-SEL en alumbrado (leyenda)
+Nota en 04.02
+«Canalización SEL»
+Toma IP55 hydrobox, cachimba CCC
+Nota en 05.01 / 05.02
+05.06 / 05.07
+Luminaria 12 W, emergencia 4 W, sensor de movimiento
+Fuera de alcance (Cliente) / nota en 04.01 y 04.08
+Partida de artefacto LED
+Bandeja portacables (si apareciera)
+Memorial
+No está en N70
+Perifoneo / intercom además del timbre
+Nota en 08.06
+08.08+
+Caja e=1.59 mm (leyenda) vs 1.2 mm (texto N70)
+Nota en 02.02, 04.01, 08.07
+No cambiar código ni P.U.
+10. Formato de salida obligatorio del agente
+Un único JSON o Excel con 64 filas y estos campos, ni uno más como partida:
+codigo, descripcion (copia), und, metrado_vigente, metrado_propuesto, pu (copia), parcial_vigente, parcial_propuesto, accion, fuente, formula, nota
+constantes: n_torres, n_deptos, luces_depto, …
+pausas_ejecutadas: lista [A1, B1, C-01 … C-11, D1, E1] con OK/FECHA
+memorial_observaciones: array de hallazgos no presupuestados
+totales: cd, gg, sub, igv, total
+Si falta una pausa en pausas_ejecutadas, el programa receptor debe rechazar el archivo. Eso obliga al agente a no saltarse las comparaciones.
+11. Orden del día del agente (no alterar)
+#
+Paso
+¿Puede escribir metrado?
+1
+Abrir Excel N70 · construir CATALOGO 64
+No
+2
+PAUSA A1 · cuadre 64 y CD 818 847.81
+No
+3
+Leer cuadros de cargas A y B · extraer constantes
+No
+4
+PAUSA B1 · fijar n_deptos, luces, tomas, TSG
+No
+5
+Clasificar planos · leyendas y unifilar · memorial (sin códigos nuevos)
+No
+6
+Recorrer fichas 01.01→11.02 en este documento
+Sí, solo el código en curso
+7
+PAUSA C-01 … C-11 al terminar cada capítulo
+No avanzar de capítulo sin la pausa
+8
+PAUSA D1 · tabla de diferencias · revertir ADJUST ilegales
+Corregir, no añadir
+9
+PAUSA E1 · armar CD/GG/IGV con 64 filas
+Sí, totales
+10
+Entregar JSON + memorial. Esperar Gerente si hay REVIEW o ADJUST &gt; 1 % CD
+No emitir proforma Word solo
+12. Frase de control (el agente debe poder responderla al final)
+«He metrado únicamente los 64 códigos del presupuesto N70. No añadí partidas. El cuadro de cargas mandó en luces, tomas y tableros. Los planos solo ajustaron o revisaron códigos ya existentes. Todo lo demás está en el memorial. Las pausas A1, B1, C-01 a C-11, D1 y E1 están firmadas en la bitácora.»
+Si el agente no puede decir esa frase sin mentir, el entregable no se usa.
+— Fin de la instrucción —
+Documento hermano: 13_AUDITORIA_METODO_LECTURA_PLANOS.docx (cómo se extrae evidencia). Este documento (14) manda sobre qué se metra y qué está prohibido crear.

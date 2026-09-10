@@ -1,0 +1,69 @@
+FILE: DISEÑO DE MEZCLA INVERSO.xls
+SHEETS: ['DISEÑO', 'LISTAS ']
+
+===== SHEET: DISEÑO  49x7 =====
+R0	0:DISEÑO DE MEZCLA INVERSO 
+R2	0:CANTIDAD DE SACOS DE CEMENTO :  | 3:8.0 | 4:sacos  | 6:DATOS 
+R3	0:DOSIS REAL =  | 2:CD= | 3:340.0 | 4:Kg./m3 | 6:RESULTADOS 
+R5	0:Corrección de C
+R6	0:Factor para corregir C por el tamaño máximo C1.
+R7	0:Tamaño máximo (Pulgadas)= | 2:0.75 | 3:pulg.
+R8	0:C1= | 1:1.05
+R10	0:Factor para corregir C por el tipo de Agregado C2.
+R11	0:Tipo de Agregado Fino  | 2:Arena Triturada 
+R12	0:Tipo de Agregado Grueso  | 2:Triturado 
+R13	0:C2= | 1:1.28
+R15	0:Dosis de Cemento (`Descorregida')
+R16	0:C=  | 1:252.97619047619045 | 2:Kg./m3
+R18	0:Asentamiento deseado en el vaciado 
+R19	0:Valores usuales de asentamiento 
+R20	0:Elemento  | 3:Asent. (cm.)
+R21	0:Prefabricados  | 3:0-6
+R22	0:Fundaciones Ciclópeas  | 3:3-8
+R23	0:Pedestales, muros de fundación armados  | 3:4-8
+R24	0:Pavimentos  | 3:5-8
+R25	0:Losas, vigas, columnas, muros de corte  | 3:6-11
+R26	0:Paredes estructurales delgadas  | 3:10-18
+R27	0:Concreto transportado por bombeo  | 3:6-18
+R28	0:Asentamiento | 1:1.0 | 2:cm. 
+R30	0:Relación Agua/Cemento 
+R31	0:α= | 1:0.5532991102241561
+R33	0:Factor para corregir α por el tamaño máximo Kr.
+R34	0:Tamaño máximo (Pulgadas)= | 2:0.75 | 3:pulg.
+R35	0:Kr= | 1:1.05
+R37	0:Factor para corregir α por el tipo de Agregado Ka.
+R38	0:Tipo de Agregado Fino  | 2:Arena Triturada 
+R39	0:Tipo de Agregado Grueso  | 2:Triturado
+R40	0:Ka= | 1:1.14
+R42	0:Relación Agua/cemento (`Descorregida)
+R43	0:α= | 1:0.4622381873217679
+R45	0:Edad de ensayo (días)= | 2:28.0 | 3:(Días)
+R47	0:RESISTENCIA PROMEDIO 
+R48	0:R = | 1:332.197539370534 | 2:Kgf/cm2
+
+===== SHEET: LISTAS   29x5 =====
+R0	2:ASENTAMIENTOS 
+R1	0:Tamaño maximo de agregado  | 2:0.0
+R2	0:0.25 | 2:1.0
+R3	0:0.375 | 2:2.0
+R4	0:0.5 | 2:3.0
+R5	0:0.75 | 2:4.0
+R6	0:1.0 | 2:5.0
+R7	0:1.5 | 2:6.0
+R8	0:2.0 | 2:7.0
+R9	0:2.5 | 2:8.0
+R10	0:3.0 | 2:9.0
+R11	2:10.0 | 4:TIPO AGRAGADO GRUESO  
+R12	0:TIPO AGRAGADO GRUESO   | 2:11.0 | 4:Triturado
+R13	0:Triturado  | 2:12.0 | 4:Semitriturado
+R14	0:Semitriturado  | 2:13.0 | 4:Canto Rodado 
+R15	0:Canto Rodado  | 2:14.0
+R16	2:15.0 | 4:TIOPO AGREGADO FINO 
+R17	0:TIOPO AGREGADO FINO  | 2:16.0 | 4:Arena Natural
+R18	0:Arena Natural  | 2:17.0 | 4:Arena Triturada 
+R19	0:Arena Triturada  | 2:18.0
+R22	0:Edad de Ensayo 
+R23	0:7.0
+R24	0:28.0
+R25	0:90.0
+R28	0:NO ELIMINAR ESTA HOJA 

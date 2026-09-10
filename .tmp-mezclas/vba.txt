@@ -1,0 +1,12 @@
+
+######## Ajuste de la Relacion Triangular.xls ########
+no vba: (-2147352567, 'Ocurrió una excepción.', (0, 'Microsoft Excel', 'El acceso mediante programación al proyecto de Visual Basic no es de confianza.\n', 'xlmain11.chm', 0, -2146827284), None)
+
+######## DISEÑADOR DE MEZCLAS PARA CONCRETO ver. 1.0.xlsm ########
+no vba: (-2147352567, 'Ocurrió una excepción.', (0, 'Microsoft Excel', 'El acceso mediante programación al proyecto de Visual Basic no es de confianza.\n', 'xlmain11.chm', 0, -2146827284), None)
+
+######## DISEÑO DE MEZCLA INVERSO.xls ########
+no vba: (-2147352567, 'Ocurrió una excepción.', (0, 'Microsoft Excel', 'El acceso mediante programación al proyecto de Visual Basic no es de confianza.\n', 'xlmain11.chm', 0, -2146827284), None)
+
+######## DISEÑO DE MEZCLA..xls ########
+no vba: (-2147352567, 'Ocurrió una excepción.', (0, 'Microsoft Excel', 'El acceso mediante programación al proyecto de Visual Basic no es de confianza.\n', 'xlmain11.chm', 0, -2146827284), None)

@@ -1,0 +1,68 @@
+FILE: DISEÑO DE MEZCLA INVERSO.xls
+
+===== SHEET: DISEÑO 65x12 =====
+R1	1:DISEÑO DE MEZCLA INVERSO 
+R3	1:CANTIDAD DE SACOS DE CEMENTO :  | 4:8 | 5:sacos  | 7:DATOS 
+R4	1:DOSIS REAL =  | 3:CD= | 4:=D3*42.5 | 5:Kg./m3 | 7:RESULTADOS 
+R6	1:Corrección de C
+R7	1:Factor para corregir C por el tamaño máximo C1.
+R8	1:Tamaño máximo (Pulgadas)= | 3:0.75 | 4:pulg.
+R9	1:C1= | 2:=cuno(C8)
+R11	1:Factor para corregir C por el tipo de Agregado C2.
+R12	1:Tipo de Agregado Fino  | 3:Arena Triturada 
+R13	1:Tipo de Agregado Grueso  | 3:Triturado 
+R14	1:C2= | 2:=cdos(C12,C13)
+R16	1:Dosis de Cemento (`Descorregida')
+R17	1:C=  | 2:=D4/(B9*B14) | 3:Kg./m3
+R19	1:Asentamiento deseado en el vaciado 
+R20	1:Valores usuales de asentamiento 
+R21	1:Elemento  | 4:Asent. (cm.)
+R22	1:Prefabricados  | 4:0-6
+R23	1:Fundaciones Ciclópeas  | 4:3-8
+R24	1:Pedestales, muros de fundación armados  | 4:4-8
+R25	1:Pavimentos  | 4:5-8
+R26	1:Losas, vigas, columnas, muros de corte  | 4:6-11
+R27	1:Paredes estructurales delgadas  | 4:10-18
+R28	1:Concreto transportado por bombeo  | 4:6-18
+R29	1:Asentamiento | 2:1 | 3:cm. 
+R31	1:Relación Agua/Cemento 
+R32	1:α= | 2:=(((117.2*(B29^0.16))/B17)^(1/1.3))
+R34	1:Factor para corregir α por el tamaño máximo Kr.
+R35	1:Tamaño máximo (Pulgadas)= | 3:0.75 | 4:pulg.
+R36	1:Kr= | 2:=Kr(C35)
+R38	1:Factor para corregir α por el tipo de Agregado Ka.
+R39	1:Tipo de Agregado Fino  | 3:Arena Triturada 
+R40	1:Tipo de Agregado Grueso  | 3:Triturado
+R41	1:Ka= | 2:=Ka(C39,C40)
+R43	1:Relación Agua/cemento (`Descorregida)
+R44	1:α= | 2:=B32/(B36*B41)
+R46	1:Edad de ensayo (días)= | 3:28 | 4:(Días)
+R48	1:RESISTENCIA PROMEDIO 
+R49	1:R = | 2:=alfha(B44,C46) | 3:Kgf/cm2
+
+===== SHEET: LISTAS  29x5 =====
+R1	3:ASENTAMIENTOS 
+R2	1:Tamaño maximo de agregado  | 3:0
+R3	1:0.25 | 3:=1+C2
+R4	1:0.375 | 3:=1+C3
+R5	1:0.5 | 3:=1+C4
+R6	1:0.75 | 3:=1+C5
+R7	1:1 | 3:=1+C6
+R8	1:1.5 | 3:=1+C7
+R9	1:2 | 3:=1+C8
+R10	1:2.5 | 3:=1+C9
+R11	1:3 | 3:=1+C10
+R12	3:=1+C11 | 5:TIPO AGRAGADO GRUESO  
+R13	1:TIPO AGRAGADO GRUESO   | 3:=1+C12 | 5:Triturado
+R14	1:Triturado  | 3:=1+C13 | 5:Semitriturado
+R15	1:Semitriturado  | 3:=1+C14 | 5:Canto Rodado 
+R16	1:Canto Rodado  | 3:=1+C15
+R17	3:=1+C16 | 5:TIOPO AGREGADO FINO 
+R18	1:TIOPO AGREGADO FINO  | 3:=1+C17 | 5:Arena Natural
+R19	1:Arena Natural  | 3:=1+C18 | 5:Arena Triturada 
+R20	1:Arena Triturada  | 3:=1+C19
+R23	1:Edad de Ensayo 
+R24	1:7
+R25	1:28
+R26	1:90
+R29	1:NO ELIMINAR ESTA HOJA 

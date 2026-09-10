@@ -1,0 +1,262 @@
+ALCOSAVI ARQUITECTURA Y CONSTRUCCIÓN S.R.L.
+Auditoría interna de método · no es una carta al Cliente
+AUDITORÍA DEL MÉTODO REAL DE LECTURA DE PLANOS IIEE
+Especificación para ordenar y construir un programa que replique el trabajo sin improvisación. Proyecto piloto: Habilitación Urbana Los Ciruelos – II Etapa. Proforma N.° 70-2026-AACSRL. Fecha del documento: 04 de septiembre de 2026.
+Campo
+Dato
+Elaborado por
+Agente Cursor (sesión de metrados IIEE N70) · revisión para programa ALCOSAVI
+Modelo orquestador en esta sesión
+Grok 4.6 (Cursor). No es un visor CAD ni un motor de metrados certificado.
+Objeto auditado
+Qué hice exactamente al leer DWG/PDF, qué falló, qué sí sirve para automatizar
+Entregable de máquina
+10_SCHEMA_PRESUPUESTO_DESDE_PLANOS.json (JOIN partidas N70 × hallazgos)
+Alcance del programa
+Ingesta → extracción → jerarquía → concatenación → presupuesto + gates humanos
+1. Dictamen de la auditoría (lo dicho versus lo hecho)
+En el mensaje anterior se describió un flujo limpio de 14 nodos tipo n8n. Esa descripción es la arquitectura OBJETIVO (lo que el programa debe ejecutar). NO es un relato fiel de cómo transcurrió la sesión. La sesión fue iterativa, con reintentos y recortes mal apuntados. Si se clona el relato pulido y no esta auditoría, el programa va a fallar en los mismos puntos.
+Afirmación previa
+¿Fue así en la sesión?
+Qué debe hacer el programa
+«Leí los DWG»
+Al inicio NO. ezdxf rechazó el DWG nativo (no es DXF). AutoCAD COM Documents.Open falló. El primer script de accoreconsole no tenía saltos de línea reales. Recién el segundo script (FILEDIA 0 + DXFOUT + 16) generó DXF.
+Nodo DWG→DXF con reintento, timeout, validación de tamaño DXF > 1 000 bytes, y flag dwg_ok=false si falla. Seguir con PDF.
+«Conté símbolos en el plano»
+Parcial. ezdxf contó INSERT mezclados con puertas, duchas y sanitarios. La visión describió recortes; en alarma el recorte «leyenda» cayó sobre la planta; el recorte TG-101 salió en blanco. No hubo conteo 1:1 certificado de un A1.
+Nunca cerrar cantidad solo con visión. Lista blanca/negra de bloques. Recorte por coordenadas validadas (si el PNG < 80 KB o casi blanco, rehacer recorte).
+«Los 1 400 puntos y 1 300 tomas salen del plano»
+NO. Salen del CUADRO DE CARGAS (13 luces y 9+4 tomas × 100 deptos + 20 luces TSG × 5). El plano solo confirmó orden de magnitud.
+El cuadro de cargas manda en cantidades de circuito. El plano manda en Ø, calibre y símbolos que el cuadro no metra (detectores, interruptores, NAP).
+«La visión lee el unifilar con precisión de amperaje»
+PELIGROSO. En un recorte la descripción dijo C-1 = 2×16 A; el cuadro dice 2×10 A. En otro recorte coincidió 2×10. La visión puede alucinar dígitos. El texto extraído del PDF del unifilar salió fragmentado (palabras sueltas por coordenadas).
+Unifilar: preferir texto CAD (DXF TEXT/MTEXT) y el cuadro. Visión solo como apoyo. Si cuadro y visión chocan, gana el cuadro.
+«14 nodos n8n es lo que ejecuté»
+NO. Esos 14 nodos se diseñaron DESPUÉS, para que el programa no improvise. En sesión: buscar archivos → fallar DWG → PDF → recortar → leer imagen → abrir xlsx → cruzar con partidas N70.
+Implementar los 14 nodos en ese orden, con contratos de entrada/salida. No dejar que un LLM «decida» saltarse el cuadro.
+2. Cronología real de esta sesión (evidencia)
+Este es el orden factual. El programa debe cubrir cada fallo, no asumir el camino feliz.
+Orden
+Qué ocurrió
+Resultado
+Lección para el programa
+1
+Intento ezdxf.readfile sobre los 6 DWG de 05. IIEE_aprobado
+Fallo: «not a DXF file». Formato nativo AC1032.
+Detectar cabecera DWG vs DXF. Si DWG, no llamar a ezdxf todavía.
+2
+Búsqueda ODA File Converter / Teigha / dwg2dxf
+No instalados. ezdxf.addons.odafc importable pero ODA ausente.
+Probar convertidores en este orden: accoreconsole → ODA → marcar dwg_ok=false.
+3
+AutoCAD 2026 COM: Documents.Open
+AttributeError: <unknown>.Open (aplicación no lista / objeto COM incompleto).
+No usar COM para lote. Usar accoreconsole (sin UI).
+4
+accoreconsole + .scr con \n escapados (texto literal, no salto)
+Cargó el DWG y salió en <1 s. DXF no se creó.
+El .scr DEBE tener bytes 0x0A reales. Validar: si DXF no existe, reintentar con -SAVEAS DXF.
+5
+Copia DWG a nombres ASCII (01_alimentadores.dwg) + .scr correcto
+6 DXF ASCII 2018, 1.8–4.6 MB. Tiempo ≈ 1 s/archivo.
+Normalizar nombres (sin Ó, Ñ, espacios dobles) ANTES del script.
+6
+ezdxf: layouts, layers, INSERT, TEXT con palabras clave
+INSERT útiles (Luminaria Empotrada 146, SENSOR DE HUMO 21) + basura (PUERTA 98, ducha 32). Textos: ø20 mm, ø25 mm, N2XOH, NAP, prensa 1/2".
+Filtro de bloques. Textos de Ø sí son de alta confianza. INSERT solo magnitud.
+7
+Usuario plotó 11 PDF Model el 21/08/2026 18:10–18:15
+Una página por PDF, 2384×1684 pt (aprox. A2/A1 plot).
+El programa debe vigilar la carpeta y emparejar PDF↔DWG por prefijo 1…6.
+8
+PyMuPDF: página completa 150 dpi + get_text + recortes 62–100 % / 0–72 %
+Texto de planta útil para TG-101…504. Recorte «leyenda» a veces vacío (info a la izquierda) o era el detalle del poste, no la leyenda eléctrica.
+No recortar a ciegas. Buscar la palabra LEYENDA en el texto y recortar el rectángulo de esas palabras + margen. Si el PNG < 80 KB, falló el recorte.
+9
+Read() de PNG: el entorno entrega una descripción de imagen al modelo
+Sirvió para leyendas de alimentadores, alumbrado y tomas. Falló o fue ambiguo en unifilar (amperajes) y en recortes mal encuadrados.
+La visión es un nodo de APOYO con confianza. Nunca escribe metrado_plano ella sola si existe cuadro.
+10
+openpyxl sobre 7. y 8. CUADRO DE CARGAS Módulo A/B
+Fuente contractual: 13 / 9 / 4 / 1 / 1 por depto; ITM 2×10/16/32; L=10/15/20/30 m; TSG 20 luces + 1 especial; MD 5.837 kW.
+Este archivo es OBLIGATORIO. Sin él el programa no debe emitir presupuesto de circuitos.
+11
+JOIN con CUADRO PRESUPUESTO N70 (P.U. congelados)
+64 partidas. Único ADJUST numérico: 09.01 de 200 a 100 detectores. REVIEW en diferenciales, ITM 2×25, interruptores, tierra 2.5 vs 4 mm².
+P.U. intocable. Extras de poste = FLAG sin precio. GG 10 % e IGV 18 % sobre el CD resultante.
+3. Qué es exactamente la «IA» en este método
+El programa no debe contratar «una IA que lea planos» como si fuera Bluebeam, Autodesk Docs o un recuento automático de bloques. En Cursor ocurre esto:
+El modelo (aquí Grok 4.6) recibe texto: listados de archivos, salidas de Python, extractos de Excel, informes ezdxf.
+Si se le pasa un PNG con la herramienta Read, el runtime adjunta una descripción o el propio modelo ve la imagen. Eso es visión multimodal, no un motor de metrados.
+El modelo decide el siguiente comando (buscar, recortar, abrir xlsx). Eso es orquestación. En producción esa orquestación debe ser un grafo FIJO (n8n / script), no un chat libre.
+El modelo redacta hallazgos y propone ADJUST/REVIEW. Un humano (o un motor de reglas) acepta o rechaza antes de tocar la proforma.
+Consecuencia: si otro agente «solo mira el PDF» sin PyMuPDF, sin cuadro de cargas y sin JOIN de partidas, no está replicando este método. Está adivinando. La calidad profesional está en las herramientas deterministas y en la jerarquía de fuentes, no en pedirle al chat que «cuente las luminarias».
+4. Jerarquía de verdad (regla dura del programa)
+Si dos fuentes discrepan, el programa no «promedia» ni le pregunta al modelo quién tiene razón. Aplica esta tabla y deja traza.
+Prioridad
+Fuente
+Qué autoriza a escribir
+Qué NO autoriza
+1
+Cuadro de cargas (.xlsx)
+Cantidad de puntos de luz, tomas, therma, cocina, ITM de circuito, L de diseño, n.° de TG/TSG
+Interruptores, detectores, NAP, Ø de cada tramo, diferenciales (si no están en el cuadro)
+2
+Unifilar (TEXT en DXF o recorte validado)
+Calibre de conductor, Ø de tubería del circuito, IG, diferencial (amperaje)
+Metros lineales de compra (el unifilar no es metrado de obra)
+3
+Leyenda del plano
+Tipo PVC-SAP/SEL, medida de caja, altura de montaje, IP de tomas húmedas
+Cantidades de proyecto
+4
+Planta típica × N torres
+Detectores, NAP, interruptores, emergencias — solo si el símbolo es inequívoco y la tipología está rotulada (TG-101 a TG-504 = 20 deptos)
+Escalar INSERT crudos ×5
+5
+INSERT ezdxf
+Control de orden de magnitud (¿230 luces en 20 deptos ≈ 13×20?)
+Cantidad de compra
+6
+Criterio de obra / N70 vigente
+Globales (pruebas, andamios), factor de desperdicio sobre L de diseño, stock de grapas
+Cambiar un número que ya dio el cuadro
+5. Especificación de programa — paso a paso (producción)
+A continuación está el método que SÍ hay que ordenar. Cada paso tiene entrada, proceso, salida y rechazo. El grafo es acíclico salvo reintentos de conversión y de recorte.
+Paso 0 — Contrato de carpetas y nombres
+Entrada: una carpeta de expediente (ejemplo: 05. IIEE_aprobado) más el Excel de partidas vigentes (CUADRO PRESUPUESTO … N70.xlsx). El programa crea un directorio de trabajo (no pisa originales): _extract/pdf_full, _extract/pdf_crops, _extract/dxf, _extract/text, _extract/reports.
+Clasificar por prefijo de nombre: 1 ALIMENTADORES, 2 ALUMBRADO, 3 TOMACORRIENTES, 4 DATA, 5 ALARMA, 6 DETALLES/UNIFILARES, 7/8 CUADRO DE CARGAS, 9–14 MD/MC/EETT.
+Si hay «Model.pdf» y «B2-Model.pdf», son dos hojas de la misma especialidad (Módulo A y B), no dos proyectos.
+Normalizar a slug ASCII para procesos CAD: 01_alimentadores.dwg. Guardar el mapa slug ↔ nombre original.
+Rechazo: si no existe el Excel de partidas O no existe al menos un cuadro de cargas, abortar con error FATAL_FUENTE_CONTRACTUAL.
+Paso 1 — Inventario (hash, tipo, fecha)
+Para cada archivo: sha256, extensión, bytes, LastWriteTime, clase (dwg/pdf/xlsx/docx). Esto evita reprocesar y permite auditar qué plot usó el run. Salida: inventario.json.
+Paso 2 — Raster y texto PDF (PyMuPDF)
+No se le «abre el PDF al chat». Se convierte. Comando conceptual:
+page.get_pixmap(matrix=fitz.Matrix(150/72, 150/72)); page.get_text("text"); page.get_text("words")
+Con words (x0,y0,x1,y1,palabra) se localiza LEYENDA, UNIFILAR, TG-101, ESPECIFICACIONES. El recorte se calcula como el bounding box de esas palabras expandido 8–12 % de la hoja, no como un porcentaje fijo de la derecha. En Los Ciruelos el porcentaje fijo 62–100 % falló en alumbrado (leyenda no estaba ahí) y en data (cayó el detalle del poste).
+Validación del recorte: ancho > 400 px, alto > 400 px, tamaño de archivo > 80 KB, varianza de píxeles no nula (no hoja blanca).
+Texto de planta: extraer códigos TG-xxx y TSG. Si aparecen TG-101 a TG-504, tipologia_deptos = 20 y factor_torres = n_torres_del_proyecto.
+Salida: pdf_pages[].{png, txt, words, crops[], tipologia}.
+Paso 3 — DWG a DXF (accoreconsole)
+Ruta típica: C:\Program Files\Autodesk\AutoCAD 2026\accoreconsole.exe. El archivo .scr debe escribirse en ASCII con saltos de línea reales:
+_.FILEDIA0_.DXFOUTC:/Temp/iiee_dxf/01_alimentadores.dxf16
+Invocación: accoreconsole /i <dwg_ascii> /s <scr> /l en-US, cwd sin tildes, timeout 240 s. Si el DXF no aparece, segundo intento: _.-SAVEAS / DXF / 2018 / ruta. Rechazo suave: dwg_ok=false; el run continúa con PDF + cuadro. No modificar los DWG originales: siempre copiar a workdir.
+Paso 4 — ezdxf sobre el DXF
+Leer modelspace y paperspace. Contar INSERT por nombre de bloque. Lista negra (no son IIEE): PUERTA, ducha, SIFON, BOWL, MOBI, VANOS, RADIO DE GIRO, CUADRO DE VANOS, bloques *U anónimos salvo que se demuestre lo contrario. Lista blanca de este expediente (ejemplo, no universal): Luminaria Empotrada, 2ALUM, LUCES DE EMERGENCIA, SENSOR DE HUMO, TV, INTERCOM1, caja de paso, PUESTA A TIERRA, tabelero/TG.
+TEXT/MTEXT: filtrar si contienen Ø, ø, mm, PVC, SAP, SEL, 1/2, 3/4, NAP, DETECTOR, N2XOH, NH-80, NH-90, THW, LSZH, prensa, 20mm, 25mm, 32mm. Estos textos SÍ se usan para Ø y tipo de conductor. No se usan para metros de compra.
+En Los Ciruelos, una torre típica dibujada dio ≈ 146+86 luminarias + 15 emergencias ≈ 253 frente a 13×20 = 260 del cuadro. Eso valida el orden de magnitud; no autoriza a cambiar los 1 400.
+Paso 5 — Cuadro de cargas (openpyxl, data_only=True)
+Abrir 7. CUADRO DE CARGAS MÓDULO A.xlsx y el de B. Recorrer hojas TG-xxx y ALIMENTADOR-TG-xxx y TSG. Por circuito leer: Descripción, Cantidad, Sección mm², Intensidad de la llave, L(m). Construir el objeto cargas_contractuales:
+n_deptos = 100; n_torres = 5; n_pisos = 5 (de MD o de constantes del proyecto, no inventadas).
+luces_depto = 13; tomas_gen = 9; tomas_cocina = 4; therma = 1; cocina = 1.
+luces_tsg = 20; especial_tsg = 1.
+04.01_metrado = luces_depto × n_deptos + luces_tsg × n_torres  →  1 400.
+05.01 = 9 × 100; 05.02 = 4 × 100.
+ITM por circuito: c-1 2×10, c-2/c-3/c-4 2×16, c-5 2×32. Si un ALIMENTADOR-TGx dice 2×25, marcar REVIEW en 03.02, no cambiar los 100 en silencio.
+Los metros de conductor de COMPRA no son L del cuadro. L es para caída de tensión (10/15/20/30 m). El N70 aplica un factor de obra (recorrido real + vertical + desperdicio). El programa, en la primera versión, DEBE conservar el metrado lineal vigente del N70 (KEEP) y anotar «holgado respecto de L». No recalcular metros midiendo el PDF a escala 1/75: esa medición no se hizo de forma rigurosa en esta sesión y no debe fingirse.
+Paso 6 — Visión acotada (único punto donde entra el modelo visual)
+El programa puede llamar a un agente Cursor / API multimodal SOLO con recortes que pasaron la validación del Paso 2. Prompt fijo (no libre):
+Rol: ingeniero electricista de metrados. Recibes UN recorte (leyenda, unifilar de un solo TG, o un departamento). Lista: símbolos, Ø de tubería, tipo PVC, calibre mm², amperaje de ITM/diferencial, alturas, IP. Si un dígito no se lee, escribe ILEGIBLE. NO inventes cantidades del edificio. NO contradigas el JSON del cuadro de cargas que se te adjunta. Salida: JSON {simbolos[], diametros[], protecciones[], confianza, ilegible[]}.
+Regla de fusión: si la visión dice 2×16 en c-1 y el cuadro dice 2×10, se descarta la visión y se registra vision_conflicto. Eso ocurrió en esta sesión. Por eso el programa no puede tratar la descripción de imagen como metrado.
+Paso 7 — Escalar tipología
+Solo para ítems AUSENTES en el cuadro. En Los Ciruelos el plano 5 muestra 1 detector en el pasillo interno de cada depto y 1 en el hall por piso. Tipología 20 deptos + 5 halls en una torre × 5 torres = 100 + 25. Eso autorizó ADJUST de 09.01 (200 → 100) y KEEP de 09.02 (25). No se escala SENSOR DE HUMO INSERT=21 × 5 = 105, porque 21 ya incluye halls y leyenda; se usa la regla tipológica, no el INSERT crudo.
+Paso 8 — Concatenar con partidas (el corazón del programa)
+LEFT JOIN del Excel de presupuesto vigente (codigo, descripcion, und, metrado, pu, parcial) con el mapa de hallazgos (codigo → metrado_plano, accion, estado, fuente, nota).
+accion
+Qué escribe el programa
+Ejemplo Los Ciruelos
+KEEP
+metrado_recomendado = metrado_vigente; parcial = metrado × P.U. N70
+04.01 = 1 400; 05.01 = 900
+ADJUST
+metrado_recomendado = metrado_plano; recalcula parcial; exige nota y fuente
+09.01: 200 → 100; P.U. 62.97; parcial 6 297
+REVIEW
+NO cambia el metrado; bloquea OC automática; lista para el Gerente
+03.03 diferenciales 2×40 vs 2×25 del unifilar
+FLAG
+No entra al CD. Capítulo 99. Sin P.U. hasta cotizar aparte
+Poste CAC, fleje 19 mm, FG 50/100, Al 3×35
+Fórmulas económicas (regla ALCOSAVI N70, no las cambie el modelo): CD = suma de parciales KEEP+ADJUST; GG = 10 % × CD; SUB = CD + GG; IGV = 18 % × SUB; TOTAL = SUB + IGV; utilidad = 0. En el piloto, al ajustar solo 09.01: CD 812 551.34; TOTAL 1 054 691.63 frente a 1 062 864.46 vigente (delta −8 172.83 con GG e IGV).
+El P.U. NUNCA lo genera la IA. Si aparece una partida nueva (hydrobox IP55 como ítem separado, o acometida), se crea con pu=null y accion=FLAG. El Gerente asigna precio después.
+Paso 9 — Cronograma y compras
+Reutilizar la tabla PARTIDA_MES del script generar_cronograma_compras_mensual_iiee_n70.py (M1 SPT/banco … M8 detectores). Si 09.01 cambió, solo se regenera la fila de detectores en M8. Las abrazaderas no son partida N70: viven en el BOM (ABRAZ-20/25/32) derivado de la tubería del mismo Ø, 1 cada 1,5 m. El programa de presupuesto de partidas y el de lista de materiales son dos salidas del mismo mapa de Ø, no dos lecturas distintas del plano.
+Paso 10 — Gate humano
+Si existe al menos un REVIEW, o un ADJUST cuyo |Δ parcial| > 1 % del CD, el programa no escribe la proforma Word/Excel final. Escribe un paquete de decisión: lista de códigos, impacto en S/, fuente, y espera OK del Gerente. Eso es lo que en n8n es un nodo Manual.
+6. Lo que esta sesión NO hizo (y el programa no debe fingir)
+No midió polilíneas de tubería en CAD para obtener metros reales. Los metros N70 son criterio de obra sobre L de diseño.
+No abrió los PDF «página a página como un humano con escala» de forma continua; se rasterizó y se miraron recortes.
+No leyó de cabo a rabo los DOCX de MD/MC/EETT en esta pasada de PDF (esa lectura fue de una auditoría anterior). El programa SÍ debe extraer texto de esos DOCX y cruzar N2XOH/LSZH.
+No usó OCR de terceros (Azure, Google Vision, Recap). El texto nació de PyMuPDF (texto vectorial del plot) y de ezdxf.
+No entrenó un detector YOLO de símbolos. Los nombres de bloque del DWG fueron la única vía automática de conteo.
+No corrigió la proforma Word N70 en automático. Solo se generó el schema JSON de concatenación.
+7. Errores de esta sesión que el programa debe blindar
+Error cometido
+Por qué pasó
+Control automático
+Script accoreconsole sin CR/LF reales
+Escapar \n dentro de python -c
+Escribir el .scr desde un archivo .py en disco; assert b'\n' in scr.read_bytes()
+Recorte fijo 62 % derecha
+Asumir que toda leyenda está a la derecha
+Localizar palabra LEYENDA en words[]; validar peso del PNG
+Creer amperajes de la descripción de imagen
+La visión rellena dígitos ilegibles
+Conflicto visión vs cuadro → se descarta visión
+Contar INSERT sin lista negra
+El DWG trae arquitectura XREF
+Negar PUERTA, sanitarios, mobiliario
+Escalar 21 detectores × 5
+Confundir torre típica con proyecto
+Usar regla 1/depto + 1/hall, no INSERT×torres
+Decir que el flujo n8n «fue lo ejecutado»
+Resumir para el usuario un proceso limpio
+Este Word: separar OBJETIVO de SESIÓN
+8. Pila técnica mínima del programa (versión 1)
+Componente
+Tecnología
+Sustituto si falta
+Orquestación
+n8n o un .py único con los 10 pasos (recomendado al inicio: un script, no 14 nodos sueltos)
+Grafo Cursor Agent solo si cada nodo tiene schema y no puede saltarse el cuadro
+PDF
+Python 3.12 + PyMuPDF 1.27+
+pdfminer.six solo para texto; no reemplaza el raster
+DWG
+AutoCAD accoreconsole 2026 (ya está en este PC)
+ODA File Converter; si no hay, dwg_ok=false
+DXF
+ezdxf
+Ninguno equivalente ligero
+Excel
+openpyxl data_only=True (el xlsx debe haberse abierto/guardado en Excel para cachear fórmulas)
+Si data_only viene None, abrir con Excel COM una vez o exigir valores cacheados
+Visión (opcional v1)
+Desactivada en v1. Activar en v1.1 solo para leyendas ILEGIBLES en texto
+Operador humano marca Ø en un formulario
+Salida presupuesto
+JSON schema + regenerar Excel N70 / Word con P.U. intactos
+—
+Idioma / cotización
+Español; PEN; GG 10 %; IGV 18 %; sin utilidad
+No parametrizar utilidad a 8–10 % «porque el modelo lo sugiera»
+Recomendación de implementación: la versión 1 del programa NO debe llamar a ningún LLM. Con PyMuPDF + openpyxl + (opcional) ezdxf ya se cierran las cantidades contractuales y el JOIN. El LLM se añade en v1.1 para redactar notas REVIEW y leer leyendas sin texto extraíble. Así el presupuesto no depende de que «el chat haya visto bien el PNG».
+9. Contrato de datos que el programa debe emitir
+Archivo canónico: 10_SCHEMA_PRESUPUESTO_DESDE_PLANOS.json. Campos por partida: codigo, descripcion, und, metrado_vigente, metrado_plano, pu, parcial_vigente, parcial_recomendado, estado (CONFORME | AJUSTAR | REVISAR | CONFORME_CONSERVADOR | FUERA_N70), accion (KEEP | ADJUST | REVIEW | FLAG), fuente, regla, nota, capitulo. Bloque totales.vigente_n70 y totales.recomendado_planos. El Word/Excel comercial se genera DESPUÉS de que N14 (humano) acepte el JSON.
+10. Checklist de aceptación del programa
+Ante DWG nativo no llama a ezdxf antes de convertir.
+Si accoreconsole falla, no se cae el run: sigue con PDF + cuadro.
+Sin cuadro de cargas no emite 04.01 ni 05.01.
+04.01 siempre 13×deptos + luces_tsg×torres cuando el cuadro lo dice.
+P.U. del JSON de salida = P.U. del Excel N70, byte a byte.
+09.01 en este expediente queda 100 salvo que el Gerente rechace el plano 5.
+Capítulo 99 no suma al CD.
+REVIEW bloquea la proforma.
+Cada run deja carpeta _extract con PNG, TXT, DXF e inventario (auditoría reproducible).
+Un segundo operador, con los mismos archivos, obtiene el mismo JSON (determinismo). Si hay LLM, su salida no altera metrados KEEP.
+11. Conclusión
+El método profesional no es «una IA que mira planos». Es una cadena: inventario → PDF raster/texto → (DWG→DXF→INSERT/textos) → cuadro de cargas → reglas de tipología → JOIN con partidas y P.U. vigentes → gates → proforma. La sesión de Cursor demostró que esa cadena funciona cuando se respeta la jerarquía, y que falla cuando se confía en un recorte mal cortado o en un dígito leído por visión.
+Para armar el programa: implementar primero los pasos 0–5 y 8–10 SIN modelo de lenguaje. Eso ya produce un presupuesto concatenado profesional. El agente Cursor se reserva para leyendas ilegibles y para redactar el memorial de hallazgos, no para inventar metrados ni precios.
+— Fin del documento —
+Archivos hermanos: 08_AUDITORIA_PLANOS_PDF.txt · 10_SCHEMA_PRESUPUESTO_DESDE_PLANOS.json · 11_PLAYBOOK_N8N_LECTURA_PLANOS.txt · 12_N8N_WORKFLOW_LECTURA_PLANOS.json

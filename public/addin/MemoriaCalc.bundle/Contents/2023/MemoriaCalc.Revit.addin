@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>MemoriaCalc</Name>
+    <Assembly>MemoriaCalc.Revit.dll</Assembly>
+    <AddInId>b7c2e1a4-6d19-4f3a-9c11-8e2f0a71d4b8</AddInId>
+    <FullClassName>MemoriaCalc.Revit.App</FullClassName>
+    <VendorId>MCAL</VendorId>
+    <VendorDescription>MemoriaCalc · Memorias de cálculo · ingenieria.miacademiapreu.com</VendorDescription>
+  </AddIn>
+  <AddIn Type="Command">
+    <Name>MemoriaCalc · Exportar paquete</Name>
+    <Assembly>MemoriaCalc.Revit.dll</Assembly>
+    <AddInId>c8d3f2b5-7e20-4a4b-8d22-9f3a1b82e5c9</AddInId>
+    <FullClassName>MemoriaCalc.Revit.ExportCommand</FullClassName>
+    <Text>MemoriaCalc · Exportar paquete</Text>
+    <Description>Copia de respaldo: escribe .mcrevit.json. El flujo principal es el panel: Conectar, Analizar y Sincronizar.</Description>
+    <VisibilityMode>AlwaysVisible</VisibilityMode>
+    <VendorId>MCAL</VendorId>
+    <VendorDescription>MemoriaCalc · ingenieria.miacademiapreu.com</VendorDescription>
+  </AddIn>
+</RevitAddIns>

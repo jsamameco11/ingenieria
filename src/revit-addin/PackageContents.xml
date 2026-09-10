@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage
+  SchemaVersion="1.0"
+  AutodeskProduct="Revit"
+  ProductType="Application"
+  Name="MemoriaCalc"
+  AppVersion="2.0.0"
+  Description="Add-in de Revit: panel acoplable, extracción BIM universal y sincronización en vivo con Vincular con Revit."
+  Author="MemoriaCalc"
+  ProductCode="{B7C2E1A4-6D19-4F3A-9C11-8E2F0A71D4B8}"
+  UpgradeCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}">
+  <CompanyDetails
+    Name="MemoriaCalc"
+    Url="https://ingenieria.miacademiapreu.com"
+    Email="soporte@miacademiapreu.com" />
+  <Components Description="Revit 2023">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2023" SeriesMax="R2023" />
+    <ComponentEntry AppName="MemoriaCalc" Version="2.0.0" ModuleName="./Contents/2023/MemoriaCalc.Revit.addin" AppDescription="MemoriaCalc para Revit 2023" />
+  </Components>
+  <Components Description="Revit 2024">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024" />
+    <ComponentEntry AppName="MemoriaCalc" Version="2.0.0" ModuleName="./Contents/2024/MemoriaCalc.Revit.addin" AppDescription="MemoriaCalc para Revit 2024" />
+  </Components>
+  <Components Description="Revit 2025">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2025" SeriesMax="R2025" />
+    <ComponentEntry AppName="MemoriaCalc" Version="2.0.0" ModuleName="./Contents/2025/MemoriaCalc.Revit.addin" AppDescription="MemoriaCalc para Revit 2025" />
+  </Components>
+  <Components Description="Revit 2026">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2026" SeriesMax="R2026" />
+    <ComponentEntry AppName="MemoriaCalc" Version="2.0.0" ModuleName="./Contents/2026/MemoriaCalc.Revit.addin" AppDescription="MemoriaCalc para Revit 2026" />
+  </Components>
+</ApplicationPackage>

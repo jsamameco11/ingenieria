@@ -1,0 +1,650 @@
+===== TASACION DE TERRENO ACTUALIZADA.xlsx :: EDIFICACIONES =====
+INFORME DE TASACIÓN |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+SOLICITANTE |  |  |  |  |  |  |  |  |  |  |  |  | : | GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY | 
+TIPO DE BIEN |  |  |  |  |  |  |  |  |  |  |  |  | : | INMUEBLE | 
+TELÉFONO |  |  |  |  |  |  |  |  |  |  |  |  | : | +51 977747979 | 
+FECHA DE TASACIÓN |  |  |  |  |  |  |  |  |  |  |  |  | : | 21 de Noviembre del 2024 | 
+TIPO DE CAMBIO (Referencial) |  |  |  |  |  |  |  |  |  |  |  |  | : | 1 US$ = S/. 3.80 | 
+CUADRO RESUMEN DE VALORES |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | Descripción |  |  |  |  |  |  | VT                                    US$ |  |  |  |  | VE + VOC      US$ |  | 
+ | INMUEBLE |  |  |  |  |  |  | 51110 |  |  |  |  | 41924.6 |  | 
+ | TOTAL (DOLARES AMERICANOS) |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | TOTAL (SOLES) |  |  |  |  |  |  |  |  |  | T.C |  | = | 3.80 | 
+ | Tipo |  |  |  |  |  |  |  | Inmueble |  |  |  |  |  | 
+ | Uso |  |  |  |  |  |  |  | Vivienda Unifamiliar |  |  |  |  |  | 
+ | Año de Construcción |  |  |  |  |  |  |  | 46 |  |  |  |  |  | 
+ | Material Predominante |  |  |  |  |  |  |  | Concreto |  |  |  |  |  | 
+ | Estado Actual |  |  |  |  |  |  |  | Regular |  |  |  |  |  | 
+ | Zonificación |  |  |  |  |  |  |  | RDA - 1 |  |  |  |  |  | 
+1. OBJETIVO DE LA TASACIÓN |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.1 FINALIDAD: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El objetivo del presente informe de tasación es determinar el Valor Comercial y de Realización del 100% los activos para la determinación del precio mínimo a ser tomado en cuenta por los GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY de conformidad a lo establecido en el Reglamento Nacional de Tasaciones del Perú vigente, aprobado mediante la Resolución Ministerial N° 172-2016-Vivienda del 26 de julio del 2016, modificado con RM N° 424-2017-Vivienda de fecha 03 de noviembre del 2017 y pautas de la Superintendencia de Banca Seguros y AFP-SGS, aprobado mediante la Resolución SBS N°880-97 y sus modificaciones. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.2 INSTRUCCIONES RECIBIDAS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Recibimos por encargo del cliente, las instrucciones para realizar la valuación del inmueble y se contó con la debida autorización correspondiente por parte del cliente para la inspección al inmueble. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.3 DETALLE DE LA LABOR REALIZADA: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Se realizó la valuación a fecha 21 de Noviembre del 2024, y se recopiló, evaluó y analizó la documentación administrativa-legal y registral proporcionada por el que se precisa en el Ítem 4.00 (documentación sustentatoria) |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.0 DATOS DEL INMUEBLE: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.1 UBICACIÓN: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El presente inmueble de Vivienda Unifamiliar está emplazada en la Urb. La Victoria Primer Sector Mz 39 Lote 4 - región Lambayeque - provincia Chiclayo - distrito La Victoria |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  | FOTO DE UBICACIÓN DEL BIEN INMUEBLE, GOOGLE MAPS O PLANO DE UBICACIÓN |  |  |  |  |  | 
+ |  |  |  |  |  |  | Fig. 01. Ubicación en Google Maps. |  |  |  |  |  |  |  | 
+2.2 DESCRIPCIÓN: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+La Vivienda Unifamiliar cercado(a) en todo su perímetro en el frente principal que colinda con la calle Paul Harris. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.3 USO ACTUAL DEL INMUEBLE: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Vivienda Unifamiliar |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.4 INSCRIPCIÓN EN LOS REGISTROS PÚBLICOS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Inscrito en los Registros Públicos de Chiclayo en la Ficha Registral N°P10011906 Gravámenes y Cargas: No |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.5 INFRAESTRUCTURA DE SERVICIOS URBANOS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El predio posee por  el frente principal en la Paul Harris una , el inmueble tiene conexión a la R. PÚBLICA DE AGUA POTABLE, posee conexión a la R. PÚBLICA DE ALCANTARILLADO y posee servicios de LUZ y TELEFONÍA. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.6 AREA DEL TERRENO: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Área del terreno: 111.7 m2                                                                       Perímetro: 63.87 ml |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Nota: |  | Según ficha registral. |  |  |  |  |  |  |  |  |  |  |  |  | 
+Zonificación: |  |  |  |  | Residencial Densidad Alta Tipo 1 - RDA - 1 |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  | FOTO DE ZONIFICACION DEL BIEN INMUEBLE. |  |  |  |  |  | 
+ |  |  |  |  |  | Fig.02. Mapa de Zonificación del Plan de Desarrollo Urbano de la Ciudad. |  |  |  |  |  |  |  |  | 
+2.7 LINDEROS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+⦿ Por  el frente principal hacia el norte con la Paul Harris |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+⦿ Por  el lindero derecho hacia el norte con la Propiedad de Terceros |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+⦿ Por  el lindero izquierdo hacia el norte con la Propiedad de Terceros |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+⦿ Por  el lindero posterior hacia el oeste con la Propiedad de Terceros |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.8. DISTRIBUCION |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+La Vivienda Unifamiliar de 2 niveles, los cuales especificaremos a continuación. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Arquitectura 1° nivel El primer nivel posee (01) Sala de recepción, 01 Lavandería, (01) Patio, (01) Tendal, (01) Sala, (01) Comedor, (01) Hall, (01) Baño, (01) Cocina, y (01) Escalera que conecta al siguiente nivel.  Arquitectura 2° nivel El segundo nivel posee (01) Depósito, (01) Dormitorio 01, (01) Hall, (02) Baño, (01) Dormitorio Principal, (01) Estar Tv, y 01 Escalera que conecta al siguiente nivel |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.9. ESPECIFICACIONES TECNICAS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+
+===== TASACION DE TERRENO ACTUALIZADA.xlsx :: TERRENO =====
+INFORME DE TASACIÓN DE BIEN INMUEBLE |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+SOLICITANTE |  |  |  |  |  |  |  |  |  |  |  |  | : | GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY | 
+TIPO DE BIEN |  |  |  |  |  |  |  |  |  |  |  |  | : | INMUEBLE | 
+TELÉFONO |  |  |  |  |  |  |  |  |  |  |  |  | : | +51 977747979 | 
+FECHA DE TASACIÓN |  |  |  |  |  |  |  |  |  |  |  |  | : | 21 de Noviembre del 2024 | 
+TIPO DE CAMBIO (Referencial) |  |  |  |  |  |  |  |  |  |  |  |  | : | 1 US$ = S/. 3.80 | 
+VALOR COMERCIAL |  |  |  |  |  |  |  |  |  |  |  |  | : | US$ | 
+VALOR DE REALIZACIÓN |  |  |  |  |  |  |  |  |  |  |  |  | : | US$ | 
+PERITO TASADOR |  |  |  |  |  |  |  |  |  |  |  |  | : | VITALIANO BALLENA BANCES | 
+1. OBJETIVO DE LA TASACIÓN |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.1 FINALIDAD: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El objetivo del presente informe de tasación es determinar el Valor Comercial y de Realización de los activos para la determinación del precio mínimo a ser tomado en cuenta por los GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY de conformidad a lo establecido en el Reglamento Nacional de Tasaciones del Perú vigente, aprobado mediante la Resolución Ministerial N° 172-2016-Vivienda del 26 de julio del 2016, modificado con RM N° 424-2017-Vivienda de fecha 03 de noviembre del 2017 y pautas de la Superintendencia de Banca Seguros y AFP-SGS, aprobado mediante la Resolución SBS N°880-97 y sus modificaciones. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.2 INSTRUCCIONES RECIBIDAS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Recibimos por encargo del cliente, las instrucciones para realizar la valuación del inmueble y se contó con la debida autorización correspondiente por parte del cliente para la inspección al inmueble. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+1.3 DETALLE DE LA LABOR REALIZADA: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Se realizó la valuación a fecha 21 de Noviembre del 2024, y se recopiló, evaluó y analizó la documentación administrativa-legal y registral proporcionada por el que se precisa en el Ítem 4.00 (documentación sustentatoria) |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.0 DATOS DEL INMUEBLE: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.1 UBICACIÓN: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El presente inmueble de Vivienda Unifamiliar está emplazada en la Urb. La Victoria Primer Sector Mz 39 Lote 4 - región Lambayeque - provincia Chiclayo - distrito La Victoria |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  | FOTO DE UBICACIÓN DEL BIEN INMUEBLE, GOOGLE MAPS O PLANO DE UBICACIÓN |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  | Fig. 01. Ubicación en Google Maps. |  |  |  |  |  | 
+2.2 DESCRIPCIÓN: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+La Vivienda Unifamiliar cercado(a) en todo su perímetro en el frente principal que colinda con la calle Paul Harris. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.3 USO ACTUAL DEL INMUEBLE: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Vivienda Unifamiliar |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.4 INSCRIPCIÓN EN LOS REGISTROS PÚBLICOS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Inscrito en los Registros Públicos de Chiclayo en la Ficha Registral N°P10011906 Gravámenes y Cargas: No |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.5 INFRAESTRUCTURA DE SERVICIOS URBANOS: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+El predio posee por el frente principal en la Paul Harris una , el inmueble tiene conexión a la R. PÚBLICA DE AGUA POTABLE, posee conexión a la R. PÚBLICA DE ALCANTARILLADO y posee servicios de LUZ y TELEFONÍA. |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+2.6 AREA DEL TERRENO: |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Área del terreno: 111.7 m2                                                                       Perímetro: 63.87 ml |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+Nota: |  | Según ficha registral. |  |  |  |  |  |  |  |  |  |  |  |  | 
+Zonificación: |  |  |  |  | Residencial Densidad Alta Tipo 1 - RDA - 1 |  |  |  |  |  |  |  |  |  | 
+ |  |  |  |  |  |  |  |  | FOTO DE ZONIFICACION DEL BIEN INMUEBLE. |  |  |  |  |  | 
+ |  |  |  |  |  |  | Fig.02. Mapa de Zonificación del Plan de Desarrollo Urbano de la Ciudad. |  |  |  |  |  |  |  | 
+
+===== TASACION DE TERRENO ACTUALIZADA.xlsx :: Inicio =====
+ |  | DATOS PREVIOS |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | 1. Tipo de Bien : |  |  |  |  |  |  |  | INMUEBLE |  |  |  |  | 
+ |  | 2. Solicitante |  |  |  |  |  |  | : | GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY |  |  |  |  | 
+ |  | 3. Ubicación Exacta |  |  |  |  |  |  | : | DIRECCION EXACTA |  |  |  |  | 
+ |  | 4. Telefono |  |  |  |  |  |  | : | +51 977747979 |  |  |  |  | 
+ |  | 5. Uso |  |  |  |  |  |  | : | Vivienda Unifamiliar |  |  |  |  | 
+ |  | 6. Tipo de Cambio $ |  |  |  |  |  |  | : | 3.80 |  |  |  |  | 
+ |  | DIRECCIÓN EXACTA : |  |  |  |  |  |  |  | Urb. La Victoria Primer Sector Mz 39 Lote 4 |  |  |  |  | 
+ |  | N° PISOS DE EDIFICIO: |  |  |  |  |  |  |  |  |  |  |  |  | 
+ | PISO QUE OCUPA: |  |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | 7. Porcentaje de Acciones |  |  |  |  |  |  |  | : | 100 |  |  | % | 
+ |  | 7. Fecha |  |  |  |  |  |  | : | 21 |  | de |  | Noviembre | 
+ |  | 8. INFORMACION DEL PREDIO |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | 8.1. INFORMACIÓN DE DOCUMENTACION |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  | Documentos : |  |  |  |  |  | Partida Electrónica |  |  |  |  |  | 
+ |  |  |  | Referencia   : |  |  |  |  |  |  |  |  |  |  | 
+ |  |  |  | Cargas y Gravámenes   : |  |  |  |  |  |  |  |  | No |  | 
+ |  |  | Zonificación: |  |  |  |  | Residencial Densidad Alta Tipo 1 - RDA - 1 |  |  |  |  |  |  | 
+ |  |  | Declaratoria de Fábrica : |  |  |  |  |  |  |  |  |  | NO |  | 
+ |  |  | HR - PU : |  |  |  |  |  |  |  |  |  | NO |  | 
+ |  |  | Tasación Anterior : |  |  |  |  |  |  |  |  |  | NO |  | 
+ |  | Linderos Perpendiculares : |  |  |  |  |  |  |  |  |  | SI |  | Nota: Las medidas serán indicadas mirando desde fachada al fondo | 
+ |  |  | NC |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | 8.2. CARACTERISTICAS FISICAS DEL PREDIO |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  | Nota : |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  | Perímetro |  |  |  |  | : | 63.870000000000005 |  |  | m2 |  |  | 
+ |  |  | Área Libre |  |  |  |  | : | - |  |  | m2 |  |  | 
+ |  |  | Área Total |  |  |  |  | : | 111.7 |  |  | m2 |  |  | 
+ |  |  | Área Techada : |  |  |  |  | : | 167.56 |  |  | m2 |  |  | 
+ |  |  | Cant. Pisos |  |  |  |  | : | - |  |  |  |  |  | Muy bueno
+ |  |  |  |  |  |  |  |  |  |  |  |  | Concreto |  | Bueno
+ |  |  |  |  |  |  |  |  |  |  |  |  | Ladrillo |  | Regular
+ |  |  |  |  |  |  |  |  |  |  |  |  | Liviano/Adobe |  | Malo
+ |  | El inmueble se ha construído mayoritariamente con las siguientes características técnicas: |  |  |  |  |  |  |  |  |  |  |  |  | 
+ |  |  | Cimentación |  |  |  |  |  | : | Zapatas de C°A° |  |  |  |  | 
+ |  |  | Estructuras |  |  |  |  |  | : | Albañilería Confinada |  |  |  |  | 
+ |  |  | Techos |  |  |  |  |  | : | Losa Aligerada de C°A° |  |  |  |  | 
+ |  |  | Muros |  |  |  |  |  | : | Albañilería/ Ladrillo |  |  |  |  | 
+ |  |  | Inst. Sanitarias |  |  |  |  |  | : | Tub. PVC de agua/desagüe |  |  |  |  | 
+ |  |  | Inst. Eléctricas |  |  |  |  |  | : | Monofásica PVC empotrada |  |  |  |  | 
+ |  | Accesos o Ingresos |  |  |  |  |  |  |  | : | un acceso |  |  |  | 
+
+MAQ SHEETS: Ing. Varela
+
+===== TASACION DE MAQ.xlsx :: Ing. Varela =====
+COSTO HORARIO DE OPERACIÓN |  |  |  |  |  |  |  |  |  |  | 
+Preparado por: Ing. Pablo Fuentes |  |  |  |  |  |  |  |  |  |  | 
+MAQUINARIA: |  | MODELO: |  |  | POTENCIA (HP): |  |  |  |  |  | 
+Periodo Est. De posesión (años): n = | 5 | Valor Residual (%) Vr = |  |  | 0 | 0 |  |  |  |  | 
+Utilizacion Est. Horas por año: Ha = | 2000 | Interés (%)               i = |  |  | 0.04 |  |  |  |  |  | 
+Tiempo total de posesión en hrs.: Vu = | 10000 | Seguro                   s = |  |  | 0.02 |  |  |  |  |  | 
+ |  |  |  | Cotizacion Dólar |  | 6.96 |  |  |  |  | 
+Precio de entrega (De Adquisición): Vt = | 1531286 | Bs. | 220012.3563218391 |  |  | $us |  |  |  |  | 
+Costo de neumáticos:                    Vn = | 0 | Bs. | 0 |  |  | $us |  |  |  |  | 
+Precio de entrega - neumáticos:      Va = | 1531286 | Bs. | 220012.3563218391 |  |  | $us |  |  |  |  | 
+1. CARGOS FIJOS | TODOS LOS RESULTADOS EN Bs./HORA |  |  |  |  |  |  |  |  |  | 
+Depreciación : | 153.1286 |  |  |  | 153.1286 | Bs. |  |  |  |  | 
+Inversión: | 15.31286 |  |  |  | 15.31286 | Bs. |  |  |  |  | 
+Seguro : | 7.65643 |  |  |  | 7.65643 | Bs. |  |  |  |  | 
+Sub Total cargos Fijos |  |  |  |  | 176.09789 | Bs. |  |  |  |  | 
+2. COSTOS DE FUNCIONAMIENTO |  | TODOS LOS RESULTADOS EN Bs./HORA |  |  |  |  |  |  |  |  | 
+Mantenimiento: | 0.3 |  | 153.1286 |  | 45.93858 | Bs. |  |  |  |  | 
+2.1. CARGOS POR CONSUMO |  |  |  |  |  |  |  |  |  |  | 
+Combustible | 15 | Lts. | 3.72 | Bs./ Lts. | 55.800000000000004 | Bs. |  |  |  |  | 
+Lubricantes |  |  |  |  |  |  |  |  |  |  | 
+Carter | 0.075 | Lts. | 30 | Bs./ Lts. | 2.25 | Bs. |  |  |  |  | 
+Transmisión | 0.01 | Lts. | 50 | Bs./ Lts. | 0.5 | Bs. |  |  |  |  | 
+Mandos Finales | 0.02 | Lts. | 50 | Bs./ Lts. | 1 | Bs. |  |  |  |  | 
+Sistemas Hidraulicos | 0.073 | Lts. | 50 | Bs./ Lts. | 3.65 | Bs. |  |  |  |  | 
+Grasa | 0.025 | Kg. | 25 | Bs./ Kg. | 0.625 | Bs. |  |  |  |  | 
+Neumaticos: |  |  | 0 |  | 0 | Bs. |  |  |  |  | 
+ |  |  | 3000 |  |  |  |  |  |  |  | 
+Sub Total cargo por consumo combustible y lubricantes |  |  |  |  | 63.825 | Bs. |  |  |  |  | 
+Filtros |  |  |  |  |  |  |  |  |  |  | 
+Filtros para: | Intervalo de cambio (Hra) | Nº Filtros |  | Costo del Filtro (Bs.) | Costo por Hora (Bs.) |  |  |  |  |  | 
+Motor | 250 | 1 |  | 80 | 0.32 | Bs. |  |  |  |  | 
+Transmisión | 500 | 1 |  | 150 | 0.3 | Bs. |  |  |  |  | 
+Hidraulico | 500 | 2 |  | 200 | 0.8 | Bs. |  |  |  |  | 
+Filtros de Combustible |  |  |  |  |  |  |  |  |  |  | 
+Primario | 2000 | 1 |  | 300 | 0.15 | Bs. |  |  |  |  | 
+Secundario | 500 | 1 |  | 300 | 0.6 | Bs. |  |  |  |  | 
+Filtros de aire |  |  |  |  |  |  |  |  |  |  | 
+Primario | 2000 | 1 |  | 200 | 0.1 | Bs. |  |  |  |  | 
+Secundario | 1000 | 1 |  | 200 | 0.2 | Bs. |  |  |  |  | 
+Sub Total cargo por utilizacion filtros |  |  |  |  | 2.47 | Bs. |  |  |  |  | 
+Reparación |  |  |  |  |  |  |  |  |  |  | 
+Reparaciones Fac. de rep. * mult. Vida util |  |  |  |  |  | Bs. |  |  |  |  | 
+Elementos de desgaste especial |  |  |  |  |  | Bs. |  |  |  |  | 
+Sub Total cargo por reparación |  |  |  |  | 0 | Bs. |  |  |  |  | 
+Sub Total costos de funcionamiento |  |  |  |  | 112.23358 | Bs. |  |  |  |  | 
+3. CARGO POR OPERACIÓN |  |  |  |  |  |  |  |  |  |  | 
+ | Salario mensual operador: |  | 5000 | Bs. | 43.800000000000004 | Bs. |  |  |  |  | 
+ | Salario mensual ayudante: |  | 2300 | Bs. |  |  |  |  |  |  | 
+ | Horas trabajadas: |  | 166.66666666666666 | Hra. |  |  |  |  |  |  | 
+Sub Total costos de operación |  |  |  |  | 43.800000000000004 | Bs. |  |  |  |  | 
+COSTO HORARIO DE OPERACIÓN |  |  |  |  | 332.13147000000004 | Bs. |  |  |  |  | 
+COSTO HORARIO DE OPERACIÓN [$us] |  |  |  |  | 47.720038793103456 | $us |  |  |  |  | 
+
+
+PDF found: TASACIÓN VIVIENDA UNIF. PAUL HARRIS.pdf
+
+pages=11
+
+
+----- PDF p1 -----
+SOLICITANTE : GUEVARA CASTILLO NOE Y GUEVARA ELENA SHERLY
+TIPO DE BIEN : INMUEBLE
+TELÉFONO : +51 977747979
+FECHA DE TASACIÓN : 21 de Noviembre del 2024
+TIPO DE CAMBIO (Referencial): 1 US$ = S/. 3.80
+=
+Tipo Area Terreno
+Uso Area Construida
+Año de Construcción Número de Pisos
+Material Predominante Gravámenes
+Estado Actual Declar./ Fábrica
+Zonificación Perito Respons.
+No
+NO
+Vitaliano Ballena Bances
+S/ 353,531.48 S/ 282,825.18
+60,721.60
+S/ 230,742.08TOTAL (SOLES) T.C 3.80
+Inmueble
+Vivienda Unifamiliar
+46 años
+Concreto
+Regular
+RDA - 1
+111.70 m²
+167.56 m²
+2
+INMUEBLE 51,110.00 41,924.60 93,034.60 74,427.68
+93,034.60 74,427.68TOTAL (DOLARES AMERICANOS)
+INFORME DE TASACIÓN 
+CUADRO RESUMEN DE VALORES
+VT                                    
+US$
+VE + VOC      
+US$
+VRM                                       
+US$Descripción V Comercial            
+US$
+VSNuevo                          
+US$
+
+
+
+----- PDF p2 -----
+1. OBJETIVO DE LA TASACIÓN
+1.1 FINALIDAD:
+2.2 DESCRIPCIÓN:
+Fig. 01. Ubicación en Google Maps.
+1.3 DETALLE DE LA LABOR REALIZADA:
+1.2 INSTRUCCIONES RECIBIDAS:
+Vivienda Unifamiliar
+2.0 DATOS DEL INMUEBLE:
+Recibimos por encargo del cliente, las instrucciones para realizar la valuación del inmueble y se contó con la debida
+autorización correspondiente por parte del cliente para la inspección al inmueble.
+2.3 USO ACTUAL DEL INMUEBLE:
+2.1 UBICACIÓN:
+FOTO DE UBICACIÓN DEL BIEN INMUEBLE, 
+GOOGLE MAPS O PLANO DE UBICACIÓN
+El presente inmueble de Vivienda Unifamiliar está emplazada en la Urb. La Victoria Primer Sector Mz 39 Lote 4 - región
+Lambayeque - provincia Chiclayo - distrito La Victoria
+La Vivienda Unifamiliar cercado(a) en todo su perímetro en el frente principal que colinda con la calle Paul Harris.
+El objetivo del presente informe de tasación es determinar el Valor Comercial y de Realización del 100% los activos para la
+determinación del precio mínimo a ser tomado en cuenta por los6UHV GUEVARA CASTILLO NOE Y GUEVARA
+ELENA SHERLY de conformidad a lo establecido en el Reglamento Nacional de Tasaciones del Perú vigente, aprobado
+mediante la Resolución Ministerial N° 172-2016-Vivienda del 26 de julio del 2016, modificado con RM N°
+424-2017-Vivienda defecha 03 de noviembre del 2017 y pautas de la Superintendencia de Banca Seguros y AFP-SGS,
+aprobadomediantelaResolución SBS N°880-97 y sus modificaciones.
+Se realizó la valuación a fecha 21 de Noviembre del 2024, y se recopiló, evaluó y analizó la documentación administrativa-
+legal y registral proporcionada por el que se precisa en el Ítem  (documentación sustentatoria)
+
+
+----- PDF p3 -----
+2.8. DISTRIBUCION
+Fig.02. Mapa de Zonificación del Plan de Desarrollo Urbano de la Ciudad.
+Área del terreno: 111.7 m2                                                                       Perímetro: 63.87 ml
+La Vivienda Unifamiliar de 2 niveles, los cuales especificaremos a continuación.
+4.00 ml
+27.95 ml
+4.00 ml
+27.92 ml
+⦿ Por  el frente principal hacia el norte con la Paul Harris
+⦿ Por  el lindero derecho hacia el norte con la Propiedad de Terceros
+⦿ Por  el lindero izquierdo hacia el norte con la Propiedad de Terceros
+⦿ Por  el lindero posterior hacia el oeste con la Propiedad de Terceros
+Arquitectura 1° nivel
+El primer nivel posee (01) Sala de recepción, 01 Lavandería, (01) Patio, (01) Tendal, (01) Sala, (01) Comedor, (01) Hall,
+(01) Baño, (01) Cocina, y (01) Escalera que conecta al siguiente nivel.
+Arquitectura 2° nivel
+El segundo nivel posee (01) Depósito, (01) Dormitorio 01, (01) Hall, (02) Baño, (01) Dormitorio Principal, (01) Estar Tv, y
+01 Escalera que conecta al siguiente nivel
+FOTO DE ZONIFICACION DEL BIEN 
+INMUEBLE.
+2.7 LINDEROS:
+2.6 AREA DEL TERRENO:
+2.5 INFRAESTRUCTURA DE SERVICIOS URBANOS:
+2.4 INSCRIPCIÓN EN LOS REGISTROS PÚBLICOS:
+Zonificación:Residencial Densidad Alta Tipo 1 - RDA - 1
+NotaSegún ficha registral.
+Inscrito en los Registros Públicos de Chiclayo en la Ficha Registral N°P10011906
+Gravámenes y Cargas: No
+El predio posee por el frente principal en la Paul Harris una , el inmueble tiene conexión a la R. PÚBLICA DE AGUA
+POTABLE, posee conexión a la R. PÚBLICA DE ALCANTARILLADO y posee servicios de LUZ y TELEFONÍA.
+
+
+
+----- PDF p4 -----
+2.9. ESPECIFICACIONES TECNICAS:
+2.9.1. EDIFICACIONES
+El inmueble se ha construído mayoritariamente con las siguientes características técnicas:
+: :
+: :
+: :
+: :
+: :
+: :
+2.9.2. AREAS CONSTRUIDAS
+Las edificaciones constan de las siguientes áreas construídas.
+Cada tipo de Área construída observada tiene las siguientes características:
+:
+:
+2.9. ANTIGÜEDAD Y ESTADO DE CONSERVACIÓN:
+2.10. DOCUMENTACIÓN
+Se contó con la siguiente documentación del inmueble:
+2.11. GRAVÁMENES
+No se conoce
+3. REGLAMENTACIÓN EMPLEADA
+Vivienda Unifamiliar
+A
+(m²)
+83.78
+83.78
+B
+(m²)
+83.78
+(m²)
+La presente valuación se efectúa en concordancia con lo dispuesto en el Reglamento Nacional de Tasaciones
+del Perú R.M. N° 172 - 2016 - VIVIENDA que consiste en la determinación del valor de todos sus componentes ,
+en términos de terreno , edificaciones , obras complementarias y valores intangibles , aplicándosele a los valores
+físicos  según  el caso , los factores  de  depreciación  (FD)  por antigüedad  y   estado  de  conservación  correspondientes.  
+Tipo A
+Tipo B
+*Partida Electrónica N° P10011906
+B
+0 BuenoA
+46 Malo
+83.78
+Tipo Edificación
+Techos
+Zapatas de C°A°
+Porcelanato
+Inst. Sanitarias
+Albañilería Confinada Pisos
+Losa Aligerada de C°A°
+Revestimiento
+Muros
+Inst. Eléctricas
+Cimentación
+Estructuras
+Totales
+Puertas
+TIPO
+1° Piso
+Madera
+Cocina Bajos/Albañilería
+Aparat/Sanitario One Piece/Blanco
+Ventanas Vidrio CrudoAlbañilería/ Ladrillo
+2° Piso
+Tub. PVC de agua/desagüe
+Antigüedad EstadoTIPO 
+De conformidad con el Reglamento Nacional de Tasaciones del Perú y teniendo en cuenta los materiales de
+construcción predominantes, antigüedad, estado de conservación y uso (tabla N° 01 del Art. II.D.37) les corresponde las
+depreciaciones siguientes:
+Piso Porcelanato / Cerámico / Muros de Ladrillo / Tarrajeo / Pintura / Losa Aligerada
+Piso Cerámico / Muros de Ladrillo / Tarrajeo / Pintura / Losa Aligerada
+D
+Monofásica PVC empotrada
+Tarrajeo/Pintura
+C
+(m²)
+Vivienda Unifamiliar
+
+
+
+----- PDF p5 -----
+4. DEDUCCIONES PARA EL VALOR DE REALIZACIÓN
+SUB – TOTAL
+TOTAL DEDUCCIONES
+5. VALUACIÓN
+5.1. VALOR DEL TERRENO (VT)
+(1)
+Fecha
+21/11/2024
+21/11/2024
+El Valor de Realización en el Mercado, es el Valor Neto del inmueble, que se esperaría recuperar como consecuencia de la
+eventual venta del bien, en la situación como está, descontando los castigos y cargos por los conceptos que son indicados
+a continuación:
+El análisis de los valores comerciales del mercado inmobiliario de compra - venta de terrenos similares en cuanto a
+ubicación, forma, servicios y entorno urbano, nos  permite  determinar  el  Valor  Comercial Unitario del Terreno.
+51,110.00VT = US $ 
+21/11/2024
+NOTA: La Entidad considerará las deducciones de su conocimiento, para así obtener un Valor de Realización Final.
+Considerando los valores homologados  para el Terreno, tenemos:
+A. Terreno
+m2Descripción VT US$ US$/m2
+Zon. Dist.Ub. Ent.
+VALOR TOTAL DE TERRENO
+970 006 689
+Gastos por pérdida y deterioro
+Gastos de Valuac. para realización
+Depreciación durante la ejecución 
+Inmueble Art. 19 RNT - Triple Cuadrado del Frente 640 30,720.00
+Remanente de terreno 320 20,390.00
+48
+63.70
+1.00 1.00 0.95
+Resultante
+20%
+m²
+344.88
+333.14
+F.N.
+Mantenimiento
+2.00%
+0.20%
+4.00%
+2.00%
+8.20%
+Zonificación
+11.80%
+Para realizar el inmueble en un plazo de 180 
+días y estableciendo que a la fecha en el 
+mercado la oferta es mayor que la demanda 
+para este tipo de inmueble, consideramos un 
+ajuste de :
+Comparación 
+General
+RDA - 1
+RDA - 1
+RDA - 1
+Inferior
+Inferior
+Similar
+Ubicación de Terrenos Comparables
+Calle Paul Harris N°840
+Calle Paul Harris N°854
+Calle Toparca N°343
+Teléfono
+977 431 159
+971 443 190
+US$/m²
+640.00
+1.00
+1.00
+1.00
+1.00 1.17 1.00 1.00 1.00 0.95
+1.00 1.17 1.00 1.00 1.00 0.95
+           Valor Unitario de Terreno Homologado (US$/m²)
+1.11480.28
+714.29 1.00 1.09 1.00
+Factor VUT HomolFactores x Homologar
+Oferta / Transacción
+1.11 643.7
+Area VUTPrecio Inmueble
+533.11
+1.04 742.86
+200,000.00
+160,000.00
+150,000.00
+Sup. Ser.
+210.00
+US$/m2
+579.91
+
+
+
+----- PDF p6 -----
+5.2. VALOR DE LAS EDIFICACIONES (VE)
+5.3. VALOR DE LAS OBRAS COMPLEMENTARIAS (OC) + INSTALACIONES FIJAS (IF)
+5.4. VALOR SIMILAR A NUEVO (VSN)
+5.5. FACTOR DE MEJORAMIENTO / DESMEJORAMIENTO
+En el caso de análisis presente tendremos:    
+FD VOC
+US$ US$
+Muro de ladrillo de arcilla o similar amarrado en soga 
+que incluye cimentación.
+Descripción
+41,524.60
+Total 418.90 400.00
+US$/und
+58.18
+Und
+m² 7.20 418.90 0.95 400.00
+Edad 
+(años)
+Metrado VOC/IF (1)
+0 Bueno
+Acomún Material Estado VE(2)
+US$
+60321.6
+VE(1)
+83.78 380.00 31836.4
+Atech.
+m2Descrip.
+167.56
+US$
+28485.2
+60321.6
+US$/m2
+83.78
+Totales
+2º Piso B 0.40 11,280.00
+VE
+US$FD 
+Malo0 28485.2 Concreto 46340.00
+209.37
+104.8
+101.33
+Valor de Edificación US$/m²
+Cla.
+C
+C
+D
+E
+F
+C
+E
+0.95 30,244.601° Piso A 0 31836.4 Concreto
+0%
+1444
+380
+TIPO B
+VUE2
+S/m²
+380.21
+280.47
+64.26
+118.72
+104.8
+47.6
+101.33
+1097.39
+194.61
+1292
+340
+E
+S/m²
+380.21
+280.47
+159.91
+118.72
+1234.63
+89.19
+Gastos Generales + Utilidad
+Valor Edificación S/m2
+Inst. Eléctricas y Sanitarias
+Cla.
+C
+C
+G
+E
+F
+D
+El Valor de la Edificaciones, se obtiene de los valores de construcción de mercado para cada tipo a considerar, según el
+material de construcción, los acabados e instalacionesde este análisis podemos señalar como valores unitarios para cada
+tipo de edificación:
+Muros, Columnas, Vigas
+7
+Costo Directo Edificación
+6
+Pisos
+Puertas y Ventanas
+Techos
+1
+2
+3
+4
+5 Revestimientos
+Baños
+Partidas BaseCódigo
+TIPO A
+VUE1
+VALOR SIMILAR NUEVO
+VE   =   US $ 41,524.60VALOR DE LAS EDIFICACIONES
+VALOR OBRAS COMPLEM. E INST. FIJASVOC/IF = US $ 400.00
+Este factor se usa para reflejar de una mejor manera las condiciones actuales del bien, sea por ubicación, entorno de
+desarrollo, actividad vinculante actual y proyectada, según el caso puede ser mayor o menor que la unidad. Este coeficiente
+se aplica solo para las edificaciones y obras complementarias.
+1.00Fm =
+Se  refiere al valor del  inmueble, sin  considerar  el  terreno  y sin  tener  en  consideración su depreciación.
+60,740.50VSN  =   US $ 
+
+
+
+----- PDF p7 -----
+5.6. VALOR COMERCIAL DE PREDIO (VC)
+VC    =     VT    +    VE    +   (VOC + IF)
+5.7. VALOR DE REALIZACION EN EL MERCADO (VRM)
+6. CONCLUSIONES
+7. PANEL FOTOGRÁFICO
+* La presente valuación se ha efectuado siguiendo las normas establecidas y con libertad de criterio.
+* Los valores consignados surgen del análisis de inmuebles de la base de datos con similares características a las del bien
+considerado, con una data (oferta/transacción) de hasta 150 días respecto a la fecha de elaboración del informe.
+Fig.03. Entorno del Predio. Fig.04. Entorno del Predio.
+SON  NOVENTA Y TRES MIL TREINTA Y CUATRO 60/100 DÓLARES 
+AMERICANOS
+VC    =   US $   93,034.60
+VC  US$
+93,034.60
+VEt  US$
+( (2) + (3) )  x (4)
+41,924.60
+VT   US$
+51,110.00
+Descripción
+Inmueble
+El valor comercial del predio (VC) será igual a la sumatoria del Valor del Terreno (VT), más el Valor de las Edificaciones
+(VE) y el de las Obras Complementarias (VOC + IF). Se considera los valores ya afectados por el Factor de Mejoramiento
+(Fm).
+SON  SETENTA Y CUATRO MIL CUATROCIENTOS VEINTISIETE 68/100  
+DÓLARES AMERICANOS
+VRM  =  US $  74,427.68
+% US$
+80% 74,427.68
+Descripción
+Inmueble
+VC
+US$
+93,034.60
+VRM VRM
+
+
+
+----- PDF p8 -----
+Fig.07. Sala de Recepción Fig.08. Patio
+Fig.06. Muro perimentral de Ladrillo de arcilla 
+asentado de sogaFig.05. Fachada de Vivienda Unifamiliar
+
+
+
+----- PDF p9 -----
+Fig.09. Sala Comedor Fig.10. Cocina
+Fig.11. Baño Primer Nivel Fig.12. Lavandería y Tendal
+
+
+
+----- PDF p10 -----
+Fig.13. Star Tv 2° Nivel Fig.14. Depósito
+Fig.15. Baño Segundo Nivel Fig.16. Dormitorio Secundario
+
+
+
+----- PDF p11 -----
+Fig.17. Baño Segundo Nivel Fig.18. Dormitorio Principal

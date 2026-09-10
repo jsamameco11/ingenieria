@@ -1,0 +1,222 @@
+FILE: DISEÑADOR DE MEZCLAS PARA CONCRETO ver. 1.0.xlsm
+SHEETS: ['INDICE', 'PASO 1', 'PASO 2', 'PASO 3', 'PASO 3.1', 'PASO 4', 'PASO 5', 'PASO 6', 'PASO 7', 'CALCULO 1', 'CALCULO 2', 'CALCULO 3', 'CALCULO 4', 'CALCULO 5', 'CALCULO 6', 'CALCULO 7', 'RESULTADO', 'TABLAS']
+
+===== SHEET: INDICE  17x20 =====
+R3	2:DISEÑADOR DE MEZCLAS PARA CONCRETO (METODO ACI)
+R5	2:Con esta hoja Excel ud. Podra hacer el diseño de concreto y docificaciones de cada elemento, con el metodo ACI para tecnologia de concreto
+R6	2:para cualquier cantidad demetros cubicos que ud. Desee. Para empezar haga click en INICIAR DISEÑO. Gracias.
+R13	4:AUTOR:  | 6:est. GOYO ÁLVAREZ ÁLVAREZ (flupper_fehither@hotmail.com)
+R14	4:ALMA MATER: | 6:FACULTAD DE INGENIERIA CIVIL - UNIVERSIDAD ANDINA DEL CUSCO
+R15	4:FUENTE/BIBLIOGRAFIA: | 6:TOPICOS DE TECNOLOGIA DE CONCRETO (ING. ENRIQUE PASQUEL CARBAJAL)
+R17	6:CUSCO - PERU - 03/2010 | 9:COPYRIGHT    MMX
+
+===== SHEET: PASO 1  12x8 =====
+R3	3:PASO 1 DE 7: SELECCIONE TIPO DE ESTRUCTURA
+R6	7:2
+R8	3:SLUMP:
+R9	3:MAX. | 4:MIM. | 5:Recomendado | 7:Deseado
+R10	3:3" | 4:1" | 5:2 | 6:" | 7:"
+R11	7:2
+R12	3:"Modificar solamente espacios verdes"
+
+===== SHEET: PASO 2  11x9 =====
+R3	3:PASO 2 DE 7: INTRODUCIR RESISTENCIA DESEADA
+R5	5:240 | 6:kg/cm2
+R6	3:150 | 8:450
+R9	3:RESISTENCIA: | 5:240 | 6:kg/cm2
+R11	3:"Modificar solamente espacios verdes"
+
+===== SHEET: PASO 3  27x9 =====
+R3	3:PASO 3/7: ADITIVOS INCORPORADORES DE AIRE
+R6	7:1
+R8	3:"Modificar solamente espacios verdes"
+R27	8:2
+
+===== SHEET: PASO 3.1  35x9 =====
+R1	2:OJO: Solo para Concreto CON AIRE incorporado, de lo contrario ignorar paso.
+R3	3:PASO 3.1/7: GRADO DE EXPOSICION DEL
+R4	4:AGREGADO GRUESO
+R6	3:Grado de Exposicion
+R7	3:Del Agregado Grueso
+R8	3:Moderada
+R9	7:2
+R10	3:"Modificar solamente espacios verdes"
+R35	9:1
+
+===== SHEET: PASO 4  10x9 =====
+R3	3:PASO 4/7: CARACTERISTICAS FISICAS DE LA ARENA
+R4	6:(COLOCAR)
+R5	3:Peso Especifico Seco: | 6:2640 | 7:kg/m3
+R6	3:Modulo de Fineza: | 6:2.8 | 7:(min. 2.40) | 8:(max. 3.00)
+R7	3:Porcentaje de Absorcion: | 6:0.7 | 7:%
+R8	3:Porcentaje de Humedad: | 6:6 | 7:%
+R10	3:"Modificar solamente espacios verdes"
+
+===== SHEET: PASO 5  11x9 =====
+R3	3:PASO 5/7: CARACTERISTICAS FISICAS DE LA PIEDRA
+R4	7:(COLOCAR)
+R5	3:Tamaño Maximo: | 8:" | 9:3
+R6	3:Peso Especifico Seco: | 7:2680 | 8:kg/m3
+R7	3:Peso Unitario Compactado Seco: | 7:1600 | 8:kg/m3
+R8	3:Porcentaje de Absorcion: | 7:0.5 | 8:%
+R9	3:Porcentaje de Humedad: | 7:2 | 8:%
+R11	3:"Modificar solamente espacios verdes"
+
+===== SHEET: PASO 6  11x8 =====
+R3	3:PASO 6/7: ESTABLECER TIPO DE CEMENTO
+R6	7:1
+R8	4:1
+R9	3:PESO ESPECIFICO: | 6:3.15 | 7:(gr/cm3)
+R11	3:"Modificar solamente espacios verdes"
+
+===== SHEET: PASO 7  9x9 =====
+R3	3:PASO 7/7: METROS CUBICOS DE CONCRETO REQUERIDO
+R6	5:1 | 6:m3
+R9	3:"Modificar solamente espacios verdes"
+
+===== SHEET: CALCULO 1  16x12 =====
+R3	3:CALCULO 1: VOLUMEN DE AGUA
+R5	3:Slump | 5:2 | 6:"
+R6	3:T.Maximo Agregado | 5:0.75 | 6:"
+R8	3:T.Maximo | 4:0.375 | 5:0.5 | 6:0.75 | 7:1 | 8:1.5 | 9:2 | 10:3 | 11:4
+R9	3:Con Aire | 4:181 | 5:175 | 6:168 | 7:160 | 8:150 | 9:142 | 10:122 | 11:107
+R10	3:Sin Aire | 4:207 | 5:199 | 6:190 | 7:179 | 8:166 | 9:154 | 10:130 | 11:113
+R12	3:Con Aire | 4:168
+R13	3:Sin Aire | 4:190
+R15	3:Agua | 4:168 | 5:Kg. | 6:0.168 | 7:m3
+
+===== SHEET: CALCULO 2  15x10 =====
+R3	3:CALCULO 2: VOLUMEN DEL CEMENTO
+R5	3:f'c (kg/cm2) | 4:      relacion a/c
+R6	4:con aire | 5:sin aire
+R7	3:240 | 4:0.536 | 5:0.6259999999999999
+R9	4:Con Aire Incorporado | 7:Sin Aire Incorporado
+R10	4:168 | 5:Kg.        / | 6:0.536 | 7:168 | 8:Kg.        / | 9:0.6259999999999999
+R11	3:Cemento | 5:313.4328358208955 | 6:kg. | 8:268.370607028754 | 9:kg.
+R12	5:0.09950248756218905 | 6:m3 | 8:0.08519701810436636 | 9:m3
+R14	3:Cemento: | 4:0.09950248756218905 | 5:m3
+
+===== SHEET: CALCULO 3  17x9 =====
+R3	3:CALCULO 3: VOLUMEN DE AGREGADO GRUESO
+R5	3:T. Maximo del Agregado Grueso | 7:0.75 | 8:"
+R6	3:Modulo de Fineza de la Arena | 7:2.8
+R8	3:T.Maximo | 4:                    Modulo de Fineza
+R9	3:Agregado | 4:2.4 | 5:2.6 | 6:2.8 | 7:3
+R10	3:0.75 | 4:0.66 | 5:0.64 | 6:0.62 | 7:0.6
+R12	3:Volumen de A°G° Compactado Seco | 7:0.62 | 8:m3
+R13	3:Peso Unitario Compactado Seco | 7:1600 | 8:kg/m3
+R14	3:Peso Especifico Seco | 7:2680 | 8:kg/m3
+R16	3:Agregado Grueso: | 5:0.3701492537313433 | 6:m3
+
+===== SHEET: CALCULO 4  10x12 =====
+R3	3:CALCULO 4: VOLUMEN DEL AIRE
+R5	3:Concreto Sin Aire Incorporado | 8:Concreto Con Aire Incorporado
+R6	3:T.Maximo de A°G° | 5:0.75 | 6:" | 8:T.Maximo de A°G° | 10:0.75 | 11:"
+R7	3:Aire atrapado | 5:2 | 6:% | 8:Aire atrapado | 10:5 | 11:%
+R9	3:Aire: | 4:0.05 | 5:m3
+
+===== SHEET: CALCULO 5  12x10 =====
+R3	2:  | 3:CALCULO 5: VOLMEN ABSOLUTO DE LA ARENA
+R5	3:Volumen de Agua | 7:0.168 | 8:m3
+R6	3:Volumen de Cemento | 7:0.09950248756218905 | 8:m3
+R7	3:Volumen del Agregado Grueso | 7:0.3701492537313433 | 8:m3
+R8	3:Volumen del Aire | 7:0.05 | 8:m3
+R9	3:TOTAL: | 7:0.6876517412935323 | 8:m3
+R11	3:Arena: | 5:0.31234825870646765 | 6:m3
+
+===== SHEET: CALCULO 6  12x11 =====
+R3	3:CALCULO 6: CÁLCULO DE PESOS
+R5	3:Elemento | 5:Volumen Absoluto | 7:Peso Especifico | 9:Peso
+R6	3:Agua | 5:0.168 | 6:m3 | 7:1000 | 8:kg/m3 | 9:168 | 10:kg.
+R7	3:Cemento | 5:0.09950248756218905 | 6:m3 | 7:3150 | 8:kg/m3 | 9:313.4328358208955 | 10:kg.
+R8	3:Piedra (seca) | 5:0.3701492537313433 | 6:m3 | 7:2680 | 8:kg/m3 | 9:992 | 10:kg.
+R9	3:Arena (seca) | 5:0.31234825870646765 | 6:m3 | 7:2640 | 8:kg/m3 | 9:824.5994029850746 | 10:kg.
+R10	3:Aire | 5:0.05 | 6:m3 | 7:0 | 8:kg/m3 | 9:0 | 10:kg.
+R11	3:TOTALES | 5:1 | 6:m3 | 9:2298.03223880597 | 10:kg.
+
+===== SHEET: CALCULO 7  11x13 =====
+R3	3:CALCULO 7: CALCULO DE PESO DE AGUA FINAL
+R5	3:CORRECCION POR HUMEDAD Y ABSORCION
+R6	5:        humedad | 7:            pesará | 9:balance de agua | 11:contribucion de agua
+R7	3:Piedra Humeda | 5:2 | 6:% | 7:1011.84 | 8:kg. | 9:0.015 | 11:15.1776 | 12:kg
+R8	3:Arena Humeda | 5:6 | 6:% | 7:874.075367164179 | 8:kg. | 9:0.053 | 11:46.32599445970149 | 12:kg
+R10	3:Agua Final: | 5:106.49640554029851 | 6:kg.
+
+===== SHEET: RESULTADO  18x10 =====
+R3	3:DISEÑO FINAL PARA: | 5:1 | 6:m3 | 7:DE CONCRETO
+R5	3:ELEMENTO | 6:PESO
+R6	3:AGUA | 6:106.49640554029851 | 7:kg.
+R7	3:CEMENTO | 6:313.4328358208955 | 7:kg.       Ó | 8:7.374890254609306 | 9:bolsas
+R8	3:PIEDRA | 6:1011.84 | 7:kg.
+R9	3:ARENA | 6:874.075367164179 | 7:kg.
+R10	3:TOTAL | 6:2305.844608525373 | 7:kg.
+R12	3:ELEMENTO | 5:     VOLUMEN | 7:DOSIFICACION
+R13	3:AGUA | 5:0.10649640554029852 | 6:m3 | 7:1.0702888756800002 | 8:K
+R14	3:CEMENTO | 5:0.09950248756218905 | 6:m3 | 7:1 | 8:K
+R15	3:PIEDRA | 5:0.6324000000000001 | 6:m3 | 7:6.355620000000001 | 8:K
+R16	3:ARENA | 5:0.3310891542288557 | 6:m3 | 7:3.327446 | 8:K
+R17	3:TOTAL | 5:1.1694880473313434 | 6:m3
+
+===== SHEET: TABLAS  71x12 =====
+R3	2:TABLA 1: SLUMP PARA DIVERSOS TIPOS DE ESTRUCTURAS
+R4	2:Tipo de Estrucutura | 7:Slump Maximo | 9:Slump Minimo
+R5	2:Zapatas y Muros de Cimentacion Reforzados | 7:3" | 9:1"
+R6	2:Cimentacion Simples y Calzaduras | 7:3" | 9:1"
+R7	2:Vigas y Muros Armados | 7:4" | 9:1"
+R8	2:Columnas | 7:4" | 9:2"
+R9	2:Losas y Pavimentos | 7:3" | 9:1"
+R10	2:Concreto Ciclopeo | 7:2" | 9:1"
+R12	2:TABLA 2: CANTIDAD APROXIMADA DE AGUA PARA AMASADO
+R13	2:SLUMP | 3:Tamaño Maximo de Agregado | 11:T.Maximo | 12:Slump
+R14	3:3/8" | 4:1/2" | 5:3/4" | 6:1" | 7:1 1/2" | 8:2" | 9:3" | 10:4" | 11:0.375 | 12:1
+R15	3:Concreto Sin Aire Incorporado | 11:0.5 | 12:2
+R16	2:1" a 2" | 3:207 | 4:199 | 5:190 | 6:179 | 7:166 | 8:154 | 9:130 | 10:113 | 11:0.75 | 12:3
+R17	2:3" a 4" | 3:228 | 4:216 | 5:205 | 6:193 | 7:181 | 8:169 | 9:145 | 10:124 | 11:1 | 12:4
+R18	2:6" a 7" | 3:243 | 4:228 | 5:216 | 6:202 | 7:190 | 8:178 | 9:160 | 10:--- | 11:1.5 | 12:6
+R19	3:Concreto Con Aire Incorporado | 11:2 | 12:7
+R20	2:1" a 2" | 3:181 | 4:175 | 5:168 | 6:160 | 7:150 | 8:142 | 9:122 | 10:107 | 11:3
+R21	2:3" a 4" | 3:202 | 4:193 | 5:184 | 6:175 | 7:165 | 8:157 | 9:133 | 10:119 | 11:4
+R22	2:6" a 7" | 3:216 | 4:205 | 5:197 | 6:184 | 7:174 | 8:166 | 9:154 | 10:---
+R24	2:TABLA 3: RELACION AGUA CEMENTO VS RESISTENCIA DEL CONCRETO
+R25	2:f'c a 28 dias | 4:Relacion Agua/Cemento en peso
+R26	2:(kg/cm2) | 4:Sin Aire Incorporado | 7:Con Aire Incorporado
+R27	2:450 | 5:0.38 | 8:---
+R28	2:400 | 5:0.42 | 8:---
+R29	2:350 | 5:0.47 | 8:0.39
+R30	2:300 | 5:0.54 | 8:0.45
+R31	2:250 | 5:0.61 | 8:0.52
+R32	2:200 | 5:0.69 | 8:0.6
+R33	2:150 | 5:0.79 | 8:0.7
+R35	2:TABLA 4: VOLUMEN DE AGREGADO GRUESO COMPACTADO
+R36	2:Volumen de A°G° Compactado en Seco
+R37	2:Tamaño Maximo | 4:Modulo de Fineza de la Arena
+R38	2:de Agregado | 4:2.4 | 5:2.6 | 6:2.8 | 7:3
+R39	2:0.375 | 3:" | 4:0.5 | 5:0.48 | 6:0.46 | 7:0.44
+R40	2:0.5 | 3:" | 4:0.59 | 5:0.57 | 6:0.55 | 7:0.53
+R41	2:0.75 | 3:" | 4:0.66 | 5:0.64 | 6:0.62 | 7:0.6
+R42	2:1 | 3:" | 4:0.71 | 5:0.69 | 6:0.67 | 7:0.65
+R43	2:1.5 | 3:" | 4:0.75 | 5:0.73 | 6:0.71 | 7:0.69
+R44	2:2 | 3:" | 4:0.78 | 5:0.76 | 6:0.74 | 7:0.72
+R45	2:3 | 3:" | 4:0.82 | 5:0.79 | 6:0.78 | 7:0.75
+R46	2:6 | 3:" | 4:0.87 | 5:0.85 | 6:0.83 | 7:0.81
+R48	2:TABLA 5: PESO ESPECIFICO DE LOS
+R49	2:CEMENTOS (gr/cm3)
+R50	2:Cemento | 4:P.Especifico
+R51	2:Yura Tipo I | 4:3.15
+R52	2:Yura Tipo IP | 4:2.86
+R53	2:Yura Tipo IPM | 4:2.95
+R54	2:Sol Tipo I | 4:3.11
+R55	2:Andino Tipo I | 4:3.11
+R56	2:Andino Tipo II | 4:3.18
+R57	2:Andino Tipo V | 4:3.11
+R58	2:Atlas Tipo IP | 4:3.03
+R60	2:TABLA 6: PORCENTAJE DE AIRE ATRAPADO
+R61	2:CONCRETO SIN AIRE INCORPORADO
+R62	2:T.Maximo de A°G° (") | 4:0.375 | 5:0.5 | 6:0.75 | 7:1 | 8:1.5 | 9:2 | 10:3 | 11:4
+R63	2:Aire atrapado (%) | 4:3 | 5:2.5 | 6:2 | 7:1.5 | 8:1 | 9:0.5 | 10:0.3 | 11:0.2
+R64	2:CONCRETO CON AIRE INCORPORADO
+R65	2:T.Maximo de A°G° (") | 4:0.375 | 5:0.5 | 6:0.75 | 7:1 | 8:1.5 | 9:2 | 10:3 | 11:4
+R66	2:Grado de Exposicion
+R67	2:Normal | 4:4.5 | 5:4 | 6:3.5 | 7:3 | 8:2.5 | 9:2 | 10:1.5 | 11:1
+R68	2:Moderada | 4:8 | 5:5.5 | 6:5 | 7:4.5 | 8:4.5 | 9:4 | 10:3.5 | 11:3
+R69	2:Extrema | 4:7.5 | 5:7 | 6:6 | 7:6 | 8:5.5 | 9:5 | 10:4.5 | 11:4

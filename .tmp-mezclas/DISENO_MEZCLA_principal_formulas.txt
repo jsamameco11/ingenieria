@@ -1,0 +1,324 @@
+FILE: DISEÑO DE MEZCLA..xls
+
+===== SHEET: Diseño 118x8 =====
+R1	1:DISEÑO DE MEZCLAS 
+R2	1:Según Norma Venezolana 1753-2006
+R3	1:Peso Especifico del Agregado Fino  | 3:2.65 | 4:Kg./lts.  | 5:DATOS 
+R4	1:Peso Especifico del Agregado Grueso  | 3:2.65 | 4:Kg./lts.  | 5:RESULTADOS 
+R5	1:Peso Unitario del Agregado Fino | 3:1.55 | 4:Kg./lts. 
+R6	1:Peso Unitario del Agregado Grueso  | 3:1.45 | 4:Kg./lts. 
+R7	1:Humedad del Agregado Fino  | 3:5 | 4:%
+R8	1:Humedad del Agregado Grueso  | 3:1.4 | 4:%
+R9	1:Absorción del Agregado Fino  | 3:3 | 4:%
+R10	1:Absorción del agregado Grueso  | 3:2 | 4:%
+R11	1:Peso Especifico del Cemento  | 3:3.33 | 4:Kg./lts. 
+R13	1:Resistencia Especificada a la Compresión f´c
+R14	1:f´c= | 2:210 | 3:Kg./cm2
+R16	1:Control de Calidad de los Materiales 
+R17	1:Control de Calidad  | 3:Aceptable
+R19	1:Resistencia Promedio a la Compresión Requerida f´cr
+R20	1:f´cr= | 2:=w(B14,C17) | 3:Kg./cm2
+R21	1:En áreas sísmicas f´c no será menor de 210 Kg./cm2
+R23	1:Relación Agua/Cemento 
+R24	1:Edad de ensayo (días) = | 3:28
+R25	1:α= | 2:=ROUND(alfha(B20,C24),3)
+R27	1:Corrección de α
+R28	1:Factor para corregir α por el tamaño máximo Kr.
+R29	1:Tamaño máximo (Pulgadas)= | 3:1 | 4:pulg.
+R30	1:Kr= | 2:=Kr(C29)
+R32	1:Factor para corregir α por el tipo de Agregado Ka.
+R33	1:Tipo de Agregado Fino  | 3:Arena Natural 
+R34	1:Tipo de Agregado Grueso  | 3:Canto Rodado
+R35	1:Ka= | 2:=Ka(C33,C34)
+R37	1:Relación Agua /Cemento Corregida αcorr | 4:Verificación según Condiciones Ambientales o de Servicio 
+R38	1:αcorr= | 2:=ROUND(B25*B30*B35,3) | 4:Condición= | 5:Atmósfera común 
+R39	4:α= | 5:=Ambiente(B38,E38)
+R41	1:Asentamiento deseado en el vaciado 
+R42	1:Valores usuales de asentamiento 
+R43	1:Elemento  | 4:Asent. (cm.)
+R44	1:Prefabricados  | 4:0-6
+R45	1:Fundaciones Ciclópeas  | 4:3-8
+R46	1:Pedestales, muros de fundación armados  | 4:4-8
+R47	1:Pavimentos  | 4:5-8
+R48	1:Losas, vigas, columnas, muros de corte  | 4:6-11
+R49	1:Paredes estructurales delgadas  | 4:10-18
+R50	1:Concreto transportado por bombeo  | 4:6-18
+R51	1:Asentamiento = | 2:7.5 | 3:cm.
+R53	1:Cantidad de Cemento C Kg. 
+R54	1:Cemento =  | 2:=117.2*(E39^-1.3)*(B51^0.16) | 3:Kg. 
+R56	1:Corrección de C
+R57	1:Factor para corregir C por el tamaño máximo C1.
+R58	1:Tamaño máximo (Pulgadas)= | 3:1 | 4:pulg.
+R59	1:C1= | 2:=cuno(C58)
+R61	1:Factor para corregir C por el tipo de Agregado C2.
+R62	1:Tipo de Agregado Fino  | 3:Arena Natural 
+R63	1:Tipo de Agregado Grueso  | 3:Canto Rodado
+R64	1:C2= | 2:=cdos(C62,C63)
+R66	1:Cantidad de Cemento corregida Ccorr | 4:Verificación según Condiciones de Servicio 
+R67	1:Ccorr= | 2:=ROUND(B54*B59*B64,3) | 3:Kg.  | 4:Condición= | 5:Otra circunstancia menos masivos de represa
+R68	4:C= | 5:=Módulo8.Servicio(B67,E67) | 6:Kg. 
+R70	1:Cantidad de Agua (A) lts.
+R71	1:A= | 2:=E39*E68 | 3:lts. 
+R73	1:Aire Incluido lts. 
+R74	1:A I =  | 2:=(0.03937*E68)/(C58) | 3:lts,
+R76	1:Relación ente la porción de agregado fino y la porción total de los agregados 
+R77	1:β= | 2:0.45
+R79	1:Volumen de los Agregados para 1 m3 (Ecuaciones)
+R80	1:PAF | 2:PAG
+R81	1:=ROUND(1/C3,3) | 2:=ROUND(1/C4,3) | 3:= | 4:=ROUND(1000-(E68/C11)-B71-(B74),3) | 5:=MINVERSE(A81:B82) | 6:=MINVERSE(A81:B82)
+R82	1:=(B77-1) | 2:=B77 | 3:= | 4:0 | 5:=MINVERSE(A81:B82) | 6:=MINVERSE(A81:B82)
+R84	1:PAF= | 2:=MMULT(E81:F82,D81:D82) | 3:Kg.
+R85	1:PAG= | 2:=MMULT(E81:F82,D81:D82) | 3:Kg.
+R87	1:Corrección por Humedad y Absorción 
+R88	1:PAF= | 2:=ROUND(B84*((1+(C7/100))/((1+(C9/100)))),3) | 3:Kg. 
+R89	1:PAG= | 2:=ROUND(B85*((1+(C8/100))/((1+(C10/100)))),3) | 3:Kg. 
+R91	1:Cantidad de Agua Corregida 
+R92	1:Acorr= | 2:=B71-(B88-B84)-(B89-B85) | 3:lts. 
+R94	1:Volumen de Vaciado 
+R95	1:Volumen del Elemento (m3) = | 3:0.108 | 4:m3
+R96	1:% de Desperdicios =  | 3:0 | 4:%
+R97	1:Volumen necesario de Concreto = | 3:=C95+((C96/100)*C95) | 4:m3
+R99	1:DOSIFICACIÓN EN PESO 
+R100	1:COMPONENTE  | 2:UNITARIO  | 3:REQUERIDO 
+R101	1:Concreto | 2:1 | 3:=C97 | 4:m3
+R102	1:Agregado Fino | 2:=B88 | 3:=ROUND(B102*C$101,1) | 4:(Kgf/m3)
+R103	1:Agregado Grueso | 2:=B89 | 3:=ROUND(B103*C$101,1) | 4:(Kgf/m3)
+R104	1:Cemento | 2:=E68 | 3:=ROUND(B104*C$101,1) | 4:(Kgf/m3)
+R105	1:Agua  | 2:=B92 | 3:=ROUND(B105*C$101,1) | 4:lts/m3
+R108	1:DOSIFICACIÓN EN VOLUMEN 
+R109	1:COMPONENTE  | 2:UNITARIO  | 3:REQUERIDO 
+R110	1:Concreto | 2:1 | 3:=C97 | 4:m3
+R111	1:Agregado Fino | 2:=B102/C5 | 3:=B111*C110 | 4:lts/m3
+R112	1:Agregado Grueso | 2:=B103/C6 | 3:=B112*C110 | 4:lts/m3
+R113	1:Cemento | 2:=B104/42.5 | 3:=B113*C110 | 4:Sacos/m3
+R114	1:Agua  | 2:=B92 | 3:=B114*C110 | 4:Lts/m3 
+
+===== SHEET: Resistencia 43x6 =====
+R1	1:Resistencia Promedio Requerida (f´cr)
+R3	1:Resistencia de diseño para concretos cuando se dispone de la Desviación Estándar 
+R4	4:La mayor de la resistencias dadas por
+R5	1:Concretos co f´c <=350 Kg./cm2 | 4:f`cr = f`c +1,34*s 
+R6	4:f`cr = f`c +2,33*s -35
+R7	1:Concretos con f´c > 350 350 Kg./cm2 | 4:f`cr = f`c +1,34*s 
+R8	4:f`cr =0,9* f`c +2,33*s 
+R9	1:s = Desviación Estándar 
+R11	1:Factores de Modificación de la Desviación Estándar cuando 
+R12	1:se disponen de menos de  30 ensayos consecutivos (tabla 5.4.1.2 de la Norma )
+R13	2:NUMERO DE ENSAYOS  | 4:FACTOR DE MODIFICACIÓN 
+R14	2:Menos de 15  | 4:Usar tabla 5.4.2.2
+R15	2:15 | 4:1.16
+R16	2:16 | 4:1.144
+R17	2:17 | 4:1.128
+R18	2:18 | 4:1.112
+R19	2:19 | 4:1.096
+R20	2:20 | 4:1.08
+R21	2:21 | 4:1.07
+R22	2:22 | 4:1.06
+R23	2:23 | 4:1.05
+R24	2:24 | 4:1.04
+R25	2:25 | 4:1.03
+R26	2:26 | 4:1.024
+R27	2:27 | 4:1.018
+R28	2:28 | 4:1.012
+R29	2:29 | 4:1.006
+R30	2:30 o mas  | 4:1
+R33	1:Resistencia Promedio a la Compresión f´cr cuando no se disponen 
+R34	1:de datos para establecer la desviación estándar. (tabla 5.4.2.2 de la Norma)
+R35	1:Resistencia Especificada  | 3:Resistencia promedio a la Compresión Requerida f´cr 
+R36	1:a la Compresión f'c  | 3:   | 4:Kg./cm2
+R37	1:Kg./cm2
+R38	3:Excelente control  | 4:Control de Calidad  | 5:Sin Control 
+R39	3: de Calidad  | 4:Aceptable  | 5:de Calidad 
+R40	1:Menor de 210  | 2:Kg./cm2 | 3:f`c + 45 | 4:f'c + 80 | 5:f´c +130
+R41	1:De 210 a 350  | 2:Kg./cm2 | 3:f`c + 60 | 4:f'c + 95 | 5:f´c +170
+R42	1:Mas de 350  | 2:Kg./cm2 | 3:f`c +75 | 4:f´c +110 | 5:f´c + 210
+R43	1: En áreas sísmicas f´c no será menor de 210 Kg./cm2 
+
+===== SHEET: Agua Cemento 34x8 =====
+R1	1:Relación agua/cemento 
+R3	1:Relación agua/cemento en función de la Resistencia media a la Compresión 
+R4	1:Edad de Ensayo (días) | 4:Expresión para calcular (α)
+R5	1:7 | 4:(α)= 2,627-0,3887*Ln(R7)
+R6	1:28 | 4:(α)= 3,147-0,4625*Ln(R28)
+R7	1:90 | 4:(α)= 3,369-0,4896*Ln(R90)
+R10	1:Kr. Factor para corregir α según Tamaño Máximo. 
+R11	1:Tamaño  | 2:pulg. | 3:0.25 | 4:0.375 | 5:0.5 | 6:0.75 | 7:1 | 8:1.5
+R12	1:máximo  | 2:mm.  | 3:6.35 | 4:9.53 | 5:12.7 | 6:19.1 | 7:25.4 | 8:38.1
+R13	1:Factor Kr.  | 3:1.6 | 4:1.3 | 5:1.1 | 6:1.05 | 7:1 | 8:0.91
+R16	1:Ka, Factor para corregir α según Tipo de Agregado 
+R17	1:Grueso  | 2:Triturados  | 5:Semitriturados  | 8:Canto Rodado (Grava Natural)
+R18	1:Fino 
+R19	1:Arena Natural  | 2:1 | 5:0.97 | 8:0.91
+R20	1:Arena Triturada  | 2:1.14 | 5:1.1 | 8:0.93
+R23	1:Máximos Valores de α para Distintas Condiciones de Servicio o Ambientales 
+R24	1:Posible tipo de Daño  | 3:Condiciones  | 8:α máxima 
+R25	3:Atmósfera común  | 8:0.75
+R26	1:Deterioro del concreto | 3:Litoral  | 8:0.6
+R27	3:Alta humedad relativa  | 8:0.55
+R28	1:Corrosión de | 3:En contacto con agua no corrosiva  | 8:0.5
+R29	1:Armaduras  | 3:En contacto con agua marina o por  | 8:0.4
+R30	3:salpicaduras 
+R31	3:En suelos selenitosos ( con yesos) | 8:0.4
+R32	3:Ambientes Industriales  | 8:Según el caso
+R33	1:Deterioro por  | 3:Elementos delgados  | 8:0.45
+R34	1:permeabilidad  | 3:Concreto en masa  | 8:0.65
+
+===== SHEET: Cemento 31x8 =====
+R1	1:Valores usuales de Asentamiento 
+R2	1:Elemento  | 5:Asentamiento (cm.)
+R3	1:Prefabricados  | 5:0-6
+R4	1:Fundaciones Ciclópeas  | 5:3-8
+R5	1:Pedestales, muros de fundación armados  | 5:4-8
+R6	1:Pavimentos  | 5:5-8
+R7	1:Losas, vigas, columnas, muros de corte  | 5:6-11
+R8	1:Paredes estructurales delgadas  | 5:10-18
+R9	1:Concreto transportado por bombeo  | 5:6-18
+R10	1:Concreto superplastificado autonivelante | 5:Mayor de 18
+R13	1:C1. Factor para corregir C según Tamaño Máximo. 
+R14	1:Tamaño  | 2:pulg. | 3:0.25 | 4:0.375 | 5:0.5 | 6:0.75 | 7:1 | 8:1.5
+R15	1:máximo  | 2:mm.  | 3:6.35 | 4:9.53 | 5:12.7 | 6:19.1 | 7:25.4 | 8:38.1
+R16	1:Factor C1.  | 3:1.33 | 4:1.2 | 5:1.14 | 6:1.05 | 7:1 | 8:0.93
+R19	1:C2, Factor para corregir C según Tipo de Agregado 
+R20	1:Grueso  | 2:Triturados  | 5:Semitriturados  | 8:Canto Rodado (Grava Natural)
+R21	1:Fino 
+R22	1:Arena Natural  | 2:1 | 5:0.93 | 8:0.9
+R23	1:Arena Triturada  | 2:1.28 | 5:1.23 | 8:0.96
+R26	1:Dosis mínima de cemento para diversas condiciones de servicio 
+R27	1:Condición de Servicio  | 5:Dosis de cemento, Kg./m3
+R28	1:En ambientes agresivos, marinos, etc. | 6:350
+R29	1:o en concretos sometidos a desgaste 
+R30	1:En cualquier otra circunstancia,  | 6:270
+R31	1:excepto concretos masivos de represa 
+
+===== SHEET: v. graficos 82x8 =====
+R1	1:f`c | 2:7 | 3:28 | 4:90 | 6:cemento  | 7:1 | 8:2.5
+R2	1:100 | 2:=(2.627-0.3887*LN(A2)) | 3:=3.147-0.4625*LN(A2) | 4:=3.369-0.4896*LN(A2) | 6:200 | 7:=((117.2*1^0.16)/F2)^(1/1.3) | 8:=((117.2*2.5^0.16)/F2)^(1/1.3)
+R3	1:=+A2+10 | 2:=2.627-0.3887*LN(A3) | 3:=3.147-0.4625*LN(A3) | 4:=3.369-0.4896*LN(A3) | 6:=+F2+5 | 7:=((117.2*1^0.16)/F3)^(1/1.3) | 8:=((117.2*2.5^0.16)/F3)^(1/1.3)
+R4	1:=+A3+10 | 2:=2.627-0.3887*LN(A4) | 3:=3.147-0.4625*LN(A4) | 4:=3.369-0.4896*LN(A4) | 6:=+F3+5 | 7:=((117.2*1^0.16)/F4)^(1/1.3) | 8:=((117.2*2.5^0.16)/F4)^(1/1.3)
+R5	1:=+A4+10 | 2:=2.627-0.3887*LN(A5) | 3:=3.147-0.4625*LN(A5) | 4:=3.369-0.4896*LN(A5) | 6:=+F4+5 | 7:=((117.2*1^0.16)/F5)^(1/1.3) | 8:=((117.2*2.5^0.16)/F5)^(1/1.3)
+R6	1:=+A5+10 | 2:=2.627-0.3887*LN(A6) | 3:=3.147-0.4625*LN(A6) | 4:=3.369-0.4896*LN(A6) | 6:=+F5+5 | 7:=((117.2*1^0.16)/F6)^(1/1.3) | 8:=((117.2*2.5^0.16)/F6)^(1/1.3)
+R7	1:=+A6+10 | 2:=2.627-0.3887*LN(A7) | 3:=3.147-0.4625*LN(A7) | 4:=3.369-0.4896*LN(A7) | 6:=+F6+5 | 7:=((117.2*1^0.16)/F7)^(1/1.3) | 8:=((117.2*2.5^0.16)/F7)^(1/1.3)
+R8	1:=+A7+10 | 2:=2.627-0.3887*LN(A8) | 3:=3.147-0.4625*LN(A8) | 4:=3.369-0.4896*LN(A8) | 6:=+F7+5 | 7:=((117.2*1^0.16)/F8)^(1/1.3) | 8:=((117.2*2.5^0.16)/F8)^(1/1.3)
+R9	1:=+A8+10 | 2:=2.627-0.3887*LN(A9) | 3:=3.147-0.4625*LN(A9) | 4:=3.369-0.4896*LN(A9) | 6:=+F8+5 | 7:=((117.2*1^0.16)/F9)^(1/1.3) | 8:=((117.2*2.5^0.16)/F9)^(1/1.3)
+R10	1:=+A9+10 | 2:=2.627-0.3887*LN(A10) | 3:=3.147-0.4625*LN(A10) | 4:=3.369-0.4896*LN(A10) | 6:=+F9+5 | 7:=((117.2*1^0.16)/F10)^(1/1.3) | 8:=((117.2*2.5^0.16)/F10)^(1/1.3)
+R11	1:=+A10+10 | 2:=2.627-0.3887*LN(A11) | 3:=3.147-0.4625*LN(A11) | 4:=3.369-0.4896*LN(A11) | 6:=+F10+5 | 7:=((117.2*1^0.16)/F11)^(1/1.3) | 8:=((117.2*2.5^0.16)/F11)^(1/1.3)
+R12	1:=+A11+10 | 2:=2.627-0.3887*LN(A12) | 3:=3.147-0.4625*LN(A12) | 4:=3.369-0.4896*LN(A12) | 6:=+F11+5 | 7:=((117.2*1^0.16)/F12)^(1/1.3) | 8:=((117.2*2.5^0.16)/F12)^(1/1.3)
+R13	1:=+A12+10 | 2:=2.627-0.3887*LN(A13) | 3:=3.147-0.4625*LN(A13) | 4:=3.369-0.4896*LN(A13) | 6:=+F12+5 | 7:=((117.2*1^0.16)/F13)^(1/1.3) | 8:=((117.2*2.5^0.16)/F13)^(1/1.3)
+R14	1:=+A13+10 | 2:=2.627-0.3887*LN(A14) | 3:=3.147-0.4625*LN(A14) | 4:=3.369-0.4896*LN(A14) | 6:=+F13+5 | 7:=((117.2*1^0.16)/F14)^(1/1.3) | 8:=((117.2*2.5^0.16)/F14)^(1/1.3)
+R15	1:=+A14+10 | 2:=2.627-0.3887*LN(A15) | 3:=3.147-0.4625*LN(A15) | 4:=3.369-0.4896*LN(A15) | 6:=+F14+5 | 7:=((117.2*1^0.16)/F15)^(1/1.3) | 8:=((117.2*2.5^0.16)/F15)^(1/1.3)
+R16	1:=+A15+10 | 2:=2.627-0.3887*LN(A16) | 3:=3.147-0.4625*LN(A16) | 4:=3.369-0.4896*LN(A16) | 6:=+F15+5 | 7:=((117.2*1^0.16)/F16)^(1/1.3) | 8:=((117.2*2.5^0.16)/F16)^(1/1.3)
+R17	1:=+A16+10 | 2:=2.627-0.3887*LN(A17) | 3:=3.147-0.4625*LN(A17) | 4:=3.369-0.4896*LN(A17) | 6:=+F16+5 | 7:=((117.2*1^0.16)/F17)^(1/1.3) | 8:=((117.2*2.5^0.16)/F17)^(1/1.3)
+R18	1:=+A17+10 | 2:=2.627-0.3887*LN(A18) | 3:=3.147-0.4625*LN(A18) | 4:=3.369-0.4896*LN(A18) | 6:=+F17+5 | 7:=((117.2*1^0.16)/F18)^(1/1.3) | 8:=((117.2*2.5^0.16)/F18)^(1/1.3)
+R19	1:=+A18+10 | 2:=2.627-0.3887*LN(A19) | 3:=3.147-0.4625*LN(A19) | 4:=3.369-0.4896*LN(A19) | 6:=+F18+5 | 7:=((117.2*1^0.16)/F19)^(1/1.3) | 8:=((117.2*2.5^0.16)/F19)^(1/1.3)
+R20	1:=+A19+10 | 2:=2.627-0.3887*LN(A20) | 3:=3.147-0.4625*LN(A20) | 4:=3.369-0.4896*LN(A20) | 6:=+F19+5 | 7:=((117.2*1^0.16)/F20)^(1/1.3) | 8:=((117.2*2.5^0.16)/F20)^(1/1.3)
+R21	1:=+A20+10 | 2:=2.627-0.3887*LN(A21) | 3:=3.147-0.4625*LN(A21) | 4:=3.369-0.4896*LN(A21) | 6:=+F20+5 | 7:=((117.2*1^0.16)/F21)^(1/1.3) | 8:=((117.2*2.5^0.16)/F21)^(1/1.3)
+R22	1:=+A21+10 | 2:=2.627-0.3887*LN(A22) | 3:=3.147-0.4625*LN(A22) | 4:=3.369-0.4896*LN(A22) | 6:=+F21+5 | 7:=((117.2*1^0.16)/F22)^(1/1.3) | 8:=((117.2*2.5^0.16)/F22)^(1/1.3)
+R23	1:=+A22+10 | 2:=2.627-0.3887*LN(A23) | 3:=3.147-0.4625*LN(A23) | 4:=3.369-0.4896*LN(A23) | 6:=+F22+5 | 7:=((117.2*1^0.16)/F23)^(1/1.3) | 8:=((117.2*2.5^0.16)/F23)^(1/1.3)
+R24	1:=+A23+10 | 2:=2.627-0.3887*LN(A24) | 3:=3.147-0.4625*LN(A24) | 4:=3.369-0.4896*LN(A24) | 6:=+F23+5 | 7:=((117.2*1^0.16)/F24)^(1/1.3) | 8:=((117.2*2.5^0.16)/F24)^(1/1.3)
+R25	1:=+A24+10 | 2:=2.627-0.3887*LN(A25) | 3:=3.147-0.4625*LN(A25) | 4:=3.369-0.4896*LN(A25) | 6:=+F24+5 | 7:=((117.2*1^0.16)/F25)^(1/1.3) | 8:=((117.2*2.5^0.16)/F25)^(1/1.3)
+R26	1:=+A25+10 | 2:=2.627-0.3887*LN(A26) | 3:=3.147-0.4625*LN(A26) | 4:=3.369-0.4896*LN(A26) | 6:=+F25+5 | 7:=((117.2*1^0.16)/F26)^(1/1.3) | 8:=((117.2*2.5^0.16)/F26)^(1/1.3)
+R27	1:=+A26+10 | 2:=2.627-0.3887*LN(A27) | 3:=3.147-0.4625*LN(A27) | 4:=3.369-0.4896*LN(A27) | 6:=+F26+5 | 7:=((117.2*1^0.16)/F27)^(1/1.3) | 8:=((117.2*2.5^0.16)/F27)^(1/1.3)
+R28	1:=+A27+10 | 2:=2.627-0.3887*LN(A28) | 3:=3.147-0.4625*LN(A28) | 4:=3.369-0.4896*LN(A28) | 6:=+F27+5 | 7:=((117.2*1^0.16)/F28)^(1/1.3) | 8:=((117.2*2.5^0.16)/F28)^(1/1.3)
+R29	1:=+A28+10 | 2:=2.627-0.3887*LN(A29) | 3:=3.147-0.4625*LN(A29) | 4:=3.369-0.4896*LN(A29) | 6:=+F28+5 | 7:=((117.2*1^0.16)/F29)^(1/1.3) | 8:=((117.2*2.5^0.16)/F29)^(1/1.3)
+R30	1:=+A29+10 | 2:=2.627-0.3887*LN(A30) | 3:=3.147-0.4625*LN(A30) | 4:=3.369-0.4896*LN(A30) | 6:=+F29+5 | 7:=((117.2*1^0.16)/F30)^(1/1.3) | 8:=((117.2*2.5^0.16)/F30)^(1/1.3)
+R31	1:=+A30+10 | 2:=2.627-0.3887*LN(A31) | 3:=3.147-0.4625*LN(A31) | 4:=3.369-0.4896*LN(A31) | 6:=+F30+5 | 7:=((117.2*1^0.16)/F31)^(1/1.3) | 8:=((117.2*2.5^0.16)/F31)^(1/1.3)
+R32	1:=+A31+10 | 2:=2.627-0.3887*LN(A32) | 3:=3.147-0.4625*LN(A32) | 4:=3.369-0.4896*LN(A32) | 6:=+F31+5 | 7:=((117.2*1^0.16)/F32)^(1/1.3) | 8:=((117.2*2.5^0.16)/F32)^(1/1.3)
+R33	1:=+A32+10 | 2:=2.627-0.3887*LN(A33) | 3:=3.147-0.4625*LN(A33) | 4:=3.369-0.4896*LN(A33) | 6:=+F32+5 | 7:=((117.2*1^0.16)/F33)^(1/1.3) | 8:=((117.2*2.5^0.16)/F33)^(1/1.3)
+R34	1:=+A33+10 | 2:=2.627-0.3887*LN(A34) | 3:=3.147-0.4625*LN(A34) | 4:=3.369-0.4896*LN(A34) | 6:=+F33+5 | 7:=((117.2*1^0.16)/F34)^(1/1.3) | 8:=((117.2*2.5^0.16)/F34)^(1/1.3)
+R35	1:=+A34+10 | 2:=2.627-0.3887*LN(A35) | 3:=3.147-0.4625*LN(A35) | 4:=3.369-0.4896*LN(A35) | 6:=+F34+5 | 7:=((117.2*1^0.16)/F35)^(1/1.3) | 8:=((117.2*2.5^0.16)/F35)^(1/1.3)
+R36	1:=+A35+10 | 2:=2.627-0.3887*LN(A36) | 3:=3.147-0.4625*LN(A36) | 4:=3.369-0.4896*LN(A36) | 6:=+F35+5 | 7:=((117.2*1^0.16)/F36)^(1/1.3) | 8:=((117.2*2.5^0.16)/F36)^(1/1.3)
+R37	1:=+A36+10 | 2:=2.627-0.3887*LN(A37) | 3:=3.147-0.4625*LN(A37) | 4:=3.369-0.4896*LN(A37) | 6:=+F36+5 | 7:=((117.2*1^0.16)/F37)^(1/1.3) | 8:=((117.2*2.5^0.16)/F37)^(1/1.3)
+R38	1:=+A37+10 | 2:=2.627-0.3887*LN(A38) | 3:=3.147-0.4625*LN(A38) | 4:=3.369-0.4896*LN(A38) | 6:=+F37+5 | 7:=((117.2*1^0.16)/F38)^(1/1.3) | 8:=((117.2*2.5^0.16)/F38)^(1/1.3)
+R39	1:=+A38+10 | 2:=2.627-0.3887*LN(A39) | 3:=3.147-0.4625*LN(A39) | 4:=3.369-0.4896*LN(A39) | 6:=+F38+5 | 7:=((117.2*1^0.16)/F39)^(1/1.3) | 8:=((117.2*2.5^0.16)/F39)^(1/1.3)
+R40	1:=+A39+10 | 2:=2.627-0.3887*LN(A40) | 3:=3.147-0.4625*LN(A40) | 4:=3.369-0.4896*LN(A40) | 6:=+F39+5 | 7:=((117.2*1^0.16)/F40)^(1/1.3) | 8:=((117.2*2.5^0.16)/F40)^(1/1.3)
+R41	1:=+A40+10 | 2:=2.627-0.3887*LN(A41) | 3:=3.147-0.4625*LN(A41) | 4:=3.369-0.4896*LN(A41) | 6:=+F40+5 | 7:=((117.2*1^0.16)/F41)^(1/1.3) | 8:=((117.2*2.5^0.16)/F41)^(1/1.3)
+R42	1:=+A41+10 | 2:=2.627-0.3887*LN(A42) | 3:=3.147-0.4625*LN(A42) | 4:=3.369-0.4896*LN(A42) | 6:=+F41+5 | 7:=((117.2*1^0.16)/F42)^(1/1.3) | 8:=((117.2*2.5^0.16)/F42)^(1/1.3)
+R43	6:=+F42+5 | 7:=((117.2*1^0.16)/F43)^(1/1.3) | 8:=((117.2*2.5^0.16)/F43)^(1/1.3)
+R44	6:=+F43+5 | 7:=((117.2*1^0.16)/F44)^(1/1.3) | 8:=((117.2*2.5^0.16)/F44)^(1/1.3)
+R45	6:=+F44+5 | 7:=((117.2*1^0.16)/F45)^(1/1.3) | 8:=((117.2*2.5^0.16)/F45)^(1/1.3)
+R46	6:=+F45+5 | 7:=((117.2*1^0.16)/F46)^(1/1.3) | 8:=((117.2*2.5^0.16)/F46)^(1/1.3)
+R47	6:=+F46+5 | 7:=((117.2*1^0.16)/F47)^(1/1.3) | 8:=((117.2*2.5^0.16)/F47)^(1/1.3)
+R48	6:=+F47+5 | 7:=((117.2*1^0.16)/F48)^(1/1.3) | 8:=((117.2*2.5^0.16)/F48)^(1/1.3)
+R49	6:=+F48+5 | 7:=((117.2*1^0.16)/F49)^(1/1.3) | 8:=((117.2*2.5^0.16)/F49)^(1/1.3)
+R50	6:=+F49+5 | 7:=((117.2*1^0.16)/F50)^(1/1.3) | 8:=((117.2*2.5^0.16)/F50)^(1/1.3)
+R51	6:=+F50+5 | 7:=((117.2*1^0.16)/F51)^(1/1.3) | 8:=((117.2*2.5^0.16)/F51)^(1/1.3)
+R52	6:=+F51+5 | 7:=((117.2*1^0.16)/F52)^(1/1.3) | 8:=((117.2*2.5^0.16)/F52)^(1/1.3)
+R53	6:=+F52+5 | 7:=((117.2*1^0.16)/F53)^(1/1.3) | 8:=((117.2*2.5^0.16)/F53)^(1/1.3)
+R54	6:=+F53+5 | 7:=((117.2*1^0.16)/F54)^(1/1.3) | 8:=((117.2*2.5^0.16)/F54)^(1/1.3)
+R55	6:=+F54+5 | 7:=((117.2*1^0.16)/F55)^(1/1.3) | 8:=((117.2*2.5^0.16)/F55)^(1/1.3)
+R56	6:=+F55+5 | 7:=((117.2*1^0.16)/F56)^(1/1.3) | 8:=((117.2*2.5^0.16)/F56)^(1/1.3)
+R57	6:=+F56+5 | 7:=((117.2*1^0.16)/F57)^(1/1.3) | 8:=((117.2*2.5^0.16)/F57)^(1/1.3)
+R58	6:=+F57+5 | 7:=((117.2*1^0.16)/F58)^(1/1.3) | 8:=((117.2*2.5^0.16)/F58)^(1/1.3)
+R59	6:=+F58+5 | 7:=((117.2*1^0.16)/F59)^(1/1.3) | 8:=((117.2*2.5^0.16)/F59)^(1/1.3)
+R60	6:=+F59+5 | 7:=((117.2*1^0.16)/F60)^(1/1.3) | 8:=((117.2*2.5^0.16)/F60)^(1/1.3)
+R61	6:=+F60+5 | 7:=((117.2*1^0.16)/F61)^(1/1.3) | 8:=((117.2*2.5^0.16)/F61)^(1/1.3)
+R62	6:=+F61+5 | 7:=((117.2*1^0.16)/F62)^(1/1.3) | 8:=((117.2*2.5^0.16)/F62)^(1/1.3)
+R63	6:=+F62+5 | 7:=((117.2*1^0.16)/F63)^(1/1.3) | 8:=((117.2*2.5^0.16)/F63)^(1/1.3)
+R64	6:=+F63+5 | 7:=((117.2*1^0.16)/F64)^(1/1.3) | 8:=((117.2*2.5^0.16)/F64)^(1/1.3)
+R65	6:=+F64+5 | 7:=((117.2*1^0.16)/F65)^(1/1.3) | 8:=((117.2*2.5^0.16)/F65)^(1/1.3)
+R66	6:=+F65+5 | 7:=((117.2*1^0.16)/F66)^(1/1.3) | 8:=((117.2*2.5^0.16)/F66)^(1/1.3)
+R67	6:=+F66+5 | 7:=((117.2*1^0.16)/F67)^(1/1.3) | 8:=((117.2*2.5^0.16)/F67)^(1/1.3)
+R68	6:=+F67+5 | 7:=((117.2*1^0.16)/F68)^(1/1.3) | 8:=((117.2*2.5^0.16)/F68)^(1/1.3)
+R69	6:=+F68+5 | 7:=((117.2*1^0.16)/F69)^(1/1.3) | 8:=((117.2*2.5^0.16)/F69)^(1/1.3)
+R70	6:=+F69+5 | 7:=((117.2*1^0.16)/F70)^(1/1.3) | 8:=((117.2*2.5^0.16)/F70)^(1/1.3)
+R71	6:=+F70+5 | 7:=((117.2*1^0.16)/F71)^(1/1.3) | 8:=((117.2*2.5^0.16)/F71)^(1/1.3)
+R72	6:=+F71+5 | 7:=((117.2*1^0.16)/F72)^(1/1.3) | 8:=((117.2*2.5^0.16)/F72)^(1/1.3)
+R73	6:=+F72+5 | 7:=((117.2*1^0.16)/F73)^(1/1.3) | 8:=((117.2*2.5^0.16)/F73)^(1/1.3)
+R74	6:=+F73+5 | 7:=((117.2*1^0.16)/F74)^(1/1.3) | 8:=((117.2*2.5^0.16)/F74)^(1/1.3)
+R75	6:=+F74+5 | 7:=((117.2*1^0.16)/F75)^(1/1.3) | 8:=((117.2*2.5^0.16)/F75)^(1/1.3)
+R76	6:=+F75+5 | 7:=((117.2*1^0.16)/F76)^(1/1.3) | 8:=((117.2*2.5^0.16)/F76)^(1/1.3)
+R77	6:=+F76+5 | 7:=((117.2*1^0.16)/F77)^(1/1.3) | 8:=((117.2*2.5^0.16)/F77)^(1/1.3)
+R78	6:=+F77+5 | 7:=((117.2*1^0.16)/F78)^(1/1.3) | 8:=((117.2*2.5^0.16)/F78)^(1/1.3)
+R79	6:=+F78+5 | 7:=((117.2*1^0.16)/F79)^(1/1.3) | 8:=((117.2*2.5^0.16)/F79)^(1/1.3)
+R80	6:=+F79+5 | 7:=((117.2*1^0.16)/F80)^(1/1.3) | 8:=((117.2*2.5^0.16)/F80)^(1/1.3)
+R81	6:=+F80+5 | 7:=((117.2*1^0.16)/F81)^(1/1.3) | 8:=((117.2*2.5^0.16)/F81)^(1/1.3)
+R82	6:=+F81+5 | 7:=((117.2*1^0.16)/F82)^(1/1.3) | 8:=((117.2*2.5^0.16)/F82)^(1/1.3)
+
+===== SHEET: Listas 58x8 =====
+R1	1:Cortol de Calidad de los materiales  | 4:TAF  | 5:Condicion 
+R2	1:Excelente  | 4:Arena Natural  | 5:Atmósfera común 
+R3	1:Aceptable | 4:Arena Triturada  | 5:Litoral 
+R4	1:Sin Control  | 5:Alta humedad relativa 
+R5	4:TAG | 5:En contacto con agua no corrosiva 
+R6	1:Edad de ensayo  | 4:Triturado  | 5:En contacto con agua marina (salpicaduras) 
+R7	1:7 | 4:Semitriturado | 5:En suelos selenitosos ( con yesos)
+R8	1:28 | 4:Canto Rodado | 5:Elementos delgados 
+R9	1:90 | 5:Concreto en masa 
+R11	1:Tamaño maximo  | 4:Asentamiento  | 5:Servicio 
+R12	1:0.25 | 4:0 | 5:Ambiente agresivo, marino etc. (desgaste)
+R13	1:0.375 | 4:=D12+0.5 | 5:Otra circunstancia menos masivos de represa
+R14	1:0.5 | 4:=D13+0.5
+R15	1:0.75 | 4:=D14+0.5
+R16	1:1 | 4:=D15+0.5
+R17	1:1.5 | 4:=D16+0.5
+R18	1:2 | 4:=D17+0.5
+R19	1:2.5 | 4:=D18+0.5
+R20	1:3 | 4:=D19+0.5
+R21	4:=D20+0.5
+R22	4:=D21+0.5
+R23	4:=D22+0.5
+R24	4:=D23+0.5
+R25	4:=D24+0.5
+R26	4:=D25+0.5
+R27	4:=D26+0.5
+R28	4:=D27+0.5
+R29	4:=D28+0.5
+R30	4:=D29+0.5
+R31	4:=D30+0.5
+R32	4:=D31+0.5
+R33	4:=D32+0.5
+R34	4:=D33+0.5
+R35	4:=D34+0.5
+R36	4:=D35+0.5
+R37	4:=D36+0.5
+R38	4:=D37+0.5
+R39	4:=D38+0.5
+R40	4:=D39+0.5
+R41	4:=D40+0.5
+R42	4:=D41+0.5
+R43	4:=D42+0.5
+R44	4:=D43+0.5
+R45	4:=D44+0.5
+R46	4:=D45+0.5
+R47	4:=D46+0.5
+R48	4:=D47+0.5

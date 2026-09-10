@@ -1,0 +1,2091 @@
+================================================================================
+PRED COL VIG.xlsx exists=True imgs=0 err=
+SHEETS: ['PRE COL GRAVEDAD', 'PRE COL SISMO', 'PRE VIGAS', 'ESPECTRO', 'SaXSaY', 'TABLAS', 'PARAMETROS']
+  -- PRE COL GRAVEDAD imgs 0
+     PREDIMENSIONAMIENTO DE COLUMNAS POR GRAVEDAD
+     (VIVIENDA)
+     Numero de Pisos: | 5 | Pisos
+     Carga muerta (WD):
+     ALIGERADO | Luz (m) = | 5 | 20 | H (cm) = | 20 | 300 | Kg/m2
+     TABIQUERIA | Tipo (*): | solido | Ancho (cm) = | 15 | Altura (m) = | 2.6 | 741 | 330 | Kg/m2
+     ACABADOS | 100 | Kg/m2
+     VIGAS | 100 | Kg/m2
+     COLUMNAS | 60 | Kg/m2
+     (*) Tipo de Ladrillo: SOLIDO / HUECO, Altura mayor de tabiqueria
+     Carga viva (WL):
+     VIVIENDA | 200 | kg/m2
+     AZOTEA | 100 | kg/m2
+     Carga total (PU):
+     Peso total de cargas de gravedad que soporta la columna cada piso | 1695 | Kg/m2
+     Peso total de cargas de gravedad que soporta la columna | 1 | 4 | 6780 | Kg/m2
+     Peso total de cargas de gravedad que soporta la columna | 5 | 1515 | Kg/m2
+     Peso total de cargas de gravedad por | 5 | 8295 | Kg/m2
+     Resistencia del concreto en columna | 210 | Kg/cm2
+     GENERAL GENERAL (ESTRUCTURACION SIMETRICA) | TIPOS
+     Tipo de columna | Area tributaria | γt | n | Pg | b x D | si b=D (cm) | b (cm) (minimo) | D (cm) (calculado) | b x D | Verifica
+     1 | Interior | 146.93 | 1.1 | 0.3 | 60939.2 | 1064.02 | 32.6193 | 25 | 45 | 1125 | OK !!! | 25x45 | C1
+     GENERAL (CASO CRITICO - TODA LA SUPERFICIE TECHADA) | TIPOS
+     Tipo de columna | Area tributaria | γt | n | Pg | b x D | si b=D (cm) | b (cm) (minimo) | D (cm) (calculado) | b x D | Verifica
+     1 | Esquinera | 2.14 | 1.5 | 0.2 | 17751.3 | 633.975 | 25.1789 | 25 | 30 | 750 | OK !!! | 25x30 | C1
+     2 | Lateral | 3.76 | 1.25 | 0.25 | 31189.2 | 742.6 | 27.2507 | 25 | 35 | 875 | OK !!! | 25x35 | C1
+     3 | Lateral | 3.42 | 1.25 | 0.25 | 28368.9 | 675.45 | 25.9894 | 25 | 30 | 750 | OK !!! | 25x30 | C1
+     4 | Lateral | 5.4 | 1.25 | 0.25 | 44793 | 1066.5 | 32.6573 | 25 | 45 | 1125 | OK !!! | 25x45 | C2
+  -- PRE COL SISMO imgs 0
+     PREDIMENSIONAMIENTO DE COLUMNAS POR SISMO
+     (VIVIENDA)
+     Datos por Sismo:
+     DATOS | CALCULOS | CORTANTE POR SISMO
+     CATEGORIA DE EDIFICACION | C | U = | 1 | Vs = ZUCS x Pe
+     ZONA SISMICA | 2 | Z = | 0.3
+     TIPO DE SUELO | S2 | Tp (s) = | 0.6
+     PERIODO FUNDAMENTAL (*) | 1 | S = | 1.2
+     ALTURA DE LA EDIFICACION (m) | 15.8 | CT = | 35
+     (*) | 1 | Elementos resistentes en la dirección de los pórticos | T = | 0.451429
+     2 | Elementos resistentes pórticos, cajas de ascensores y escaleras | C = | 2.5
+     3 | Elementos sismorresistentes por muros de corte | ZUCS = | 0.9
+     Calculo del Peso de la Estructura:
+     Numero de Pisos: | 5 | Pisos
+     Carga muerta (WD):
+     ALIGERADO | Luz (m) = | 5 | 20 | H (cm) = | 20 | 300 | Kg/m2
+     TABIQUERIA | Tipo (*): | solido | Ancho (cm) = | 15 | Altura (m) = | 2.6 | 741 | 330 | Kg/m2
+     ACABADOS | 100 | Kg/m2
+     VIGAS | 100 | Kg/m2
+     COLUMNAS | 60 | Kg/m2
+     (*) Tipo de Ladrillo: SOLIDO / HUECO, Altura mayor de tabiqueria
+     WD = | 890 | Kg/m2
+     Carga viva (WL):
+     VIVIENDA | 200 | kg/m2
+     AZOTEA | 100 | kg/m2
+     WL = | 300 | Kg/m2
+     Carga total (PU):
+     Peso total de cargas de gravedad que soporta la columna cada piso | 1695 | Kg/m2
+  -- PRE VIGAS imgs 0
+     PREDIMENSIONAMIENTO DE VIGAS
+     (VIVIENDA)
+     Calculo del Peso de la Estructura:
+     Numero de Pisos: | 5 | Pisos
+     Carga muerta (WD):
+     ALIGERADO | Luz (m) = | 5 | 20 | 20 | 300 | Kg/m2
+     TABIQUERIA | Tipo (*): | solido | Ancho (cm) = | 15 | Altura (m) = | 2.6 | 741 | 330 | Kg/m2
+     ACABADOS | 100 | Kg/m2
+     VIGAS | 100 | Kg/m2
+     COLUMNAS | 60 | Kg/m2
+     (*) Tipo de Ladrillo: SOLIDO / HUECO, Altura mayor de tabiqueria
+     WD = | 890 | Kg/m2
+     Carga viva (WL):
+     VIVIENDA | 200 | kg/m2
+     AZOTEA | 100 | kg/m2
+     WL = | 300 | Kg/m2
+     Carga total (PU):
+     Peso total de cargas de gravedad que soporta la columna cada piso | 1695 | Kg/m2
+     Peso total de cargas de gravedad que soporta la columna | 4 | 6780 | Kg/m2
+     Peso total de cargas de gravedad que soporta la columna | 5 | 1515 | Kg/m2
+     Peso total de cargas de gravedad por | 5 | PU = | 8295 | Kg/m2
+     Calculo de Seccion de la Columna:
+     GENERAL (ESTRUCTURACION IRREGULAR) | TIPOS
+     EJE | TIPO | LUZ LIBRE Ln(m) | ANCHO TRIBUT L(m) | H(cm)=Ln/11 | H(cm)  Ln/(4/RAIZ(WU)) | b(cm)=L/20 | b (cm) (minimo) | H (cm) (calculado) | b x H | Verifica
+     A | - | A | S | 1.46 | 2.75 | 13.2727 | 15.0272 | 13.75 | 25 | 20 | 500 | OK !!! | 25x20
+     A | - | A | P | 1.66 | 2.68 | 15.0909 | 17.0857 | 13.4 | 25 | 20 | 500 | OK !!! | 25x20
+     A | - | A | P | 4.22 | 2.49 | 38.3636 | 43.4347 | 12.45 | 25 | 45 | 1125 | OK !!! | 25x45
+     B | - | B | S | 1.45 | 2.455 | 13.1818 | 14.9243 | 12.275 | 25 | 20 | 500 | OK !!! | 25x20
+  -- ESPECTRO imgs 0
+     PREDIMENSIONAMIENTO DE COLUMNAS POR SISMO
+     (VIVIENDA)
+     Datos por Sismo: | Acero, Arriostres en Cruz
+     Acero, Arriostres Excéntricos
+     DATOS | CALCULOS | Acero, Porticos Ductiles con Uniones Resistentes a Momentos
+     CATEGORIA DE EDIFICACION | C | U = | 1 | Albañileria Armada o Confinada
+     ZONA SISMICA | 2 | Z = | 0.3 | Concreto Armado, de Muros Estructurales
+     TIPO DE SUELO | S2 | Tp (s) = | 0.6 | Concreto Armado, Dual
+     S = | 1.2 | Concreto Armado, Porticos
+     COEFICIENTE DE REDUCCION DIRECCION X RX (*) | Albañileria Armada o Confinada | RX = | 3 | Madera (Por Esfuerzos Admisibles)
+     COEFICIENTE DE REDUCCION DIRECCION Y RY (*) | Concreto Armado, Porticos | RY = | 8 | Muros de Ductilidad Limitada
+     TIPO DE ESTRUCTURA: REGULAR (1) / IRREGULAR (2) | 2 | FACTOR PARA ESCALAR R | 0.75 | RX = | 2.25 | REGULAR
+     RY = | 6 | IRREGULAR
+     Espectro de Aceleracion Sisamica:
+     Sax | Say
+     T (s) | C | ZUCS/RX | ZUCS/RY
+     0 | 2.5 | 0.4 | 0.15
+     0.2 | 2.5 | 0.4 | 0.15
+     0.4 | 2.5 | 0.4 | 0.15
+     0.45 | 2.5 | 0.4 | 0.15
+     0.5 | 2.5 | 0.4 | 0.15
+     0.55 | 2.5 | 0.4 | 0.15
+     0.6 | 2.5 | 0.4 | 0.15
+     0.65 | 2.30769 | 0.369231 | 0.138462
+     0.7 | 2.14286 | 0.342857 | 0.128571
+     0.75 | 2 | 0.32 | 0.12
+     0.8 | 1.875 | 0.3 | 0.1125
+     0.85 | 1.76471 | 0.282353 | 0.105882
+  -- SaXSaY imgs 0
+     ESPECTRO DE ACELERACIONES SISMICAS | COPIAR CELDAS EN ARCHIVO DE TEXTO PARA EXPORTAR AL SAP O ETABS
+     Sax | Say | PARA SISMO | PARA SISMO
+     T (s) | ZUCS/RX | ZUCS/RY | X-X | Y-Y
+     0 | 0.4 | 0.15 | 0 0.4 | 0 0.15
+     0.2 | 0.4 | 0.15 | 0.2 0.4 | 0.2 0.15
+     0.4 | 0.4 | 0.15 | 0.4 0.4 | 0.4 0.15
+     0.45 | 0.4 | 0.15 | 0.45 0.4 | 0.45 0.15
+     0.5 | 0.4 | 0.15 | 0.5 0.4 | 0.5 0.15
+     0.55 | 0.4 | 0.15 | 0.55 0.4 | 0.55 0.15
+     0.6 | 0.4 | 0.15 | 0.6 0.4 | 0.6 0.15
+     0.65 | 0.369231 | 0.138462 | 0.65 0.369230769230769 | 0.65 0.138461538461538
+     0.7 | 0.342857 | 0.128571 | 0.7 0.342857142857143 | 0.7 0.128571428571429
+     0.75 | 0.32 | 0.12 | 0.75 0.32 | 0.75 0.12
+     0.8 | 0.3 | 0.1125 | 0.8 0.3 | 0.8 0.1125
+     0.85 | 0.282353 | 0.105882 | 0.85 0.28235294117647 | 0.85 0.105882352941176
+     0.9 | 0.266667 | 0.1 | 0.9 0.266666666666667 | 0.9 0.1
+     0.95 | 0.252632 | 0.0947368 | 0.95 0.252631578947368 | 0.95 0.0947368421052631
+     1 | 0.24 | 0.09 | 1 0.24 | 1 0.09
+     1.05 | 0.228571 | 0.0857143 | 1.05 0.228571428571428 | 1.05 0.0857142857142857
+     1.1 | 0.218182 | 0.0818182 | 1.1 0.218181818181818 | 1.1 0.0818181818181818
+     1.15 | 0.208696 | 0.0782609 | 1.15 0.208695652173913 | 1.15 0.0782608695652173
+     1.2 | 0.2 | 0.075 | 1.2 0.2 | 1.2 0.075
+     1.25 | 0.192 | 0.072 | 1.25 0.192 | 1.25 0.072
+     1.3 | 0.184615 | 0.0692308 | 1.3 0.184615384615385 | 1.3 0.0692307692307692
+     1.35 | 0.177778 | 0.0666667 | 1.35 0.177777777777778 | 1.35 0.0666666666666666
+     1.4 | 0.171429 | 0.0642857 | 1.4 0.171428571428571 | 1.4 0.0642857142857142
+     1.45 | 0.165517 | 0.062069 | 1.45 0.16551724137931 | 1.45 0.0620689655172413
+     1.5 | 0.16 | 0.06 | 1.5 0.16 | 1.5 0.06
+================================================================================
+PRED ELEM ESTR.xls exists=True imgs=0 err=
+SHEETS: ['PREDIM. 01', 'PREDIM. 02', 'METRADOS', 'DOBLEMENTE R. B=0.35m.', 'CORTANTE B=0.35m.', 'DOBLEMENTE R. B=0.30m.', 'CORTANTE B=0.30m.', 'VERIF. DE FLUENCIA', 'VIGA T', 'TORSION', 'MUROS', 'FISURACIONES POR FLEXION', 'DIAGRAM. ITERACION', 'TABLAS Y OTROS', 'DIAG.ITERACION II', 'DIS. COLUMNAS']
+  -- PREDIM. 01 imgs 0
+     UNIVERSIDAD JOSE CARLOS MARIATEGUI
+     FACULTAD DE INGENIERIAS
+     ESCUELA PROFESIONAL DE INGENIERÍA CIVIL
+     PREDIMENSIONAMIENTO DE ELMENTOS ESTRUCTURALES | P1 | P2 | P3
+     7 | 12 | 12
+     PARA LOSA ALIGERADA (Segun R.N.E. en la norma E - 060  Art. 10.4.1.1)
+     Predimensionamiento de la losa aligerada
+     Luz libre del portico | L = | 5 | 0.2
+     Espesor de losa | h = | 0.2
+     Espesor de losa def. | h def. = | 0.2 | 5
+     PARA LAS VIGAS (Segun R.N.E. en la norma  E - 060  Art. 10.4.1.3 y el ingeniero Antonio Blanco Blasco recomiendan usar peraltes)
+     4 | C-2 | C-1
+     Predimensionamiento de la viga principal | 0.6
+     Luz libre del portico principal | L = | 5.6
+     Luz libre del portico segundario | B = | 5
+     Peralte de viga | h = | 0.509091 | 2 | 1.6 | 1.6 | 1.6 | 1.4
+     Peralte de viga definitivo | h def. = | 0.6
+     Base de la viga | b = | 0.25 | 2 | 4.8 | 5.6
+     Base de la viga definitivo | b def. = | 35 | 35
+     Predimensionamiento de la viga segundaria
+     Luz libre del portico principal | L = | 5 | 0.5
+     Luz libre del portico segundario | B = | 6
+     Peralte de viga | h = | 0.454545
+     Peralte de viga definitivo | h def. = | 0.5
+     Base de la viga | b = | 0.3
+     Base de la viga definitivo | b def. = | 35 | 35
+     Predimensionamiento de la viga en voladizo en el de 2.00m.
+     Luz libre del portico principal | L = | 1.8 | 0.6
+  -- PREDIM. 02 imgs 0
+     UNIVERSIDAD JOSE CARLOS MARIATEGUI
+     FACULTAD DE INGENIERIAS
+     ESCUELA PROFESIONAL DE INGENIERÍA CIVIL
+     PREDIMENSIONAMIENTO DE ELMENTOS ESTRUCTURALES | P1 | P2 | P3
+     7 | 12 | 12
+     PARA LOSA ALIGERADA (Segun R.N.E. en la norma E - 060  Art. 10.4.1.1)
+     Predimensionamiento de la losa aligerada
+     Luz libre del portico | L = | 5 | 0.2
+     Espesor de losa | h = | 0.2
+     Espesor de losa def. | h def. = | 0.2 | 5
+     PARA LAS VIGAS (Segun R.N.E. en la norma  E - 060  Art. 10.4.1.3 y el ingeniero Antonio Blanco Blasco recomiendan usar peraltes)
+     4 | C-2 | C-1
+     Predimensionamiento de la viga principal | 0.6
+     Luz libre del portico principal | L = | 5.6
+     Luz libre del portico segundario | B = | 5
+     Peralte de viga | h = | 0.509091 | 2 | 1.6 | 1.6 | 1.6 | 1.4
+     Peralte de viga definitivo | h def. = | 0.6
+     Base de la viga | b = | 0.25 | 2 | 4.8 | 5.6
+     Base de la viga definitivo | b def. = | 30 | 30
+     Predimensionamiento de la viga segundaria
+     Luz libre del portico principal | L = | 5 | 0.5
+     Luz libre del portico segundario | B = | 6
+     Peralte de viga | h = | 0.454545
+     Peralte de viga definitivo | h def. = | 0.5
+     Base de la viga | b = | 0.3
+     Base de la viga definitivo | b def. = | 30 | 30
+     Predimensionamiento de la viga en voladizo en el de 2.00m.
+     Luz libre del portico principal | L = | 1.8 | 0.6
+  -- METRADOS imgs 0
+     7 | 12 | 12 | 9 | 9 | 9
+     10 | 10 | 7
+     2 | 1.6 | 1.6 | 1.6 | 1.4 | 1.4 | 1.4 | 1.4 | 1.8 | 1.8 | 2 | 2.5
+     2 | 4.8 | 5.6 | 5.6 | 2.5
+     datos
+     Carga muerta = | 2.9
+     Carga viva      = | 1.9
+     F'c  = | 210
+     F'y  = | 4200
+  -- DOBLEMENTE R. B=0.35m. imgs 0
+     DISEÑO DE ACERO PARA VIGAS DOBLEMENTE  REFORZADAS | DISEÑO DE ACERO PARA VIGAS DOBLEMENTE  REFORZADAS
+     DATOS | DATOS
+     β = | 0.85 | β = | 0.85
+     Ø = | 0.9 | Ø = | 0.9
+     viga | b = | 35 | viga | b = | 35
+     h = | 60 | h = | 60
+     r = | 5 | r = | 4
+     d' = | 5 | d' = | 5
+     d = | 01 capa | 54 | d = | 01 capa | 54
+     02 capas | 51 | 02 capas | 51
+     03 capas | 49 | 03 capas | 49
+     DATOS | 01 capa | 02 capas | 03 capas | DATOS | 01 capa | 02 capas | 03 capas
+     Mu = | 3654000 | 3654000 | 3654000 | Mu = | 4910000 | 4910000 | 4910000
+     f'c = | 210 | 210 | 210 | f'c = | 210 | 210 | 210
+     f'y = | 4200 | 4200 | 4200 | f'y = | 4200 | 4200 | 4200
+     Pmax = | 0.0162 | 0.0162 | 0.0162 | Pmax = | 0.0162 | 0.0162 | 0.0162
+     Ku = | Mu | Ku = | 49.5301 | 49.5301 | 49.5301 | Ku = | Mu | Ku = | 49.5301 | 49.5301 | 49.5301
+     b*d^2 | b*d^2
+     As = | P*b*d | As1 = | 30.618 | 28.917 | 27.783 | As = | P*b*d | As1 = | 30.618 | 28.917 | 27.783
+     Mu1 = | Ku*b*d^2 | Mu1 = | 5.05504e+06 | 4.50897e+06 | 4.16226e+06 | Mu1 = | Ku*b*d^2 | Mu1 = | 5.05504e+06 | 4.50897e+06 | 4.16226e+06
+     Mr = | Mu-Mu1 | Mr = | -1.40104e+06 | -854973 | -508262 | Mr = | Mu-Mu1 | Mr = | -145042 | 401027 | 747738
+     A's = | Mu | A's = | -7.5642 | -4.91703 | -3.05593 | A's = | Mu | A's = | -0.78308 | 2.30635 | 4.49578
+     Ø*F'y*(d-d') | Ø*F'y*(d-d')
+     As = | As1 + A's | Total  As = | ------ | ------ | ------ | As = | As1 + A's | Total  As = | ------ | 31.2233 | 32.2788
+     Total  A's = | -7.5642 | -4.91703 | -3.05593 | Total  A's = | -0.78308 | 2.30635 | 4.49578
+     DATOS | 01 capa | 02 capas | 03 capas | DATOS | 01 capa | 02 capas | 03 capas
+     a = | 0.59 | 0.59 | 0.59 | a = | 0.59 | 0.59 | 0.59
+     b = | -1 | -1 | -1 | b = | -1 | -1 | -1
+  -- CORTANTE B=0.35m. imgs 0
+     DISEÑO POR CORTANTE | DISEÑO POR CORTANTE
+     F'c = | 210 | F'c = | 210
+     F'y = | 4200 | F'y = | 4200
+     COLUMNA= | 50 | 70 | COLUMNA= | 50 | 70
+     Av = | 0.71 | Av = | 0.71
+     β = | 0.85 | β = | 0.85
+     Ø = | 0.85 | Ø = | 0.85
+     distancia = | 89 | 86 | 84 | distancia = | 1.54 | 1.335
+     Vu1 = | 19513.2 | Vu2 = | 20000
+     b = | 35 | b = | 40
+     h = | 60 | h = | 70
+     r = | 5 | r = | 5
+     01 capa | 02 capas | 03 capas | 01 capa | 02 capas
+     d = | 54 | 51 | 49 | d = | 64 | 61
+     Vc = | 14516 | 13709.6 | 13171.9 | Vc = | 19661.9 | 18740.2
+     Necesita Refuerzo | Necesita Refuerzo | Necesita Refuerzo | Necesita Refuerzo | Necesita Refuerzo
+     Vs = | 8440.69 | 9247.14 | 9784.77 | Vs = | 3867.51 | 4789.16
+     S = | 38.1552 | 32.8928 | 29.8664 | S = | 98.6929 | 75.964
+     d/2 = | 27 | 25.5 | 24.5 | d/2 = | 32 | 30.5
+     o = | 60 | 60 | 60 | o = | 60 | 60
+     d/4 = | 13.5 | 12.75 | 12.25 | d/4 = | 16 | 15.25
+     o = | 30 | 30 | 30 | o = | 30 | 30
+     1ra Cond. = | Vs=<2.1*b*d*F'c^0.5 | Si Cumple | Si Cumple | Si Cumple | 1ra Cond. = | Vs=<2.1*b*d*F'c^0.5 | Si Cumple | Si Cumple
+     S max = | 27 | 25.5 | 24.5 | S max = | 32 | 30.5
+     2da Cond. = | Vs=>1.1*b*d*F'c^0.5 | No Cumple | No Cumple | No Cumple | 2da Cond. = | Vs=>1.1*b*d*F'c^0.5 | No Cumple | No Cumple
+     S max = | 0 | 0 | 0 | S max = | 0 | 0
+     d = | 54 | 51 | 49 | d = | 64 | 61
+     0.49 | 0.46 | 0.44 | 0.59 | 0.61
+================================================================================
+PREDIM COL.xlsx exists=True imgs=0 err=
+SHEETS: ['Hoja1']
+  -- Hoja1 imgs 0
+     Programado por JIMMY CASTILLO LIRA
+     Predimensionamiento de columnas
+     Según el libro "Diseño en concreto armado" del ing. Roberto Morales Morales
+     Paso 1: | información: | P
+     seleccionar: | U
+     La columna esta en: | Primeros pisos (P) ? | P
+     Ultimos pisos (U)   ?
+     Cual es la ubicación de la columna: | interna (I)  ? | seleccionar: | EX
+     extrema (EX)  ? | I | ES
+     esquinada (ES)  ?
+     Paso 2: | Calculo del peso sobre la columna:
+     Area tributaria | 20 | m2
+     Carga por piso | 1000 | kg
+     N° de pisos | 3
+     Peso sobre la columna (P)= | 60000 | kg
+     paso3: | bxD= | TIPO DE COLUMNA | K | n
+     Columna interior | 1.1 | 0.3
+     Primeros Pisos
+     P | 60000 | Kg. | Columna interior | 1.1 | 0.25
+     F'c | 210 | Kg/cm2 | 4 últimos pisos
+     K | 1.1 | Columnas extremas de | 1.25 | 0.25
+     n | 0.3 | pórticos interiores
+     Area col. | 1047.62 | cm2 | Columnas | 1.5 | 0.2
+     de esquina
+     b | 30 | cm
+     D | 34.9206 | cm
+     DIMENSIONES A USAR:
+     b= | 30 | cm | D= 35
+================================================================================
+LOS ARMADA.xlsx exists=True imgs=1 err=
+SHEETS: ['Metrados de Cargas', 'Deflexiones', 'Diseño de Muro', 'Diseño de Cimentación', 'Diseño de Losa Armada', 'Hoja1']
+  -- Metrados de Cargas imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     γ Suelo = | : | 1650 | kg/m3
+     Ø (fr. Interna) | : | 30 | °
+     β (suelo - horiz.) | : | 0 | °
+     θ (muro - terreno) | : | 90 | °
+     δ (suelo - muro) | : | 0 | °
+     2. Cálculo de coeficiente de empuje activo del terreno.
+     Γ | = | 2.25
+     Para | θ | = | 90° | : | ka | = | cos²(Ø)
+     Γ cos(δ)
+     3. Datos de EH a colocar en SAP2000.
+     La presión del terreno o empuje activo genera una carga triangular en el muro.
+     A | = | 0
+     B | = | 0
+     C | = | 0.55
+     D | = | -2.1065
+     4. Cálculo del coeficiente de balasto por el módulo de Winkler
+     Según el módulo de Winkler (1867), el terreno se esquematiza con un lecho de resortes en grado de reaccionar solamente a esfuerzos directos a lo largo del eje, para los cuales asume un comportamiento elástico lineal
+     Esf. Adm. | Winkler
+  -- Deflexiones imgs 1
+     En el Reglamento Nacional de Edificaciones en el Acápite E.060. Concreto Armado, tenemos:
+     TABLE:  Joint Displacements | Columna1 | Columna2 | Columna3 | Columna4 | Columna5 | Columna6 | Columna7 | Columna8
+     1 | COMBO1 | Combination | 0.000302 | -0.000643 | -0.001129 | -7.452e-16 | 0.000165 | 8.6e-05
+     2 | COMBO1 | Combination | 0.000276 | -0.000646 | -0.001129 | -2.2e-05 | 0.000164 | 8.6e-05
+     3 | COMBO1 | Combination | 0.000294 | -0.000643 | -0.001131 | -3.611e-06 | 2.7e-05 | 8.6e-05
+     4 | COMBO1 | Combination | 0.00032 | -0.000643 | -0.001131 | -7.332e-16 | 2.8e-05 | 8.6e-05
+     5 | COMBO1 | Combination | 0.00025 | -0.000652 | -0.001129 | -4.3e-05 | 0.000159 | 8.6e-05
+     6 | COMBO1 | Combination | 0.000267 | -0.000648 | -0.001131 | -7.161e-06 | 2.7e-05 | 8.6e-05
+     7 | COMBO1 | Combination | 0.000226 | -0.000662 | -0.001129 | -6.3e-05 | 0.000152 | 8.6e-05
+     8 | COMBO1 | Combination | 0.000242 | -0.000655 | -0.001131 | -1.1e-05 | 2.6e-05 | 8.6e-05
+     9 | COMBO1 | Combination | 0.000203 | -0.000674 | -0.001129 | -8.2e-05 | 0.000143 | 8.6e-05
+     10 | COMBO1 | Combination | 0.000218 | -0.000666 | -0.001131 | -1.4e-05 | 2.4e-05 | 8.6e-05
+     11 | COMBO1 | Combination | 0.000181 | -0.00069 | -0.001129 | -0.0001 | 0.000131 | 8.6e-05
+     12 | COMBO1 | Combination | 0.000195 | -0.000679 | -0.001131 | -1.7e-05 | 2.2e-05 | 8.6e-05
+     13 | COMBO1 | Combination | 0.000162 | -0.000708 | -0.001129 | -0.000117 | 0.000117 | 8.6e-05
+     14 | COMBO1 | Combination | 0.000175 | -0.000696 | -0.001131 | -2e-05 | 2e-05 | 8.6e-05
+     15 | COMBO1 | Combination | 0.000146 | -0.000729 | -0.001129 | -0.000131 | 0.0001 | 8.6e-05
+     16 | COMBO1 | Combination | 0.000156 | -0.000715 | -0.001131 | -2.2e-05 | 1.7e-05 | 8.6e-05
+     17 | COMBO1 | Combination | 0.000132 | -0.000752 | -0.001129 | -0.000143 | 8.2e-05 | 8.6e-05
+     18 | COMBO1 | Combination | 0.000141 | -0.000736 | -0.001131 | -2.4e-05 | 1.4e-05 | 8.6e-05
+     19 | COMBO1 | Combination | 0.000121 | -0.000776 | -0.001129 | -0.000152 | 6.3e-05 | 8.6e-05
+     20 | COMBO1 | Combination | 0.000128 | -0.00076 | -0.001131 | -2.6e-05 | 1.1e-05 | 8.6e-05
+     21 | COMBO1 | Combination | 0.000114 | -0.000801 | -0.001129 | -0.000159 | 4.3e-05 | 8.6e-05
+     22 | COMBO1 | Combination | 0.000118 | -0.000784 | -0.001131 | -2.7e-05 | 7.161e-06 | 8.6e-05
+     23 | COMBO1 | Combination | 0.00011 | -0.000827 | -0.001129 | -0.000164 | 2.2e-05 | 8.6e-05
+     24 | COMBO1 | Combination | 0.000112 | -0.00081 | -0.001131 | -2.7e-05 | 3.611e-06 | 8.6e-05
+     25 | COMBO1 | Combination | 0.000109 | -0.000854 | -0.001129 | -0.000165 | 4.22e-16 | 8.6e-05
+     26 | COMBO1 | Combination | 0.000109 | -0.000836 | -0.001131 | -2.8e-05 | 4.652e-16 | 8.6e-05
+  -- Diseño de Muro imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     F'c | : | 210 | kg/m2
+     Fy | : | 4200 | kg/m2
+     b | : | 100 | cm
+     h | : | 383 | cm
+     Ø As | : | 3/8"
+     d | : | 15.0475 | cm
+     Ø | : | 0.85
+     Mu | : | 2.907 | Tn.m
+     1.1 Cálculo de área de acero por Cuantía Mecánica
+     As | = | 4.78 | cm2
+     1.2 Cálculo de área de acero por Acero Mínimo
+     a)    Mcr = 1.1 fr S = | 1.1(29.13kg/cm2)(6667 cm2) = 2.14 T-m
+     Siempre:
+     fr =
+     S = | bxh^2 | = | 100(20)^2
+     6 | 6
+     b) | 1.33Mu = 1.33(2.907 T-m) = 3.87 T-m
+     El menor valor es 2.14 T-m y la cantidad de acero calculada (4.78 cm2) resiste                                                                     Mu = 2.907 kg/cm2 > 2.14 kg/cm2 OK!
+  -- Diseño de Cimentación imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     F'c | : | 210 | kg/m2
+     Fy | : | 4200 | kg/m2
+     b | : | 157.5 | cm
+     h | : | 666 | cm
+     Ø As | : | 1/2"
+     d | : | 14.73 | cm
+     Ø | : | 0.85
+     Mu | : | 3.825 | Tn.m
+     1.1 Cálculo de área de acero por Cuantía Mecánica
+     As | = | 6.39 | cm2
+     1.2 Cálculo de área de acero por Acero Mínimo
+     a)    Mcr = 1.1 fr S = | 1.1(29.13kg/cm2)(6667 cm2) = 2.14 T-m
+     Siempre:
+     fr =
+     S = | bxh^2 | = | 100(20)^2
+     6 | 6
+     b) | 1.33Mu = 1.33(3.825 T-m) = 5.09 T-m
+     El menor valor es 2.14 T-m y la cantidad de acero calculada (6.39 cm2) resiste                                                                     Mu = 3.825 kg/cm2 > 2.14 kg/cm2 OK!
+  -- Diseño de Losa Armada imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     F'c | : | 210 | kg/m2
+     Fy | : | 4200 | kg/m2
+     b | : | 100 | cm
+     h | : | 245 | cm
+     Ø As | : | 3/8"
+     d | : | 15.0475 | cm
+     Ø | : | 0.85
+     Mu1 | : | 0.102 | Tn.m | Mu2 | : | 0.408
+     1.1 Cálculo de área de acero por Cuantía Mecánica
+     AsMU2 | = | 0.65 | cm2
+     1.2 Cálculo de área de acero por Acero Mínimo
+     a)    Mcr = 1.1 fr S = | 1.1(29.13kg/cm2)(6667 cm2) = 2.14 T-m
+     Siempre:
+     fr =
+     S = | bxh^2 | = | 100(20)^2
+     6 | 6
+     b) | 1.33Mu = 1.33(0.102 T-m) = 0.14 T-m
+     El menor valor es 0.14 T-m y la cantidad de acero calculada (0.65 cm2) no resiste                                                                     Mu = 0.102 kg/cm2 < 0.14 kg/cm2 N.S, el recálculo con acero mínimo es 
+================================================================================
+LOSA ARMADA 1DIR.xls exists=True imgs=0 err=
+SHEETS: ['espesor losa']
+  -- espesor losa imgs 0
+     BLOQUE CRITICO | fy =
+     ßs =
+     αm =
+     4 | ln =
+     Espesor minimo de losa alivianada según codigo alternativo ACI 318-02 sección 6.5.4
+     Altura minima de losas o elementos en dos direcciones con relación L/S < 2. CEC-93 sección 9.5.3.1
+     L/S =
+     Pero no menor que:
+     Y no necesita ser mayor que:
+================================================================================
+Diseño de Viguetas.xlsx exists=True imgs=8 err=
+SHEETS: ['Cargas', 'Diseño']
+  -- Cargas imgs 4
+     Metrado de Cargas de una Losa ( Diseño de Viguetas )
+     Uso : | Oficinas | Peso de Losa
+     e = 0.17 | 280
+     e = 0.20 | 300
+     LOSA = | 350 | kg/m2 | e = 0.25 | 350
+     ALBAÑILERIA = | 150 | kg/m2 | e = 0.30 | 420
+     ACABADOS = | 120 | kg/m2
+     CM = | 620 | kg/m2
+     CV = | 250 | kg/m2
+     Para Diseñar :
+     WD = | 248 | kg/m
+     WL = | 100 | kg/m
+  -- Diseño imgs 4
+     Diseño de Acero de Vigueta
+     Mu = | 512938 | kg.cm
+     fy = | 4200 | kg/cm2
+     f'c = | 210 | kg/cm2
+     b = | 25 | cm
+     h = | 50 | cm
+     d = | 43.78 | cm
+     a = | 3.02 | cm
+     As = | 3.21026 | cm2
+     a = | 3.02143 | cm
+     As min = | 3.02111 | cm2
+     As min = | 3.64833 | cm2
+     Longitud de Desarrollo para Acero de confinamiento
+     en momentos "0"
+     Para barras ≤ 3/4" | Para barras > 3/4"
+     ld = | longitud de desarrollo
+     γ = | valdrá 0.7 para concreto liviano 1.0 para concreto normal
+     Ψe = | 1.5 para barras c/revest. Epoxico y/o zinc y recubrimiento menor a 3db
+     o separación libre entre barras 6 db. 1.2 para barras c/ revestimiento
+     zinc y/o epoxico con todas las otras condiciones. 1.0 sin revestimiento de zinc y/o epoxico
+     Ψs = | 1.2 para db mayor a 22mm. 1.0 para db menor a 19 mm
+     Ψt = | 1.3 para barras colocadas encima de 300mm de hormigon fresco. 1.0 en todas las otras situaciones
+     db = | diámetro de la barra
+     f'c = | resistencia característica del concreto
+     Diámetros menores a 3/4" | Diámetros mayores a 3/4"
+     γ = | 1 | γ = | 1
+     Ψe = | 1 | Ψe = | 1
+     Ψs = | 1 | Ψs = | 1.2
+================================================================================
+DIS LOSA MZ.xls exists=True imgs=0 err=
+SHEETS: ['análisis', 'Instrucciones']
+  -- análisis imgs 0
+     Análisis de losas en dos direcciones
+     por el método 3 del ACI
+     tabla para coef CA neg
+     Proyecto: | EMERALD, Cancha de Paddel | fecha: | 42936 | caso
+     A/B | 1 | 2
+     cargas: | Autor: | Javier Ramos | 1 | 0 | 0.045
+     P.P losa = | 350 | kg/m2 | 0.95 | 0 | 0.05
+     Sobrecarga muerta = | 150 | kg/m2 | 0.9 | 0 | 0.055
+     C muertas = | 500 | kg/m2 | 0.85 | 0 | 0.06
+     C. Vivas = | 450 | kg/m2 | 0.8 | 0 | 0.065
+     C total = | 950 | kg/m2 | 0.75 | 0 | 0.069
+     ancho tributario de una nervadura = | 1.44 | m | 0.7 | 0 | 0.074
+     (o ancho de franja de losa analizada) | 0.65 | 0 | 0.077
+     0.6 | 0 | 0.081
+     0.55 | 0 | 0.084
+     B | 0.5 | 0 | 0.086
+     tabla para coef CB neg
+     A = lado corto | caso
+     B = lado largo | A/B | 1 | 2
+     1 | 0 | 0.045
+     Casos según continuidad de losa | 0.95 | 0 | 0.041
+     c | c | 0.9 | 0 | 0.037
+     c | c | c | c | c | 0.85 | 0 | 0.031
+     c | c | c | 0.8 | 0 | 0.027
+     c | c | 0.75 | 0 | 0.022
+     c | c | c | c | 0.7 | 0 | 0.017
+     c | c | 0.65 | 0 | 0.014
+     c = borde continuo | 0.6 | 0 | 0.01
+  -- Instrucciones imgs 0
+     1.- | Dar datos rojos (cargas y ancho de franja de losa a ser analizada)
+     2.- | Dar dimensiones de losas
+     3.- | Elegir la relación A/B mas cercana, las tablas abarcan de A/B = 1 a A/B = 0.5, variando 0.05, en cada renglón
+     las tablas estan en las columnas ocultas ( L a U)
+     4.- | Indicar el caso según la continuidad de los bordes de la losa
+     5.- | Esta hoja no está protegida, por lo que se recomienda sacar una copia antes de trabajar en ella
+     pera evitar el riesgo de dañar accidentalmente alguna fórmula.
+================================================================================
+ANALISIS TECHO T CANOPY.xlsx exists=True imgs=23 err=
+SHEETS: ['Metrados', 'Resultado Modal', 'ANALISIS SISMICO ESTATICO X-X', 'ANALISIS SISMICO ESTATICO Y-Y', 'VERIF. E.030', 'Diseño de Losa Alig. 1°N', 'Diseño de Losa Alig.Az.', 'D.V. CIMENTACION', 'D.VIGAS CIM.', 'Diseño Zapatas', 'Diseño de Losa Alig(2)', 'Diseño de Losa Alig.Azotea', 'D.Col.Of', 'D. Col. Oculto', 'D.VIGAS', 'TABLAS', 'Cuadros E030', 'Cuadros E020']
+  -- Metrados imgs 2
+     METRADO DE CARGAS
+     Tipo de Infraestructura          : | Techo tipo Canopy para Gasocentro
+     Cliente                                      :
+     Elemento Cargado                  : | Especificado
+     Fecha                                        : | 2022-02-17 00:00:00
+     1. Metrado de Cargas sobre Techo Calaminón tipo "T"
+     Datos :
+     Esp. de Calaminón tipo "T": | 0.4 | mm
+     Tipo de Edificación  : | TECHO TIPO CANOPY
+     P. Acces.(Correa, Pernos, etc.) = | 46.24
+     P. Calaminón   = | 3.76
+     Suma Carga Muerta = | 50
+     Carga Viva = | 30
+     2. Metrados de Tabiquería sobre Viguetas o Vigas
+  -- Resultado Modal imgs 0
+     RESULTADO MODAL
+     El resultado modal estará calculado por medio del Programa ETABS en su versión 2018.2
+     TABLE:  Modal Participating Mass Ratios
+     Case | Mode | Period | UX | UY | UZ | SumUX | SumUY | SumUZ | RX | RY | RZ | SumRX | SumRY
+     Modal | 1 | 0.433 | 0.9428 | 0.0572 | 0 | 0.9428 | 0.0572 | 0 | 0.0572 | 0.9428 | 0 | 0.0572 | 0.9428
+     Modal | 2 | 0.433 | 0.0572 | 0.9428 | 0 | 1 | 1 | 0 | 0.9428 | 0.0572 | 0 | 1 | 1
+     Per XX = | 0.433
+     Per YY = | 0.433
+     Per ZZ = | 0.433
+  -- ANALISIS SISMICO ESTATICO X-X imgs 1
+     ANALISIS SÍSMICO ESTÁTICO (E.030)
+     Caracteristicas del Proyecto: | Dirección de Analisis X - X
+     - | Zonificación (Z)
+     Departamento : | O14_LAMBAYEQUE
+     Provincia : | O14_CHICLAYO
+     Distrito : | 14 PIMENTEL
+     Zona Sísmica : | 4
+     Z = | 0.45
+     - | Parámetros de Sitio (S, TP y TL)
+     Perfil de Suelo Tipo : | S3
+     S = | 1.1
+     TP = | 1 | Figura N° 01: Zonas Sismicas
+     TL = | 1.6
+     - | Categoría del Edificio (U)
+     Categoria del Edificio : | C (Comunes)
+     U = | 1
+     - | Restricciones de Irregularidad
+     No se permiten irregularidades extremas
+     - | Coeficiente Básico de Reducción de Fuerzas Sísmicas (Ro)
+     Sistema Estructural : | Sistema de Columna en Voladizo
+     R0 = | 2.5
+     - | Factores de Irregularidad (Ia e Ip)
+     Irregularidad en Altura, Ia : | Regular - Sistema Estructural Continuo
+     Ia = | 1
+     Irregularidad en Planta, Ip : | Regular - Sistema Estructural Simetrico
+     Ip = | 1
+     - | Coeficiente de Reducción de Fuerzas Sísmicas (R)
+     R = R0 x Ia x Ip = | 2.5
+  -- ANALISIS SISMICO ESTATICO Y-Y imgs 1
+     ANALISIS SÍSMICO ESTÁTICO (E.030)
+     Caracteristicas del Proyecto: | Dirección de Analisis x - x
+     - | Zonificación (Z)
+     Departamento : | O14_LAMBAYEQUE
+     Provincia : | O14_CHICLAYO
+     Distrito : | 14 PIMENTEL
+     Zona Sísmica : | 4
+     Z = | 0.45
+     - | Parámetros de Sitio (S, TP y TL)
+     Perfil de Suelo Tipo : | S3
+     S = | 1.1
+     TP = | 1 | Figura N° 01: Zonas Sismicas
+     TL = | 1.6
+     - | Categoría del Edificio (U)
+     Categoria del Edificio : | C (Comunes)
+     U = | 1
+     - | Restricciones de Irregularidad
+     No se permiten irregularidades extremas
+     - | Coeficiente Básico de Reducción de Fuerzas Sísmicas (Ro)
+     Sistema Estructural : | Sistema de Columna en Voladizo
+     R0 = | 2.5
+     - | Factores de Irregularidad (Ia e Ip)
+     Irregularidad en Altura, Ia : | Regular - Sistema Estructural Continuo
+     Ia = | 1
+     Irregularidad en Planta, Ip : | Regular - Sistema Estructural Simetrico
+     Ip = | 1
+     - | Coeficiente de Reducción de Fuerzas Sísmicas (R)
+     R = R0 x Ia x Ip = | 2.5
+  -- VERIF. E.030 imgs 9
+     VERIFICACION MEDIANTE ANALISIS ESTÁTICO Y DINÁMICO (E.30)
+     1. Verificaciónes de Criterio
+     1.1. Verificación de Participación de Masa Total.
+     El cálculo de participación de masa  está regulada por medio de la norma E.030, en apéndice 4.6.1. Modos de Vibración
+     TABLE:  Modal Load Participation Ratios
+     Case | ItemType | Item | Static | Dynamic
+     % | %
+     Modal | Acceleration | UX | 100 | 100
+     Modal | Acceleration | UY | 100 | 100
+     Modal | Acceleration | UZ | 0 | 0
+     Eje x = | 100 | (OK) Supera el 90%
+     Eje y = | 100 | (OK) Supera el 90%
+     1.2. Verificación de Derivas (DRIFTS)
+     El cálculo de Derivas o Distorsiones de entrepiso está regulada por medio de la norma E.030, en apéndice 5.1. Determinación de Desplazamientos Laterales
+     - Los desplazamientos laterales se calcularán multiplicando por 0.75 R, los resultados obtenidos del análisis lineal y elástico con las solicitaciones sísmicas reducidas. Para estructuras irregulares solo se realiza el c
+     Tipo de Estructura : | Regular
+     Valores Obtenidos por el programa ETABS en su versión 2018.2
+     TABLE:  Story Drifts | Columna1 | Columna2 | Columna3 | Columna4 | Columna5 | Columna6 | Columna7 | Columna8 | Columna9 | Columna10
+     Story2 | DDX | Combination | Max | X | 0.001615 | 94 | 7.3 | 0 | 7.05
+     Story2 | DDX | Combination | Max | Y | 0.001641 | 12 | 12.9 | 0 | 7.05
+     Story2 | DDX | Combination | Min | X | 0.001615 | 94 | 7.3 | 0 | 7.05
+     Story2 | DDX | Combination | Min | Y | 0.001641 | 12 | 12.9 | 0 | 7.05
+     Story1 | DDX | Combination | Max | X | 0.001512 | 66 | 11.906 | 7.4951 | 4.25
+     Story1 | DDX | Combination | Max | Y | 0.00159 | 12 | 12.9 | 0 | 4.25
+     Story1 | DDX | Combination | Min | X | 0.001512 | 66 | 11.906 | 7.4951 | 4.25
+     Story1 | DDX | Combination | Min | Y | 0.00159 | 12 | 12.9 | 0 | 4.25
+     Story2 | DDY | Combination | Max | X | 0.001315 | 66 | 11.906 | 7.4951 | 7.05
+     Story2 | DDY | Combination | Max | Y | 0.004279 | 12 | 12.9 | 0 | 7.05
+================================================================================
+f314573824.xls exists=True imgs=0 err=
+SHEETS: ['Nervadas1 ND3', 'Hoja1']
+  -- Nervadas1 ND3 imgs 0
+     GUÍA PARA EL DISEÑO DE LOSAS NERVADAS. | Inputs en azul
+     REQUERIMIENTOS SEGÚN COVENIN 1753:03. ND3. | Controles en rojo
+     Se recomienda emplear esta hoja consultando simultáneamente las normas Covenin 1753:2003 y 1756:2001. | Entrar desde el teclado los datos con caracteres de color azul
+     Otros datos se seleccionan con las barras de desplazamiento
+     Seleccionar el rango que se desea imprimir o exportar
+     Se requiere Excel 2002 SP3 o posterior.
+     Comentarios en celdas sombreadas de amarillo pueden borrarse
+     DISEÑO DE LOSAS NERVADAS ARMADAS EN UN SENTIDO. REQUERIMIENTOS SEGÚN COVENIN 1753:03. ND3.
+     INGENIERO: | Nombre del ingeniero. | CIV Nº: | 123456
+     PROYECTO: | Oficina X
+     MIEMBRO: | Pórtico X
+     OBSERVACIONES: | ND3
+     Diseño de la hoja de cálculo: | Fecha: | 40566
+     Datos de la geometría
+     s | 49 | cm
+     h | 30 | cm (comparar con valores de tabla 9.6.1)
+     r | 2 | cm (seleccionar de la tabla 7.2.4)
+     Loseta | 5 | cm
+     bw | 10 | cm
+     L | 2 | m | 1753-8.6
+     Ln | 4.9 | m | Luz libre (cara a cara de apoyo)
+     Ancho del vano, A | 2 | m
+     Mayoración CP | 1.2
+     Mayoración CV | 1.6
+     Artículos de Covenin 1753:03 relacionados directamente: | f corte = | 0.75 | 1753-9.4
+     7.2.4, 7.6, 7.7, 8.2, 8.6.2, 8.7, 8.10, 9.6, 18.3 | f flexión = | 0.9
+     b1 = | 0.85
+     Tabla 9.6.1 Altura mínima de la losa (para que verifique flechas) | Tabla 9.6.1. Altura mínima de losa, h mínima (m) | con L | con Ln
+  -- Hoja1 imgs 0
+================================================================================
+DISEÑO DE PLACAS.xlsx exists=True imgs=6 err=
+SHEETS: ['Diseño de Placa', 'DATOS P-D']
+  -- Diseño de Placa imgs 6
+     DISEÑO DE MURO DE CORTE
+     1. Datos Previos.
+     f'c = | 210 | kg/cm2 | ρhmin = | 0.002 | (E.060)
+     fy = | 4200 | kg/cm2 | ρvmin = | 0.0015 | (E.060)
+     hmuro = | 3.55 | m
+     hwmuro = | 12.55 | m
+     lwmuro = | 1.45 | m
+     tmuro = | 0.3 | m
+     2. Datos de la Placa
+     Tipo | Resultados del Análisis
+     Story | Column | Unique name | Load Case | station | P | V2 | V3 | T | M2 | M3
+     C1 | C13 | 13 | Dead | LinStatic | Bottom | -39.513 | 0.2618 | -0.0042 | -0.024 | 0.0202 | 0.9238
+     C13 | 13 | Live | LinStatic | Bottom | -3.9263 | 0.1096 | 0.0024 | -0.0034 | 0.0077 | 0.2379
+     C13 | 13 | SDX | LinRespSpec | Bottom | 29.2855 | 28.375 | 0.1867 | 0.2399 | 0.4659 | 98.0965
+     C13 | 13 | SEX | LinRespSpec | Bottom | 19.6219 | 19.5453 | 0.5888 | 0.2341 | 1.5647 | 66.6154
+     2.1) Factores de carga.
+     Combinaciones | COMBO | P | V2 | M2 | M3
+     1.4CM+1.7CV | -61.9929 | 0.55284 | 0.04137 | 1.69775
+     SIS XX | 1.25(CM+CV)+SDX | -25.0136 | 28.8392 | 0.500775 | 99.5486
+     1.25(CM+CV)-SDX | -83.5846 | -27.9108 | -0.431025 | -96.6444
+     0.9CM+SDX | -6.2762 | 28.6106 | 0.48408 | 98.9279
+     0.9CM-SDX | -64.8472 | -28.1394 | -0.44772 | -97.2651
+     SIS YY | 1.25(CM+CV)+SDY | -34.6772 | 20.0096 | 1.59957 | 68.0675
+     1.25(CM+CV)-SDY | -73.921 | -19.0811 | -1.52982 | -65.1633
+     0.9CM+SDY | -15.9398 | 19.7809 | 1.58288 | 67.4468
+     0.9CM-SDY | -55.1836 | -19.3097 | -1.54652 | -65.784
+     Combinaciones | COMBO | P | V2 | M2 | M3
+     1.4CM+1.7CV | -61.9929 | 0.55284 | 0.04137 | 1.69775
+  -- DATOS P-D imgs 0
+     Curve 1 | 0. degrees | Curve 2 | 15. degrees | Curve 3 | 30. degrees | Curve 4 | 45. degrees
+     P | M3 | M2 | P | M3 | M2 | P | M3 | M2 | P | M3 | M2
+     PLACA A DISEÑAR | 1 | -77.2948 | 0 | 0 | -77.2948 | 0 | 0 | -77.2948 | 0 | 0 | -77.2948 | 0 | 0
+     2 | -77.2948 | 1.2335 | 0.0959 | -77.2948 | 0.6223 | 0.3035 | -77.2948 | 0.4939 | 0.348 | -77.2948 | 0.4127 | 0.4127
+     3 | -76.2057 | 1.9312 | 0.1128 | -77.2948 | 1.2201 | 0.5686 | -77.2948 | 0.9097 | 0.6812 | -77.2948 | 0.7724 | 0.7724
+     4 | -68.725 | 2.4774 | 0.1268 | -74.1444 | 1.9939 | 0.6378 | -77.2948 | 1.4597 | 1.0274 | -77.2948 | 1.2147 | 1.2147
+     5 | -60.4991 | 2.943 | 0.1528 | -64.1063 | 2.6233 | 0.7052 | -67.7173 | 2.107 | 1.2897 | -69.103 | 1.6876 | 1.6876
+     6 | -51.7933 | 3.3075 | 0.1862 | -53.3739 | 3.0699 | 0.7761 | -55.2262 | 2.682 | 1.4042 | -56.6774 | 2.0841 | 2.0841
+     7 | -42.1963 | 3.5769 | 0.2227 | -41.6796 | 3.3247 | 0.8595 | -41.4861 | 2.9652 | 1.5091 | -41.393 | 2.3093 | 2.3093
+     8 | -30.6549 | 3.7388 | 0.2697 | -28.2365 | 3.3937 | 0.949 | -26.1585 | 2.9433 | 1.6162 | -24.4411 | 2.3097 | 2.3097
+     9 | -25.0422 | 3.54 | 0.2625 | -19.9821 | 3.1822 | 0.85 | -16.5461 | 2.5867 | 1.5409 | -15.0735 | 2.0577 | 2.0577
+     10 | -19.1742 | 3.2368 | 0.2403 | -12.5755 | 2.749 | 0.8313 | -7.3766 | 2.314 | 1.4492 | -6.369 | 1.917 | 1.917
+     11 | -12.662 | 2.8164 | 0.207 | -4.9776 | 2.4379 | 0.9656 | 1.4179 | 2.0128 | 1.562 | 3.4566 | 1.75 | 1.75
+     12 | -5.9055 | 2.532 | 0.177 | 6.4357 | 1.6932 | 1.0782 | 9.9915 | 1.3117 | 1.201 | 10.4649 | 1.2258 | 1.2258
+     13 | 7.3901 | 1.7432 | 0.0604 | 17.6446 | 0.7026 | 0.5655 | 18.7941 | 0.5642 | 0.5314 | 19.0045 | 0.53 | 0.53
+     14 | 18.9863 | 0.6929 | 0 | 23.8549 | 0.1212 | 0.1041 | 24.1422 | 0.086 | 0.0819 | 24.1948 | 0.0784 | 0.0784
+     15 | 24.8748 | 0 | 0 | 24.8748 | 0 | 0 | 24.8748 | 0 | 0 | 24.8748 | 0 | 0
+================================================================================
+CAL INST ELECTRIC.xlsx exists=True imgs=6 err=
+SHEETS: ['Inicio', 'Memoria Descriptiva']
+  -- Inicio imgs 6
+     DATOS PREVIOS
+     1. Nombre del Proyecto : | Vivienda Unifamiliar Urbanizacion Los Ficus Mz a Lt 6
+     2. Solicitante | : | Sres. MARÍA OLGA RODRÍGUEZ CRUZ Y ROBERTO A. NÚÑEZ SALINAS
+     3. Ubicación Exacta | : | MANZANEO Y LOTE
+     HAB. URBANA : | Habilitación Urbana Los ficus de Pimentel
+     4. Fecha | : | 27 | de | mayo
+     5. Dimensiones del Terreno y Documentos
+     Documentos : | Partida Electrónica
+     Linderos Perpendiculares : | SI
+     Área Libre : | 21.84 | m2
+     Área Total : | 120 | m2
+     6. Arquitectura | Número de Niveles :
+     Arquitectura 1° Nivel
+     Recibidor | (01) | Depósito
+     Dormitorio Principal | (01) | Dormitorio 01
+     Dormitorio 04 | (01) | Hall
+     Baño | SS.HH
+     Patio | (03) | Oficina
+     Sala Dental | Recepción
+     Estar Tv | Sala de Estar
+     Arquitectura 2° Nivel
+     Lavandería | (01) | Patio
+     Tendal | (01) | Dormitorio 01
+     Dormitorio 04 | Hall
+     Baño | SS.HH
+     Living | Oficina
+     Sala Dental | Recepción
+     Estar Tv | Sala de Estar
+  -- Memoria Descriptiva imgs 0
+================================================================================
+Cálculo de Máxima Demanda y Potencia Instalada (1).xlsx exists=True imgs=6 err=
+SHEETS: ['Inicio', 'Memoria Descriptiva']
+  -- Inicio imgs 6
+     DATOS PREVIOS
+     1. Nombre del Proyecto : | Vivienda Unifamiliar Urbanizacion Los Ficus Mz a Lt 6
+     2. Solicitante | : | Sres. MARÍA OLGA RODRÍGUEZ CRUZ Y ROBERTO A. NÚÑEZ SALINAS
+     3. Ubicación Exacta | : | MANZANEO Y LOTE
+     HAB. URBANA : | Habilitación Urbana Los ficus de Pimentel
+     4. Fecha | : | 27 | de | mayo
+     5. Dimensiones del Terreno y Documentos
+     Documentos : | Partida Electrónica
+     Linderos Perpendiculares : | SI
+     Área Libre : | 21.84 | m2
+     Área Total : | 120 | m2
+     6. Arquitectura | Número de Niveles :
+     Arquitectura 1° Nivel
+     Recibidor | (01) | Depósito
+     Dormitorio Principal | (01) | Dormitorio 01
+     Dormitorio 04 | (01) | Hall
+     Baño | SS.HH
+     Patio | (03) | Oficina
+     Sala Dental | Recepción
+     Estar Tv | Sala de Estar
+     Arquitectura 2° Nivel
+     Lavandería | (01) | Patio
+     Tendal | (01) | Dormitorio 01
+     Dormitorio 04 | Hall
+     Baño | SS.HH
+     Living | Oficina
+     Sala Dental | Recepción
+     Estar Tv | Sala de Estar
+  -- Memoria Descriptiva imgs 0
+================================================================================
+Tasaciones.xlsx exists=True imgs=1 err=
+SHEETS: ['Inicio', 'DOCUMENTO']
+  -- Inicio imgs 0
+     DATOS PREVIOS
+     1. Tipo de Bien : | INMUEBLE
+     2. Solicitante | : | SRES. RONALD SANCHEZ Y SASKIA LISBOA
+     3. Ubicación Exacta | : | MANZANEO Y LOTE
+     4. Telefono | : | +51 977747979
+     5. Tipo de Vivienda | : | Vivienda Unifamiliar
+     6. Tipo de Cambio $ | : | 3.84
+     HAB. URBANA : | Habilitación Urbana Los ficus de Pimentel
+     7. Fecha | : | 27 | DE | MARZO
+     8. Dimensiones del Terreno y Documentos
+     Documentos : | Partida Electrónica
+     Referencia   :
+     Cargas y Gravámenes   :
+     Linderos Perpendiculares : | SI
+     9. Características del Terreno
+     Zonificación: | Residencial Densidad Media Tipo 1 - RDM - 1
+     Nota :
+     Área Libre | : | 21.84 | m2
+     Área Total | : | 120 | m2
+     Área Techada : | : | 120 | m2
+     9. Descripción del Inmueble
+     Accesos o Ingresos | : | tres accesos
+     Describir que lindero es y la calle
+     1° Acceso | : | el frente principal
+     Tipo de Superficie de Rodadura:
+     2° Acceso | : | el lindero derecho
+     Tipo de Superficie de Rodadura:
+     3° Acceso | : | el lindero izquierdo
+  -- DOCUMENTO imgs 1
+     INFORME DE TASACIÓN
+     SOLICITANTE | :
+     TIPO DE BIEN | :
+     TELÉFONO | :
+     FECHA DE TASACIÓN | :
+     TIPO DE CAMBIO (Referencial) | :
+     1. OBJETIVO DE LA TASACIÓN
+     1.1 FINALIDAD:
+     El objetivo del presente informe de tasación es determinar el Valor Comercial y de Realización de los activos para la determinación del precio mínimo a ser tomado en cuenta por los SRES. RONALD SANCHEZ Y SASKIA LISBOA de
+     1.2 INSTRUCCIONES RECIBIDAS:
+     Recibimos por encargo del cliente, las instrucciones para realizar la valuación del inmueble y se contó con la debida autorización correspondiente por parte del cliente para la inspección al inmueble.
+     1.3 DETALLE DE LA LABOR REALIZADA:
+     Se realizó la valuación a fecha 27 DE MARZO DEL 2023, y se recopiló, evaluó y analizó la documentación administrativa-legal y registral proporcionada por el que se precisa en el Ítem 4.00 (documentación sustentatoria)
+     2.0 DATOS DEL INMUEBLE:
+     2.1 UBICACIÓN:
+     El presente inmueble de Vivienda Unifamiliar está emplazada en la Habilitación Urbana Los ficus de Pimentel - MZ l - LT 19 - región Lambayeque - provincia Chiclayo - distrito Pimentel.
+     FOTO DE UBICACIÓN DEL BIEN INMUEBLE, GOOGLE MAPS O PLANO DE UBICACIÓN
+     2.2 DESCRIPCIÓN:
+     La Vivienda Unifamiliar posee una fachada con un acceso al inmueble sin retiro municipal en el frente principal con la Av. La victoria., otros dos accesos en el lindero derecho Av. Agricultura y por el lindero izquierdo 
+     2.3 USO ACTUAL DEL INMUEBLE:
+     Vivienda Unifamiliar
+     2.4 INSCRIPCIÓN EN LOS REGISTROS PÚBLICOS:
+     Inscrito en los Registros Públicos de Chiclayo en la Ficha Registral N°11114248
+Gravámenes y Cargas: No se tuvo información al respecto.
+================================================================================
+TASACION DE MAQ.xlsx exists=True imgs=6 err=
+SHEETS: ['Ing. Varela']
+  -- Ing. Varela imgs 6
+     COSTO HORARIO DE OPERACIÓN
+     Preparado por: Ing. Pablo Fuentes
+     MAQUINARIA: | MODELO: | POTENCIA
+(HP):
+     Periodo Est. De posesión (años): n = | 5 | Valor Residual (%) Vr = | 0 | 0
+     Utilizacion Est. Horas por año: Ha = | 2000 | Interés (%)               i = | 0.04
+     Tiempo total de posesión en hrs.: Vu = | 10000 | Seguro                   s = | 0.02
+     Cotizacion Dólar | 6.96
+     Precio de entrega (De Adquisición): Vt = | 1531286 | Bs. | 220012 | $us
+     Costo de neumáticos:                    Vn = | 0 | Bs. | 0 | $us
+     Precio de entrega - neumáticos:      Va = | 1531286 | Bs. | 220012 | $us
+     1. CARGOS FIJOS | TODOS LOS RESULTADOS EN Bs./HORA
+     Depreciación : | 153.129 | 153.129 | Bs.
+     Inversión: | 15.3129 | 15.3129 | Bs.
+     Seguro : | 7.65643 | 7.65643 | Bs.
+     Sub Total cargos Fijos | 176.098 | Bs.
+     2. COSTOS DE FUNCIONAMIENTO | TODOS LOS RESULTADOS EN Bs./HORA
+     Mantenimiento: | 0.3 | 153.129 | 45.9386 | Bs.
+     2.1. CARGOS POR CONSUMO
+     Combustible | 15 | Lts. | 3.72 | Bs./ Lts. | 55.8 | Bs.
+     Lubricantes
+     Carter | 0.075 | Lts. | 30 | Bs./ Lts. | 2.25 | Bs.
+     Transmisión | 0.01 | Lts. | 50 | Bs./ Lts. | 0.5 | Bs.
+     Mandos Finales | 0.02 | Lts. | 50 | Bs./ Lts. | 1 | Bs.
+     Sistemas Hidraulicos | 0.073 | Lts. | 50 | Bs./ Lts. | 3.65 | Bs.
+     Grasa | 0.025 | Kg. | 25 | Bs./ Kg. | 0.625 | Bs.
+     Neumaticos: | 0 | 0 | Bs.
+     3000
+     Sub Total cargo por consumo combustible y lubricantes | 63.825 | Bs.
+================================================================================
+CAP PORTANTE.xlsx exists=True imgs=8 err=
+SHEETS: ['CAPACIDAD PORTANTE_C-1 B=1.5m', 'CAPACIDAD PORTANTE_C-2 B=1.5m', 'CAPACIDAD PORTANTE_C-3 B=1.5m', 'CAPACIDAD PORTANTE_C-4 B=1.5m', 'CAPACIDAD PORTANTE_C-5 B=1.5m', 'CAPACIDAD PORTANTE_C-6 B=1.5m', 'CAPACIDAD PORTANTE_C-7 B=1.5m', 'CAPACIDAD PORTANTE_C-8 B=1.5m', 'CAPACIDAD PORTANTE_C-9 B=1.5m', 'CAPACIDAD PORTANTE_C-10 B=1.5m', 'CAPACIDAD PORTANTE_C-11 B=1.5m', 'CAPACIDAD PORTANTE_C-12 B=1.5m', 'CAPACIDAD PORTANTE_C-13 B=1.5m', 'CAPACIDAD PORTANTE_C-14 B=1.5m', 'CAPACIDAD PORTANTE_C-15 B=1.5m', 'CAPACIDAD PORTANTE_C-16 B=1.5m', 'CAPACIDAD PORTANTE_C-17 B=1.5m', 'CAPACIDAD PORTANTE_C-18 B=1.5m', 'CAPACIDAD PORTANTE_C-19 B=1.5m', 'CAPACIDAD PORTANTE_C-20 B=1.5m', 'CAPACIDAD PORTANTE_C-21 B=1.5m', 'CAPACIDAD PORTANTE_C-22 B=1.5m', 'CAPACIDAD PORTANTE_C-23 B=1.5m', 'CAPACIDAD PORTANTE_C-24 B=1.5m', 'CAPACIDAD PORTANTE_C-25 B=1.5m']
+  -- CAPACIDAD PORTANTE_C-1 B=1.5m imgs 1
+     PROYECTO : | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPE
+     UBICACIÓN : | CASERIO CHAPARRAL, CP CAPOTE, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     CAPACIDAD PORTANTE
+     Tipo de falla | Local
+     Denominacion | C-1 - 1.50m | LOC. LA CENTRAL
+     Clasificación del suelo (SUCS) | SM
+     Tipo de cimentacion | CORRIDO | CUADRADA, CIRCULAR O CORRIDO
+     Estado del suelo | NATURAL | NATURAL O SATURADA
+     DETERMINACIÓN | UNIDAD | VALOR | INGRESAR DATOS
+     Cohesion | kg/cm² | 0.13
+     Ángulo de fricción interna | Grado sexag. | 25.91
+     Peso volumetrico seco #1 | gr/cm³ | 1.408
+     Contenido de humedad #1,     estado: | natural | porcentaje | 0.1661
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.64187
+     Peso volumetrico seco #2 | gr/cm³ | 1.413
+     Contenido de humedad #2,     estado: | natural | porcentaje | 0.1356
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.6046
+     Peso volumetrico seco #3 | gr/cm³ | 1.474
+     Contenido de humedad #3,     estado: | natural | porcentaje | 0.1951
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.76158
+     Peso volumetrico promedio: | saturada | gr/cm³ | 1.66935
+     Peso volumetrico     (g1) | natural | kg/m³ | 1669.35
+     Profundidad del cimiento (Df) | metros | 1.5
+     Ancho de cimiento (B) o diametro en caso circular (D) | metros | 2
+     N'c | adimensional | 14.8
+     N'q | adimensional | 5.6
+     N'g | adimensional | 2.25
+     1.3*2/3 c', 1.3*2/3 c', 2/3 c' | kg/m² | 866.667
+  -- CAPACIDAD PORTANTE_C-2 B=1.5m imgs 1
+     PROYECTO : | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPE
+     UBICACIÓN : | CASERIO CHAPARRAL, CP CAPOTE, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     CAPACIDAD PORTANTE
+     Tipo de falla | Local
+     Denominacion | C-1 - 1.50m | LOC. LA CENTRAL
+     Clasificación del suelo (SUCS) | SM
+     Tipo de cimentacion | CORRIDO | CUADRADA, CIRCULAR O CORRIDO
+     Estado del suelo | NATURAL | NATURAL O SATURADA
+     DETERMINACIÓN | UNIDAD | VALOR | INGRESAR DATOS
+     Cohesion | kg/cm² | 0.13
+     Ángulo de fricción interna | Grado sexag. | 25.91
+     Peso volumetrico seco #1 | gr/cm³ | 1.408
+     Contenido de humedad #1,     estado: | natural | porcentaje | 0.1661
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.64187
+     Peso volumetrico seco #2 | gr/cm³ | 1.413
+     Contenido de humedad #2,     estado: | natural | porcentaje | 0.1356
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.6046
+     Peso volumetrico seco #3 | gr/cm³ | 1.474
+     Contenido de humedad #3,     estado: | natural | porcentaje | 0.1951
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.76158
+     Peso volumetrico promedio: | saturada | gr/cm³ | 1.66935
+     Peso volumetrico     (g1) | natural | kg/m³ | 1669.35
+     Profundidad del cimiento (Df) | metros | 1.5
+     Ancho de cimiento (B) o diametro en caso circular (D) | metros | 2
+     N'c | adimensional | 14.8
+     N'q | adimensional | 5.6
+     N'g | adimensional | 2.25
+     1.3*2/3 c', 1.3*2/3 c', 2/3 c' | kg/m² | 866.667
+  -- CAPACIDAD PORTANTE_C-3 B=1.5m imgs 1
+     PROYECTO : | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPE
+     UBICACIÓN : | CASERIO CHAPARRAL, CP CAPOTE, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     CAPACIDAD PORTANTE
+     Tipo de falla | Local
+     Denominacion | C-1 - 1.50m | LOC. LA CENTRAL
+     Clasificación del suelo (SUCS) | SM
+     Tipo de cimentacion | CORRIDO | CUADRADA, CIRCULAR O CORRIDO
+     Estado del suelo | NATURAL | NATURAL O SATURADA
+     DETERMINACIÓN | UNIDAD | VALOR | INGRESAR DATOS
+     Cohesion | kg/cm² | 0.13
+     Ángulo de fricción interna | Grado sexag. | 25.91
+     Peso volumetrico seco #1 | gr/cm³ | 1.408
+     Contenido de humedad #1,     estado: | natural | porcentaje | 0.1661
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.64187
+     Peso volumetrico seco #2 | gr/cm³ | 1.413
+     Contenido de humedad #2,     estado: | natural | porcentaje | 0.1356
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.6046
+     Peso volumetrico seco #3 | gr/cm³ | 1.474
+     Contenido de humedad #3,     estado: | natural | porcentaje | 0.1951
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.76158
+     Peso volumetrico promedio: | saturada | gr/cm³ | 1.66935
+     Peso volumetrico     (g1) | natural | kg/m³ | 1669.35
+     Profundidad del cimiento (Df) | metros | 1.5
+     Ancho de cimiento (B) o diametro en caso circular (D) | metros | 2
+     N'c | adimensional | 14.8
+     N'q | adimensional | 5.6
+     N'g | adimensional | 2.25
+     1.3*2/3 c', 1.3*2/3 c', 2/3 c' | kg/m² | 866.667
+  -- CAPACIDAD PORTANTE_C-4 B=1.5m imgs 1
+     PROYECTO : | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPE
+     UBICACIÓN : | CASERIO CHAPARRAL, CP CAPOTE, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     CAPACIDAD PORTANTE
+     Tipo de falla | Local
+     Denominacion | C-1 - 1.50m | LOC. LA CENTRAL
+     Clasificación del suelo (SUCS) | SM
+     Tipo de cimentacion | CORRIDO | CUADRADA, CIRCULAR O CORRIDO
+     Estado del suelo | NATURAL | NATURAL O SATURADA
+     DETERMINACIÓN | UNIDAD | VALOR | INGRESAR DATOS
+     Cohesion | kg/cm² | 0.13
+     Ángulo de fricción interna | Grado sexag. | 25.91
+     Peso volumetrico seco #1 | gr/cm³ | 1.408
+     Contenido de humedad #1,     estado: | natural | porcentaje | 0.1661
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.64187
+     Peso volumetrico seco #2 | gr/cm³ | 1.413
+     Contenido de humedad #2,     estado: | natural | porcentaje | 0.1356
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.6046
+     Peso volumetrico seco #3 | gr/cm³ | 1.474
+     Contenido de humedad #3,     estado: | natural | porcentaje | 0.1951
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.76158
+     Peso volumetrico promedio: | saturada | gr/cm³ | 1.66935
+     Peso volumetrico     (g1) | natural | kg/m³ | 1669.35
+     Profundidad del cimiento (Df) | metros | 1.5
+     Ancho de cimiento (B) o diametro en caso circular (D) | metros | 2
+     N'c | adimensional | 14.8
+     N'q | adimensional | 5.6
+     N'g | adimensional | 2.25
+     1.3*2/3 c', 1.3*2/3 c', 2/3 c' | kg/m² | 866.667
+  -- CAPACIDAD PORTANTE_C-5 B=1.5m imgs 1
+     PROYECTO : | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPE
+     UBICACIÓN : | CASERIO CHAPARRAL, CP CAPOTE, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     CAPACIDAD PORTANTE
+     Tipo de falla | Local
+     Denominacion | C-1 - 1.50m | LOC. LA CENTRAL
+     Clasificación del suelo (SUCS) | SM
+     Tipo de cimentacion | CORRIDO | CUADRADA, CIRCULAR O CORRIDO
+     Estado del suelo | NATURAL | NATURAL O SATURADA
+     DETERMINACIÓN | UNIDAD | VALOR | INGRESAR DATOS
+     Cohesion | kg/cm² | 0.13
+     Ángulo de fricción interna | Grado sexag. | 25.91
+     Peso volumetrico seco #1 | gr/cm³ | 1.408
+     Contenido de humedad #1,     estado: | natural | porcentaje | 0.1661
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.64187
+     Peso volumetrico seco #2 | gr/cm³ | 1.413
+     Contenido de humedad #2,     estado: | natural | porcentaje | 0.1356
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.6046
+     Peso volumetrico seco #3 | gr/cm³ | 1.474
+     Contenido de humedad #3,     estado: | natural | porcentaje | 0.1951
+     Peso volumetrico | natural | en el anillo | gr/cm³ | 1.76158
+     Peso volumetrico promedio: | saturada | gr/cm³ | 1.66935
+     Peso volumetrico     (g1) | natural | kg/m³ | 1669.35
+     Profundidad del cimiento (Df) | metros | 1.5
+     Ancho de cimiento (B) o diametro en caso circular (D) | metros | 2
+     N'c | adimensional | 14.8
+     N'q | adimensional | 5.6
+     N'g | adimensional | 2.25
+     1.3*2/3 c', 1.3*2/3 c', 2/3 c' | kg/m² | 866.667
+================================================================================
+CALCULO DE PRESION DE TERRENO.xlsx exists=True imgs=1 err=
+SHEETS: ['Metrados de Cargas', 'Deflexiones', 'Diseño de Muro', 'Diseño de Cimentación']
+  -- Metrados de Cargas imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     γ Suelo = | : | 1650 | kg/m3
+     Ø (fr. Interna) | : | 17.2 | °
+     β (suelo - horiz.) | : | 0 | °
+     θ (muro - terreno) | : | 90 | °
+     δ (suelo - muro) | : | 0 | °
+     2. Cálculo de coeficiente de empuje activo del terreno.
+     Γ | = | 1.679
+     Para | θ | = | 90° | : | ka | = | cos²(Ø)
+     Γ cos(δ)
+     3. Datos de EH a colocar en SAP2000.
+     La presión del terreno o empuje activo genera una carga triangular en el muro.
+     A | = | 0
+     B | = | 0
+     C | = | -0.896795
+     D | = | 4.60056
+     4. Cálculo del coeficiente de balasto por el módulo de Winkler
+     Según el módulo de Winkler (1867), el terreno se esquematiza con un lecho de resortes en grado de reaccionar solamente a esfuerzos directos a lo largo del eje, para los cuales asume un comportamiento elástico lineal
+     Esf. Adm. | Winkler
+  -- Deflexiones imgs 1
+     En el Reglamento Nacional de Edificaciones en el Acápite E.060. Concreto Armado, tenemos:
+     TABLE:  Joint Displacements | Columna1 | Columna2 | Columna3 | Columna4 | Columna5 | Columna6 | Columna7 | Columna8
+     1 | COMBO1 | Combination | 0.000302 | -0.000643 | -0.001129 | -7.452e-16 | 0.000165 | 8.6e-05
+     2 | COMBO1 | Combination | 0.000276 | -0.000646 | -0.001129 | -2.2e-05 | 0.000164 | 8.6e-05
+     3 | COMBO1 | Combination | 0.000294 | -0.000643 | -0.001131 | -3.611e-06 | 2.7e-05 | 8.6e-05
+     4 | COMBO1 | Combination | 0.00032 | -0.000643 | -0.001131 | -7.332e-16 | 2.8e-05 | 8.6e-05
+     5 | COMBO1 | Combination | 0.00025 | -0.000652 | -0.001129 | -4.3e-05 | 0.000159 | 8.6e-05
+     6 | COMBO1 | Combination | 0.000267 | -0.000648 | -0.001131 | -7.161e-06 | 2.7e-05 | 8.6e-05
+     7 | COMBO1 | Combination | 0.000226 | -0.000662 | -0.001129 | -6.3e-05 | 0.000152 | 8.6e-05
+     8 | COMBO1 | Combination | 0.000242 | -0.000655 | -0.001131 | -1.1e-05 | 2.6e-05 | 8.6e-05
+     9 | COMBO1 | Combination | 0.000203 | -0.000674 | -0.001129 | -8.2e-05 | 0.000143 | 8.6e-05
+     10 | COMBO1 | Combination | 0.000218 | -0.000666 | -0.001131 | -1.4e-05 | 2.4e-05 | 8.6e-05
+     11 | COMBO1 | Combination | 0.000181 | -0.00069 | -0.001129 | -0.0001 | 0.000131 | 8.6e-05
+     12 | COMBO1 | Combination | 0.000195 | -0.000679 | -0.001131 | -1.7e-05 | 2.2e-05 | 8.6e-05
+     13 | COMBO1 | Combination | 0.000162 | -0.000708 | -0.001129 | -0.000117 | 0.000117 | 8.6e-05
+     14 | COMBO1 | Combination | 0.000175 | -0.000696 | -0.001131 | -2e-05 | 2e-05 | 8.6e-05
+     15 | COMBO1 | Combination | 0.000146 | -0.000729 | -0.001129 | -0.000131 | 0.0001 | 8.6e-05
+     16 | COMBO1 | Combination | 0.000156 | -0.000715 | -0.001131 | -2.2e-05 | 1.7e-05 | 8.6e-05
+     17 | COMBO1 | Combination | 0.000132 | -0.000752 | -0.001129 | -0.000143 | 8.2e-05 | 8.6e-05
+     18 | COMBO1 | Combination | 0.000141 | -0.000736 | -0.001131 | -2.4e-05 | 1.4e-05 | 8.6e-05
+     19 | COMBO1 | Combination | 0.000121 | -0.000776 | -0.001129 | -0.000152 | 6.3e-05 | 8.6e-05
+     20 | COMBO1 | Combination | 0.000128 | -0.00076 | -0.001131 | -2.6e-05 | 1.1e-05 | 8.6e-05
+     21 | COMBO1 | Combination | 0.000114 | -0.000801 | -0.001129 | -0.000159 | 4.3e-05 | 8.6e-05
+     22 | COMBO1 | Combination | 0.000118 | -0.000784 | -0.001131 | -2.7e-05 | 7.161e-06 | 8.6e-05
+     23 | COMBO1 | Combination | 0.00011 | -0.000827 | -0.001129 | -0.000164 | 2.2e-05 | 8.6e-05
+     24 | COMBO1 | Combination | 0.000112 | -0.00081 | -0.001131 | -2.7e-05 | 3.611e-06 | 8.6e-05
+     25 | COMBO1 | Combination | 0.000109 | -0.000854 | -0.001129 | -0.000165 | 4.22e-16 | 8.6e-05
+     26 | COMBO1 | Combination | 0.000109 | -0.000836 | -0.001131 | -2.8e-05 | 4.652e-16 | 8.6e-05
+  -- Diseño de Muro imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     F'c | : | 210 | kg/m2
+     Fy | : | 4200 | kg/m2
+     b | : | 100 | cm
+     h | : | 513 | cm
+     Ø As | : | 3/8"
+     d | : | 15.0475 | cm
+     Ø | : | 0.85
+     Mu | : | 1.92 | Tn.m
+     1.1 Cálculo de área de acero por Cuantía Mecánica
+     As | = | 3.12 | cm2
+     1.2 Cálculo de área de acero por Acero Mínimo
+     a)    Mcr = 1.1 fr S = | 1.1(29.13kg/cm2)(6667 cm2) = 2.14 T-m
+     Siempre:
+     fr = | = | 2.01(210)^0.5 = 29.13 kg/cm2
+     S = | bxh^2 | = | 100(20)^2
+     6 | 6
+     b) | 1.33Mu = 1.33(1.92 T-m) = 2.56 T-m
+     El menor valor es 2.14 T-m y la cantidad de acero calculada (3.12 cm2) no resiste                                                                     Mu = 1.92 kg/cm2 < 2.14 kg/cm2 N.S, el recálculo con acero mínimo es 3
+  -- Diseño de Cimentación imgs 0
+     Nota: Haremos el análisis y diseño del muro de concreto armado en su estado más desfavorable.
+     Estado 1 | : | EH | = | Empuje activo del terreno
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     Estado 2 | : | EH1 | = | Empuje activo del terreno desestabilizador
+     LS | = | Sobrecarga
+     CM | = | Carga Muerta
+     EH2 | = | Empuje activo del terreno estabilizador (Arena compactada)
+     El Estado 1 es el más desfavorable.
+     1. Datos.
+     F'c | : | 210 | kg/m2
+     Fy | : | 4200 | kg/m2
+     b | : | 100 | cm
+     h | : | 245 | cm
+     Ø As | : | 1/2"
+     d | : | 14.73 | cm
+     Ø | : | 0.85
+     Mu | : | 4.25 | Tn.m
+     1.1 Cálculo de área de acero por Cuantía Mecánica
+     As | = | 7.3 | cm2
+     1.2 Cálculo de área de acero por Acero Mínimo
+     a)    Mcr = 1.1 fr S = | 1.1(29.13kg/cm2)(6667 cm2) = 2.14 T-m
+     Siempre:
+     fr =
+     S = | bxh^2 | = | 100(20)^2
+     6 | 6
+     b) | 1.33Mu = 1.33(4.25 T-m) = 5.66 T-m
+     El menor valor es 2.14 T-m y la cantidad de acero calculada (7.3 cm2) resiste                                                                     Mu = 4.25 kg/cm2 > 2.14 kg/cm2 OK!
+================================================================================
+C HUMEDAD.xlsx exists=True imgs=16 err=
+SHEETS: ['C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12 OK', 'C13', 'C14', 'C15', 'C16 OK', 'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25']
+  -- C5 imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 1 | Estrato: | 1
+     Fecha: | Julio 2023 | Provincia: | Chiclayo
+     Coord. Este: | 626357 m | Distrito: | Picsi
+     Coord. Norte: | 9283926 m | Caserío: | El chaparral
+     Nº de Ensayo | C5 - E1
+     Profundidad | 2.2 m | - | 3.0m
+     Peso de Mat. Humedo + Tara (gr.) | 45.87
+     Peso de Mat. Seco + Tara (gr.) | 40.8
+     Peso de Tara (gr.) | 14.03
+     Peso de Agua (gr.) | 5.07
+     Peso Mat. Seco (gr.) | 26.77
+     Humedad Natural (%) | 0.189391
+     Calicata: | 1 | Estrato: | 2
+     Fecha: | Julio del 2015 | Departamento: | Lambayeque
+     Ciudad: | Illimo | Zona: | 17 M
+     Coordenadas Este: | 626513 | Coordenada Norte: | 9283922
+     Nº de Ensayo | C2-E2
+     Profundidad | 0.6 | - | 0.8
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+  -- C6 imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 1 | Estrato: | 1
+     Fecha: | Julio 2023 | Provincia: | Chiclayo
+     Coord. Este: | 626357 m | Distrito: | Picsi
+     Coord. Norte: | 9283926 m | Caserío: | El chaparral
+     Nº de Ensayo | C6
+     Profundidad | 0.45 | - | 0.6
+     Peso de Mat. Humedo + Tara (gr.) | 35.73
+     Peso de Mat. Seco + Tara (gr.) | 31.94
+     Peso de Tara (gr.) | 14.25
+     Peso de Agua (gr.) | 3.79
+     Peso Mat. Seco (gr.) | 17.69
+     Humedad Natural (%) | 0.214245
+     Calicata: | 1 | Estrato: | 2
+     Fecha: | Julio del 2015 | Departamento: | Lambayeque
+     Ciudad: | Illimo | Zona: | 17 M
+     Coordenadas Este: | 626513 | Coordenada Norte: | 9283922
+     Nº de Ensayo | C2-E2
+     Profundidad | 0.6 | - | 0.8
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+  -- C7 imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 1 | Estrato: | 1
+     Fecha: | Julio 2023 | Provincia: | Chiclayo
+     Coord. Este: | 626357 m | Distrito: | Picsi
+     Coord. Norte: | 9283926 m | Caserío: | El chaparral
+     Nº de Ensayo | C7
+     Profundidad | 0.45 | - | 0.6
+     Peso de Mat. Humedo + Tara (gr.) | 50.32
+     Peso de Mat. Seco + Tara (gr.)
+     Peso de Tara (gr.) | 22.93
+     Peso de Agua (gr.) | 50.32
+     Peso Mat. Seco (gr.) | -22.93
+     Humedad Natural (%) | -2.19451
+     Calicata: | 1 | Estrato: | 2
+     Fecha: | Julio del 2015 | Departamento: | Lambayeque
+     Ciudad: | Illimo | Zona: | 17 M
+     Coordenadas Este: | 626513 | Coordenada Norte: | 9283922
+     Nº de Ensayo | C2-E2
+     Profundidad | 0.6 | - | 0.8
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+  -- C8 imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 1 | Estrato: | 1
+     Fecha: | Julio 2023 | Provincia: | Chiclayo
+     Coord. Este: | 626357 m | Distrito: | Picsi
+     Coord. Norte: | 9283926 m | Caserío: | El chaparral
+     Nº de Ensayo | C2-E1
+     Profundidad | 0.45 | - | 0.6
+     Peso de Mat. Humedo + Tara (gr.) | 51.28
+     Peso de Mat. Seco + Tara (gr.) | 49.82
+     Peso de Tara (gr.) | 21.07
+     Peso de Agua (gr.) | 1.46
+     Peso Mat. Seco (gr.) | 28.75
+     Humedad Natural (%) | 0.0507826
+     Calicata: | 1 | Estrato: | 2
+     Fecha: | Julio del 2015 | Departamento: | Lambayeque
+     Ciudad: | Illimo | Zona: | 17 M
+     Coordenadas Este: | 626513 | Coordenada Norte: | 9283922
+     Nº de Ensayo | C2-E2
+     Profundidad | 0.6 | - | 0.8
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+  -- C9 imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 1 | Estrato: | 1
+     Fecha: | Julio 2023 | Provincia: | Chiclayo
+     Coord. Este: | 626357 m | Distrito: | Picsi
+     Coord. Norte: | 9283926 m | Caserío: | El chaparral
+     Nº de Ensayo | C2-E1
+     Profundidad | 0.45 | - | 0.6
+     Peso de Mat. Humedo + Tara (gr.) | 51.28
+     Peso de Mat. Seco + Tara (gr.) | 49.82
+     Peso de Tara (gr.) | 21.07
+     Peso de Agua (gr.) | 1.46
+     Peso Mat. Seco (gr.) | 28.75
+     Humedad Natural (%) | 0.0507826
+     Calicata: | 1 | Estrato: | 2
+     Fecha: | Julio del 2015 | Departamento: | Lambayeque
+     Ciudad: | Illimo | Zona: | 17 M
+     Coordenadas Este: | 626513 | Coordenada Norte: | 9283922
+     Nº de Ensayo | C2-E2
+     Profundidad | 0.6 | - | 0.8
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+================================================================================
+CBR (C2-M1) okk.xlsx exists=True imgs=4 err=
+SHEETS: ['CBR', 'GRAFICO CBR']
+  -- CBR imgs 2
+     UNIVERSIDAD NACIONAL "PEDRO RUIZ GALLO"
+     FACULTAD DE INGENIERÍA CIVIL, SISTEMAS Y ARQUITECTURA
+     ESCUELA PROFESIONAL DE INGENIERÍA CIVIL
+     LABORATORIO DE PAVIMENTOS
+     PROYECTO: | "ESTUDIO DE ZONIFICACIÓN DE SUELOS CON FINES DE SANEAMIENTO, PAVIMENTACIÓN Y DRENAJE PLUVIAL DE LOS ASENTAMIENTOS HUMANOS MI BUEN PASTOR, VILLA DEL MAR Y 13 DE ENERO, DISTRITO DE PIMENTEL, PROVINCIA DE CHICLA
+     RESPONSABLES: | AYALA SEMINARIO, KEVIN ROBERTO
+     CUMPA INOÑAN, JOSE EDWIN
+     UBICACIÓN | LA PRADERA, DISTRITO DE PIMENTEL, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     MUESTRA: | C-02 | CAPA: | M1 | UBICACIÓN: | 0.6
+     CBR AL 100%:
+     ENSAYO DE CALIFORNIA BEARING RATIO
+     CBR AL 95%:
+     MOLDE | MOLDE N°05 | MOLDE N°01 | MOLDE N°6
+     Nº DE CAPAS | 5 | 5 | 5
+     Nº DE GOLPES POR CAPA | 56 | 25 | 12
+     CONDICION DE LA MUESTRA | SIN MOJAR | MOJADA | SIN MOJAR | MOJADA | SIN MOJAR
+     PESO MOLDE + SUELO HUMEDO | (g) | 11445 | 11550 | 12305 | 12450 | 11925
+     PESO DEL MOLDE | (g) | 6675 | 7750 | 7570
+     PESO DEL SUELO HUMEDO | (g) | 4770 | 4875 | 4555 | 4700 | 4355
+     VOLUMEN DEL SUELO | (cm3) | 2116.01 | 2116.01 | 2116.01
+     DENSIDAD HUMEDA | (g/cm3) | 2.254 | 2.304 | 2.153 | 2.221 | 2.058
+     CAPSULA Nº | C-08 | 536 | C-07 | 340 | C-01
+     PESO CAPSULA + SUELO HUMEDO | (g) | 121.47 | 185.55 | 104.91 | 189.14 | 115.68
+     PESO CAPSULA + SUELO SECO | (g) | 110.45 | 162.04 | 95.64 | 164.86 | 105.33
+     PESO DE AGUA CONTENIDA | (g) | 11.02 | 23.51 | 9.27 | 24.28 | 10.35
+     PESO DE CAPSULA | (g) | 22.61 | 37.43 | 22.01 | 30.82 | 23.66
+     PESO DE SUELO SECO | (g) | 87.84 | 124.61 | 73.63 | 134.04 | 81.67
+     HUMEDAD | (%) | 0.1255 | 0.1887 | 0.1259 | 0.1811 | 0.1267
+  -- GRAFICO CBR imgs 2
+     UNIVERSIDAD NACIONAL "PEDRO RUIZ GALLO"
+     FACULTAD DE INGENIERÍA CIVIL, SISTEMAS Y ARQUITECTURA
+     ESCUELA PROFESIONAL DE INGENIERÍA CIVIL
+     LABORATORIO DE PAVIMENTOS
+     PROYECTO: | "ESTUDIO DE ZONIFICACIÓN DE SUELOS CON FINES DE SANEAMIENTO, PAVIMENTACIÓN Y DRENAJE PLUVIAL DE LOS ASENTAMIENTOS HUMANOS MI BUEN PASTOR, VILLA DEL MAR Y 13 DE ENERO, DISTRITO DE PIMENTEL, PROVINCIA DE CHICLA
+     RESPONSABLES: | AYALA SEMINARIO, KEVIN ROBERTO
+     CUMPA INOÑAN, JOSE EDWIN
+     UBICACIÓN | LA PRADERA, DISTRITO DE PIMENTEL, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE
+     MUESTRA: | C-02 | CAPA: | M2 | UBICACIÓN: | 0.75
+     DATOS DEL  PROCTOR | DATOS DEL  C.B.R.
+     Humedad Optima (%) | C.B.R. al 100%: 0,1" | 6.91
+     Màxima Densidad Seca (gr/cm3) | C.B.R. al 95% de M.D.S. (%) | 6.17697
+     0.95% M. D. S.
+     C.B.R. al 100%: 0,2" | 7.46
+     Tipo de Suelo (SUCS) | SM-SC | C.B.R. al 95% de M.D.S. (%) | 6.26529
+================================================================================
+ESTUDIO DE SUELOS COMPLETO (2).xlsm exists=True imgs=16 err=
+SHEETS: ['Datos ', 'C.HUMEDAD', 'GRANULOMETRIA', 'SEG-01', 'LIMITES AT.', 'C. SALES', 'CLASIFICACION SUCS', 'CARACTERISTICAS DE LOS SUELOS', 'CORTE DIRECTO', 'COMPRESION SIMPLE', 'PESO VOLUMETRICO', 'P.E.R.SOLIDOS', 'CONSOLIDACION', 'ASENTAMIENTOS', 'EXPANSION LIBRE', 'SUSTENTO TIPO DE FALLA', 'CAPACIDAD PORTANTE', 'Hoja1', 'SUCS - TABLA CLAS.', 'FACTORES DE CARGA', 'TABLA FADUM']
+  -- Datos  imgs 0
+     1. Datos del estudio
+     SOLICITANTE | :
+     PROYECTO | : | “ESTUDIO CON FINES DE ZONIFICACION GEOTECNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SU
+     UBICACIÓN | : | Cas."El Chaparral" - C.P "Capote" - Picsi - Chiclayo - Lambayeque
+     DISTRITO | : | Picsi | Tipo de Poblacion
+     PROVINCIA | : | Chiclayo
+     DEPARTAM. | : | Lambayeque
+     FECHA | : | JULIO 2023
+     N°CALICATA | : | 05
+     N°ESTRATOS | : | 2
+     PROF. RELLE | : | 2.2 | m
+     PROF. EXCV. | : | 3 | m
+     ALTUR. ESTR. | : | E 01 : | 0.65 | 0.52
+     E 02 : | 0.42 | 0.71
+     ALT. M. INALTE. | : | Df = | 2.2 | Temperatura M. =
+     NAPA FREATICA | : | - | m
+     TIPO DE CIMENTACION | : | CORRIDA
+     B = | 1.7 | m
+     h = | 1.85 | m
+  -- C.HUMEDAD imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     CONTENIDO DE HUMEDAD
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACION GEOTECNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata: | 05 | Estrato: | 01
+     Fecha: | JULIO 2023 | Provincia: | Chiclayo
+     Coord. Este: | 6253152 | Distrito: | Picsi
+     Coord. Norte: | 92523512 | Caserío : | El Chaparral
+     Nº de Ensayo | C5 - E01
+     Profundidad | 2.2 | - | 2.85
+     Peso de Mat. Humedo + Tara (gr.) | 45.87
+     Peso de Mat. Seco + Tara (gr.) | 40.8
+     Peso de Tara (gr.) | 14.03
+     Peso de Agua (gr.) | 5.07
+     Peso Mat. Seco (gr.) | 26.77
+     Humedad Natural (%) | 0.189391
+     Calicata: | 05 | Estrato: | 02
+     Fecha: | JULIO 2023 | Provincia: | Chiclayo
+     Coordenada Norte: | 92523512 | Distrito: | Picsi
+     Coordenada Este: | 6253152 | Caserío : | El Chaparral
+     Nº de Ensayo | C5 - E02
+     Profundidad | 2.85 | - | 3.27
+     Peso de Mat. Humedo + Tara (gr.) | 48.39
+     Peso de Mat. Seco + Tara (gr.) | 47.46
+     Peso de Tara (gr.) | 21.38
+     Peso de Agua (gr.) | 0.93
+  -- GRANULOMETRIA imgs 2
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     ANÁLISIS GRANULOMETRICO POR TAMIZADO
+     Proyecto: | "Diseño del sistema de drenaje Pluvial de la ciudad de Illimo Según Norma O.S. 060"
+     Calicata: | 05 | Estrato: | 01
+     Profundidad: | 2.2m - 2.85m
+     Peso Original: | 300 | Pérdida por Lavado: | 134.42
+     Peso Tamizado | 165.58
+     TAMIZ | DIAMETRO (mm) | PESO RETENIDO (gr.) | %  RETENIDO | %  ACUMULADO | %  PASA
+     4 | 4.75 | 20.96 | 0.0698667 | 0.0698667 | 0.930133 | Mayor a menor | Menor a mayor
+     10 | 2 | 6.23 | 0.0207667 | 0.0906333 | 0.909367 | 4.75 | 0.930133 | 0.075
+     20 | 0.85 | 5.15 | 0.0171667 | 0.1078 | 0.8922 | 2 | 0.909367 | 0.15
+     40 | 0.42 | 7.18 | 0.0239333 | 0.131733 | 0.868267 | 0.85 | 0.8922 | 0.3
+     60 | 0.3 | 22.89 | 0.0763 | 0.208033 | 0.791967 | 0.42 | 0.868267 | 0.42
+     100 | 0.15 | 84.42 | 0.2814 | 0.489433 | 0.510567 | 0.3 | 0.791967 | 0.85
+     200 | 0.075 | 18.42 | 0.0614 | 0.550833 | 0.449167 | 0.15 | 0.510567 | 2
+     PLATILLO | 0.33 | 0.449167 | 1 | 0 | 0.075 | 0.449167 | 4.75
+     Pérdida por lavado | 134.42 | -0.375936 | 0.08 | -0.375936
+     % PASA | DIAMETRO (mm)
+     0.1047 | 0.00677887
+     D10 | 0.0061938
+     0.0897 | 0.00480913
+     COEFICIENTE DE UNIFORMIDAD (Cu):
+     % PASA | DIAMETRO (mm)
+     0.4235 | 0.0649723
+     D30 | 0.0568679
+  -- SEG-01 imgs 1
+     ANALISIS GRANULOMETRICO POR SEDIMENTACION
+     Tesis: | “ESTUDIO CON FINES DE ZONIFICACION GEOTECNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPERFIC
+     Calicata: | C 05 | Provincia: | Chiclayo
+     Coord. Este: | 6253152 | Distrito: | Picsi
+     Coord. Norte: | 92523512 | Caserío | El Chaparral
+     Estrato : | 01
+     Peso de suelo (Ws): | 50 | grs | a=(Ss*1.65)/(Ss-1)*2.65 | 1.03637
+     Ss: | 2.50494 | Correccion de menisco (Cm): | 5
+     Correccion de cero (C0): | -3
+     Fecha | Hora de la lectura | Tiempo transcurrido (t) | Temperatura (T) | Lectura real del hidrometro | Correccion por Temperatura CT | Lectura corregida del hidrometro | % mas fino | Hidrometro corregido por menisco | L,
+     (min) | (ºC) | Ra | (Tabla 6.3) | Rc=Ra-C0+CT | (Rc*a / Ws)*100 | R=Ra+Cm | (mm)
+     2014-01-03 00:00:00 | 07:51:30 | 0.5 | 25 | 28.32 | 1.3 | 32.62 | 67.6129 | 23.32 | 11.636 | 23.272 | 0.0134682 | 0.0649723
+     07:53:00 | 1 | 25 | 15 | 1.3 | 19.3 | 40.004 | 10 | 13.8 | 13.8 | 0.0134682 | 0.0500323
+     07:55:00 | 2 | 25 | 15 | 1.3 | 19.3 | 40.004 | 10 | 13.8 | 6.9 | 0.0134682 | 0.0353782
+     07:59:00 | 4 | 25 | 15 | 1.3 | 19.3 | 40.004 | 10 | 13.8 | 3.45 | 0.0134682 | 0.0250162
+     08:07:00 | 8 | 25 | 12 | 1.3 | 16.3 | 33.7857 | 7 | 14.3 | 1.7875 | 0.0134682 | 0.0180067
+     08:22:00 | 15 | 25 | 10 | 1.3 | 14.3 | 29.6402 | 5 | 14.7 | 0.98 | 0.0134682 | 0.0133329
+     08:52:00 | 30 | 25 | 9 | 1.3 | 13.3 | 27.5675 | 4 | 14.8 | 0.493333 | 0.0134682 | 0.00945979
+     09:52:00 | 60 | 25 | 7 | 1.3 | 11.3 | 23.422 | 2 | 15.2 | 0.253333 | 0.0134682 | 0.00677887
+     11:52:00 | 120 | 25 | 6 | 1.3 | 10.3 | 21.3493 | 1 | 15.3 | 0.1275 | 0.0134682 | 0.00480913
+     2014-01-06 00:00:00 | 07:32:00 | 4300.5 | 25 | 2 | 1.3 | 6.3 | 13.0583 | -3 | 16 | 0.0037205 | 0.0134682 | 0.000821508
+     2014-01-07 00:00:00 | 07:32:00 | 5740.5 | 25 | 1 | 1.3 | 5.3 | 10.9855 | -4 | 16.1 | 0.00280463 | 0.0134682 | 0.000713262
+     CURVA GRANULOMÉTRICA FINAL ( E.G. POR TAMIZADO + E.G. POR SEDIMENTACIÓN ) | 4.75 | 0.930133 | 4.75
+     2 | 0.909367 | 2
+     0.85 | 0.8922 | 0.85
+     0.42 | 0.868267 | 0.42
+     0.3 | 0.791967 | 0.3
+     0.15 | 0.510567 | 0.15
+  -- LIMITES AT. imgs 3
+     UNIVERSIDAD NACIONAL PEDRO RUIZ GALLO
+     FACULTAD DE INGENIERIA CIVIL, SISTEMAS Y ARQUITECTURA
+     Escuela Profesional de Ingenieria Civil
+     Laboratorio de Mecánica de Suelos
+     LIMITES DE CONSISTENCIA
+     Proyecto: | “ESTUDIO CON FINES DE ZONIFICACIÓN GEOTÉCNICA DEL CASERIO EL CHAPARRAL DEL CENTRO POBLADO DE CAPOTE, DISTRITO DE PICSI, PROVINCIA DE CHICLAYO, DEPARTAMENTO DE LAMBAYEQUE, PARA EL DISEÑO DE CIMENTACIONES SUPER
+     Calicata - Estrato: | C 05 - E 01 | Zona:
+     Lugar: | Cas."El Chaparral" - C.P "Capote" - Picsi - Chiclayo - Lambayeque | Coord. Este:
+     Fecha: | JULIO 2023 | Coord. Norte:
+     LIMITE LIQUIDO | LIMITE PLASTICO
+     TARA | 25 | 38 | 62 | 22 | 51 | PROMEDIO
+     N° DE GOLPES | 18 | 25 | 29 | --- | ---
+     PESO DE TARA (gr.) | 13.95 | 13.95 | 21.45 | 21.16 | 14.11
+     PESO DE TARA + SUELO HÚMEDO (gr.) | 41.54 | 39.94 | 49.08 | 27.59 | 23.51
+     PESO DE TARA + MUESTRA SECA (gr.) | 35.93 | 33.61 | 41.52 | 27.01 | 23.05
+     PESO DEL AGUA (gr.) | 5.61 | 6.33 | 7.56 | 0.58 | 0.46
+     PESO DE SUELO SECO (gr.) | 21.98 | 19.66 | 20.07 | 5.85 | 8.94
+     CONTENIDO DE HUMEDAD | 25.5232 | 32.1974 | 37.6682 | 0.0991453 | 0.0514541 | 0.0752997
+     ECUACIÓN LINEAL | 1.08708 | 5.7063
+     CONTENIDO DE HUMEDAD (25 GOLPES) | 32.8833
+     Calicata - Estrato: | C 05 - E 02 | Zona:
+     Lugar: | Cas."El Chaparral" - C.P "Capote" - Picsi - Chiclayo - Lambayeque | Coord. Este:
+     Fecha: | JULIO 2023 | Coord. Norte:
+     LIMITE LIQUIDO | LIMITE PLASTICO
+     TARA | 25 | 38 | 62 | 22 | 51 | PROMEDIO
+     N° DE GOLPES | 18 | 25 | 29 | --- | ---
+     PESO DE TARA (gr.) | 13.95 | 13.95 | 21.45 | 21.16 | 14.11
+     PESO DE TARA + SUELO HÚMEDO (gr.) | 41.54 | 39.94 | 49.08 | 27.59 | 23.51
+================================================================================
+ALCANTARILLA TIPO CAJON.xlsx exists=True imgs=3 err=
+SHEETS: ['UN CAJON', 'CAJON DOBLE', 'HOJA DE APOYO']
+  -- UN CAJON imgs 0
+     CALCULO ESTRUCTURAL DE ALCANTARILLA TIPO CAJON
+     DATOS:
+     F'c Concreto (kg/cm^2) | 250
+     Peso especifico del concreto (kg/m^3) | 2400
+     Fy acero de refuerzo (kg/cm^2) | 4200
+     Peso especifico del suelo (t/m^3) | 1800
+     Capacidad portante del suelo (kg/cm^2) | 1.5
+     Angulo de friccion interna del suelo (°) | 18
+     Profundidad del nivel freático (m) | 2.5 | 1
+     Camión de diseño | HS-20-44
+     Peso rueda trasera (kg) | 7250
+     DIMENSIONES DE LA SECCION
+     Ancho de alcantarilla (Ancho de via) (m) | 6
+     Altura "H" (m) | 1.4
+     Ancho "B" (m) | 1.6
+     Espesor de losas "e" (m) | 0.15 | NF
+     Espesor "r" (m) | 1
+     Altura total "A" | 1.7 | 1.4
+     Ancho total "L" | 1.9 | 1.7
+     PESO DE LA ESTRUCTURA
+     Peso losa superior (kg) | 576
+     Peso losa inferior (kg) | 576 | 1.6
+     Peso muro izquierdo (kg) | 612
+     Peso muro derecho (kg) | 612
+     Peso total de la estructura (kg) | 2376
+     Peso de relleno sobre la estructura (kg/m^2) | 1800
+     CALCULO DE LA CARGA VIVA POR TRAFICO
+     Area de contacto Rueda HS-20-44
+  -- CAJON DOBLE imgs 0
+     CALCULO DE ALCANTARILLA TIPO CAJON DOBLE
+     DATOS:
+     F'c Concreto (kg/cm^2) | 250
+     Peso especifico del concreto (kg/m^3) | 2400
+     Fy acero de refuerzo (kg/cm^2) | 4200
+     Peso especifico del suelo (t/m^3) | 1800
+     Capacidad portante del suelo (kg/cm^2) | 1.5
+     Angulo de friccion interna del suelo (°) | 19
+     Profundidad del nivel freático (m) | 2 | 0.65
+     Camión de diseño | HS-20-44
+     Peso rueda trasera (kg) | 7250
+     DIMENSIONES DE LA SECCION
+     Ancho de alcantarilla (Ancho de via) (m) | 6
+     Altura "H" (m) | 1.4
+     Ancho "B" (m) | 2
+     Espesor de losas "e" (m) | 0.22
+     Espesor "r" (m) | 0.65 | 1.84 | 1.4 | 1.4
+     Altura toral "A" (m) | 1.84
+     Ancho total "L" (m) | 4.66
+     PESO DE LA ESTRUCTURA
+     2 | 2
+     Peso losa superior (kg) | 2228.16
+     Peso losa inferior (kg) | 2228.16
+     Peso muro izquierdo (kg) | 971.52 | 4.66
+     Peso muro derecho (kg) | 971.52
+     Peso muro central (kg) | 739.2
+     Peso total de la estructura (kg) | 7138.56
+     Peso de relleno sobre la estructura (kg/m^2) | 1170
+  -- HOJA DE APOYO imgs 3
+     F'C CONCRETO
+     Granulares
+     Otros
+     Tabla de varillas
+     ELEGIR | Diametro Nominal (mm) | diametro cms | Diametro nomnal (pulg) | Area  (cm2) | Peso(kg/m)
+     2 | 6.4 | 0.64 | 1/4 | 0.32 | 0.251
+     2.5 | 7.9 | 0.79 | 5/16 | 0.49 | 0.384
+     3 | 9.5 | 0.95 | 3/8 | 0.71 | 0.557
+     4 | 12.7 | 1.27 | 1/2 | 1.27 | 0.996
+     5 | 15.9 | 1.59 | 5/8 | 1.99 | 1.56
+     6 | 19.1 | 1.91 | 3/4 | 2.87 | 2.25
+     7 | 22.2 | 2.22 | 7/8 | 3.87 | 3.034
+     8 | 25.4 | 2.54 | 1 | 5.07 | 3.975
+     9 | 28.6 | 2.86 | 1  1/8 | 6.42 | 5.033
+     10 | 31.8 | 3.18 | 1  1/4 | 7.94 | 6.225
+     11 | 34.9 | 3.49 | 1  3/8 | 9.57 | 7.503
+     12 | 38.1 | 3.81 | 1  1/2 | 11.4 | 8.938
+     f'c | B (beta) | Porcentaje balanceado | Porcentaje max | porcentaj min | porcentaje min
+     150 | 0.85 | 0.015297 | 0.0114728 | 0.00345238 | 0.00729015
+     180 | 0.85 | 0.0183564 | 0.0137673 | 0.00345238 | 0.00798596
+     200 | 0.85 | 0.020396 | 0.015297 | 0.00345238 | 0.00841794
+     250 | 0.85 | 0.025495 | 0.0191213 | 0.00345238 | 0.00941154
+     280 | 0.85 | 0.0285545 | 0.0214158 | 0.00345238 | 0.00996024
+     300 | 0.835714 | 0.0300799 | 0.0225599 | 0.00345238 | 0.0103098
+     350 | 0.8 | 0.0335935 | 0.0251951 | 0.00345238 | 0.0111359
+     400 | 0.764286 | 0.0366786 | 0.0275089 | 0.00345238 | 0.0119048
+     450 | 0.728571 | 0.0393352 | 0.0295014 | 0.00345238 | 0.0126269
+     500 | 0.692857 | 0.0415634 | 0.0311725 | 0.00345238 | 0.0133099
+================================================================================
+TANQUE SEPTICO.xls exists=True imgs=0 err=
+SHEETS: ['Tanque Séptico', 'Humedal FSS']
+  -- Tanque Séptico imgs 0
+     Dimensionamiento de Sistemas de Tratamiento en sitio.
+     Tipo de sistema: | Tanque Séptico Sencillo
+     Tabla E.7.2 del RAS 2000 | Cantidades de obra - Tanque Séptico Sencillo
+     Contribución diaria (litros) | tiempo de retención
+     Datos de Entrada | dias | horas | Nivel del terreno | 2562.2 | msnm
+     hasta 1500 | 1 | 24 | Nivel de la tubería entrante | 2559.68 | msnm
+     Población N | 200 | hab | 1501 a 3000 | 0.92 | 22 | Nivel de tubería saliente | 2559.58 | msnm
+     Dotación C | 200 | lts/hab.d | Retorno | 0.8 | 3001 a 4500 | 0.83 | 20 | Espesor de paredes | 0.3 | m
+     THR | 1 | dias | * THR entre 1 y 3 d | 4501 a 6000 | 0.75 | 18 | Espacio libre estructura excavación | 0.5 | m
+     Caudal | 0.267 | lps | 23.0688 | m3/d | 6001 a 7500 | 0.67 | 16 | Nivel de piso | 2557.2 | msnm
+     7501 a 9000 | 0.58 | 14 | Profundidad de excavación | 5 | m
+     Volumen 1 | 23.0688 | m3 | Volumen por el tiempo hidráulico de retención | más de 9000 | 0.5 | 12 | Volúmen total de excavación | 84.8 | m3
+     Volumen 2 | 38 | m3 | Volúmen de acuerdo a Código Británico | Excavación 3m | 59.7333 | m3
+     Volumen 3 | 21.5616 | m3 | Volúmen Calculado de acuerdo a metodología USPHS | Excavación > 3m | 25.0667 | m3
+     Volúmen 4 | 11.5344 | m3 | Volúmen calculado de acuerdo a metodología RAS-2000 | Entibado | 90.6667 | m2
+     Tabla E.3.3 del RAS 2000 | Replanteo | 6.45333 | m2
+     Dimensionamiento | Volúmen útil (m3) | Altura mínima (m) | Altura máxima (m) | Relleno lateral con material de excav | 80.6667 | m3
+     Vol útil Vu | 11.5344 | m3 | Ancho A | 1.46667 | m | Concreto Placa de piso e=0,2m | 2.06667 | m3
+     Altura útil hu | 1.8 | m | Largo L | 4.4 | m | hasta 6 | 1.2 | 2.2 | Concreto Paredes extrenas e=0,2m | 3.977 | m3
+     Borde libre | 0.25 | m | Vol útil real | 11.616 | m3 | de 6 a 10 | 1.5 | 2.5 | Concreto Placa de techo e=0,2m | 2.06667 | m3
+     Relación Largo Ancho | 2 a 1 - 4 a 1 | 2/3 L | 2.93333 | m | más de 10 | 1.8 | 2.8 | Cantidad Total del concreto | 8.11033 | m3
+     1/3 L | 1.46667 | m | Relleno superficial material de excav | -3.977 | m3
+     Altura tanque | 2.05 | m | Altura relleno superficial | -0.384871 | m
+     Muro en ladrillo para accesos e=0,15 | -1.84738 | m2
+     Eficiencia tto | 30 - 50% | Eficiencia | 0.3
+     DBO5 inicial | 220 | mg/lt | DBO5 salida | 154 | mg/ltr
+     Observaciones y recomendaciones
+     Dimensionamiento de Sistemas de Tratamiento en sitio.
+  -- Humedal FSS imgs 0
+     Dimensionamiento de Sistemas de Tratamiento en sitio.
+     Tipo | Humedal Artificial de Flujo Subsuperficial
+     Datos de entrada | Medio | Tamaño efectivo mm | Porosidad | Conductividad hidráulica m2/m2.d | Cantidades de obra - Tanque Séptico
+     Número de sistemas en paralelo | 1 | Nivel del terreno jarillon entrada
+     Caudal | 0.267 | lps | 23.0688 | m3/d | Nivel del terreno original
+     Q por sistema | 23.0688 | m3/d | Arena media | 1 | 0.3 | 500 | Nivel de la tubería entrante
+     DBO5 entrada | 110 | mg/ltro | *150 - 200 mg/lt | Arena gruesa | 2 | 0.32 | 1000 | Nivel de tubería saliente
+     NTK entrada | 20 | mg/ltro | Arena y grava | 8 | 0.35 | 5000 | Espesor de paredes
+     Tiempo hidráulico de Residencia | 5.6 | dias | * entre 3 - 5 días | Grava media | 32 | 0.4 | 10000 | Espacio libre estructura excavación
+     Pendiente del fondo del humedal Dh/DL | 2 | % | 0.02 | m/m | Grava gruesa | 128 | 0.45 | 100000 | Nivel de piso entrada
+     Profundidad del agua h1 | 0.61 | m | * entre 0,6 y 0,7 m | Profundidad de excavación entrada
+     Profundidad del medio h2 | 0.76 | m | *entre 0,75 y 1 m | Área tranversal entrada de excavación
+     Conductividad hidráulica K | 5000 | m3/m2.d | Nivel de piso salida
+     Porocidad del medio e | 0.35 | Profundidad de excavación salida
+     Área tranversal salida de excavación
+     Volúmen del humedal Vol h | 129.185 | m3 | Área Promedio de excavación
+     Área Superficial Ash | 211.779 | m2 | Volúmen total de excavación
+     Área Tranversal Ath | 2.30688 | m2 | Excavación < 3m
+     Ancho del humedal Ah | 3.78177 | m | Excavación > 3m
+     Longitud del humedal Lh | 56 | m | Volúmen de relleno compactado
+     Carga Orgánica del humedal | 119.821 | kg DBO /ha.d | OK | Entibado
+     Carga Hidráulica Superficial | 1089.29 | m3/ha.d | OK | Replanteo
+     Relleno lateral con material de excav
+     Cte remoción DBO5 20°C K20 | 0.859526 | d-1 | Ko doméstica | 1.839 | d-1 | Concreto Placa de piso e=0,2m
+     Cte de remoción NTK 20°C K | 0.107 | d-1 | Ko industrial | 0.198 | d-1 | Concreto Paredes extrenas e=0,2m
+     Concreto Placa de techo e=0,2m
+     Carga de DBO5 efluente | 0.893273 | mg/ltro DBO5 | Talud | 1 | 3 | Cantidad Total del concreto
+     Carga de NTK efluente | 10.985 | mg/ltro NTK | Áres por planta | 0.16 | Relleno superficial material de excav
+================================================================================
+CAMINO VECINAL.xlsx exists=True imgs=3 err=
+SHEETS: ['Ig', 'Wyoming', 'Naasra']
+  -- Ig imgs 2
+     TIPO DE MANTENIMIENTO: | PERIODICO
+     PROYECTO: | "MEJORAMIENTO DE LA VIA DE ACCESO VEHICULAR Y PEATONAL DEL CAMINO VECINAL LA ALAMEDA"
+     METODO DE DISEÑO: | "D.J Steele" o del "INDICE DE GRUPO"
+     DISEÑO DE BASE + CAPA DE RODAMIENTO
+     TRAMO: | LA ALAMEDA I
+     KILOMETRO: | 20 | CALICATA N°: | 1
+     Determinación del Indice de Grupo (Ig):
+     % pasa tamiz N°200 (F)= | 77.17
+     Limite Liquido (LL)= | 45
+     Indice de Plasticidad (Ip)= | 30
+     Ig= | 22
+     ESPESOR DE PAVIMETO= | 20
+     DISEÑO DE BASE + CAPA DE RODAMIENTO
+     TRAMO: | LA ALAMEDA II
+     KILOMETRO: | 0+300 | CALICATA N°: | 2
+     Determinación del Indice de Grupo (Ig):
+     % pasa tamiz N°200 (F)= | 43.15
+     Limite Liquido (LL)= | 40
+     Indice de Plasticidad (Ip)= | 13
+     Ig= | 2
+     ESPESOR DE PAVIMETO= | 20
+     ESPESOR PROMEDIO DEL PAVIMENTO = | 20
+  -- Wyoming imgs 0
+     TIPO DE MANTENIMIENTO: | PERIODICO
+     PROYECTO: | "MEJORAMIENTO DE LA VIA DE ACCESO VEHICULAR Y PEATONAL DEL CAMINO VECINAL "LA ALAMEDA"
+     METODO DE DISEÑO: | "WYOMING"
+     Precipitación anual: | min.: | 800 | mm.
+     max: | 900 | mm.
+     asignar: | 10
+     Profundidad de la napa freática: | min: | 1 | m.
+     max: | 1.5 | m.
+     asignar: | 4
+     Acción de las heladas: | min: | 2795 | m.s.n.m
+     max: | 2942 | m.s.n.m
+     asignar: | 1
+     Condiciones generales de drenaje: | asignar: | 6
+     Transito vehicular reducido a cargas equivalentes de 5000 libras por rueda
+     De acuerdo con el estudio socioeconómico tenemos el 50% del TDI de la carretera:
+     Transito  Diario Inicial Actual (TDI)= | 5 | veh.
+     Transito Diario Comercial Actual= | 3
+     Transito Diario Comercial a 20 Años= | 6
+     Transito diario Comercial Promedio= | 5
+     Transito total en 20 años= | 5
+     CALCULO DEL NUMERO DE REPETICIONES DE CARGA DE 5000 LIBRAS
+     POR RUEDA PARA EL PERIODO DE DISEÑO DE 20 AÑOS
+     CARGA POR | % | TDCP | DIAS | AÑOS | FACTOR | TRANSITO
+     RUEDA | (decimal) | “f” | TOTAL
+     4500 (Lb) | 0.42 | 5 | 365 | 20 | 1 | 15330
+     5500 | 0.25 | 5 | 365 | 20 | 2 | 18250
+     6500 | 0.17 | 5 | 365 | 20 | 4 | 24820
+     7500 | 0.08 | 5 | 365 | 20 | 8 | 23360
+  -- Naasra imgs 1
+     TIPO DE MANTENIMIENTO: | PERIODICO
+     PROYECTO: | "MEJORAMIENTO DE LA VIA DE ACCESO VEHICULAR Y PEATONAL DEL CAMINO VECINAL LA ALAMEDA"
+     METODO DE DISEÑO: | "NAASRA"
+     Determinación del número de repeticiones de EE para el carril de diseño (Nrep):
+     Del cuadro H - 1        Nrep= | 15725
+     ESPESOR DEL PAVIMENTO A  NIVEL DE AFIRMADO:
+     C.B.R. DEL TERRENO DE FUNDACIÓN.
+     Del Estudio de Mecánica de Suelos
+     C.B.R. = | 5 | PROMEDIO
+     E  = | 211.431 | 21.1431
+     Del Estudio de Mecánica de Suelos
+     C.B.R. = | 6 | PROMEDIO
+     E  = | 190.419 | 19.0419
+     ESPESOR PROMEDIO DEL PAVIMENTO = | 20.0925
+     C.B.R. DE DISEÑO QUE PREDOMINA EN LOS TRES TRAMOS DEL PROYECTO, CBR comprendido entre (4% – 6%)
+     Del Estudio de Mecánica de Suelos
+     C.B.R. = | 5 | PROMEDIO
+     E  = | 211.431 | 21.1431 | redondeando = 20 cm
+================================================================================
+PAVIMENTO PARA AVIACION.xls exists=True imgs=None err=UnicodeDecodeError: 'utf-16-le' codec can't decode bytes in position 24-25: illegal encoding
+SHEETS: None
+================================================================================
+DISEÑO DE VIGAS UNI.xls exists=True imgs=0 err=
+SHEETS: ['WELCOMING PAGE', 'Operating', 'Calculationsheet', 'CalculateMD1Span', 'CalculateMD2span', 'CalculateMD3span', 'DrawingResult', 'Drawing']
+  -- WELCOMING PAGE imgs 0
+  -- Operating imgs 0
+  -- Calculationsheet imgs 0
+     Project's name | : | CAE | Date: | 36880
+     Designer's name | : | Kevin Tantisevi
+     Member : | b1 | Types of Beam: | 3 spans | Beam Width: | 15 | inches
+     DESIGN CRITERIA:
+     Concrete Strength ( f'c ) | = | 6000 | psi
+     Elastic Modulus of Concrete (Ec) | = | 4.4152e+06 | psi
+     Reinforcing bar Yield Strength ( fyr ) | = | 40000 | psi
+     Stirrups Yield Strength (fys) | = | 40000 | psi
+     PARAMETER FOR FLEXURAL DESIGN  :
+     b1 | = | 0.75
+     rb | = | 0.0655069
+     rmin. | = | 0.005
+     r | = | 0.0327534
+     w | = | 0.218356
+     kn | = | 1141.35
+     PARAMETER FOR SHEAR DESIGN  :
+     B*f'c(1/2)     = | 1161.9
+     Maximum number of bars in a row: | 6
+  -- CalculateMD1Span imgs 0
+     Max. bar | 5
+     Load Data    A Single span beam
+     P1DL | kips | L | ft.
+     P1LL | kips | a | ft.
+     P2DL | kips | b | ft.
+     P2LL | kips
+     DL | kips / ft.
+     LL | kips / ft.
+     Dead Weight of Beam  = | 0.51678 | kips/ft
+     total factored Point Load 1 = | 0 | kips
+     total factored Point Load 2 = | 0 | kips
+     total factored Uniform Load = | 0.723492 | kips
+     VA   = | 7 | kips
+     VB   = | 7 | kips
+     Max. Shear = | 7 | kips
+     Max. ultimate positive moment = | 7 | kips.ft
+     Max. ultimate negative moment = | 0 | kips.ft
+     hmin = | 0 | inches
+     req' d = | 7 | inches
+     Determine depth (d) and thickness (h)
+     Use | Beam Depth  = | 7 | inches | Thickness    = | 7 | inches
+     Check the beam weight by recalculating the load | ……. | Passed
+     Determine As
+     req' As = | 7 | inches.2
+     Bar No. | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 14
+     Area / bar (in2) | 0.31 | 0.44 | 0.6 | 0.79 | 1 | 1.27 | 1.56 | 2.25
+     No. of bars* | 7 | 7 | 7 | 7 | 7 | 7 | 7 | 7
+     Min. number of 2 steel bars is required
+  -- CalculateMD2span imgs 0
+     max. bars | 6 | no. of node | 4 | MaxIteration = | 100 | n  = | 2
+     in a row | COV factor | 0.5 | Maxchange = | 0.001 | change = | 0
+     1 | 2 | 3 | 4
+     DF | 1 | 7 | 7 | 1
+     FEM | 0 | 0 | -1133.33 | 1133.33
+     DM | 0 | 7 | 7 | -1133.33
+     COV | 0 | 0 | 0 | 0
+     DM | 0 | 7 | 7 | 0
+     absolute change | 0 | 0 | 0 | 0
+     Previous | 0 | 566.667 | -566.667 | 0
+     Current | 0 | 7 | 7 | 0
+     Total | 0 | 566.667 | -566.667 | 0
+     Load Data
+     A two span continuous beam
+     PDLa1 | kips | L1 | ft.
+     PLLa1 | kips | a1 | ft.
+     PDLb1 | kips | b1 | ft.
+     PLLb1 | kips
+     DL1 | kips / ft.
+     LL1 | kips / ft.
+     PDLa2 | kips | L2 | ft.
+     PLLa2 | kips | a2 | ft.
+     PDLb2 | kips | b2 | ft.
+     PLLb2 | kips
+     DL2 | kips / ft.
+     LL2 | kips / ft.
+     Factored Load Case
+     factored Beam weight | 0.72036 | kips / ft.
+================================================================================
+Diagrama M Viga.xls exists=True imgs=0 err=
+SHEETS: ['MAIN', 'ACTIONS', 'SPANS', 'Weight', 'Analysis', 'Bar', 'Graf', 'Notes']
+  -- MAIN imgs 0
+     OPERATING INSTRUCTIONS
+     Project | Spreadsheets to BS 8110 | REINFORCED CONCRETE COUNCIL | ENTER DATA IN BLUE CELLS ONLY. | 3
+     Client | Advisory Group | Made by | Date | Sheet No | RED MESSAGES INDICATE ENTRY ERRORS.
+     Location | D&D: Main beam Grids C to H | from grid 1 to 3 | rmw | 36490 | 55 | ADJUST REDISTRIBUTION ON NEXT SHEET
+     CONTINUOUS BEAM (Analysis & Design) to BS 8110:1997 | Checked | Revision | Job No | ADJUST REINFORCEMENT ON 'SPANS' SHEET
+     Originated from RCC41.xls on CD                       © 1999 BCA for RCC | chg | - | R68
+     LOCATION | Supports from grid | 1 | to grid | 3
+     MATERIALS | COVERS (to all steel)
+     fcu | 40 | N/mm² | h agg | 20 | mm | Top cover | 25 | mm | 
+     fyl | 460 | N/mm² | gs | 1.05 | Btm cover | 40 | mm | 
+     fyv | 250 | N/mm² | gc | 1.5 | Side cover | 35 | mm | 
+     SPANS | L (m) | H (mm) | bw (mm) | hf (mm) | Type | bf (mm) | LOADING PATTERN | Type = T, L or R(ectangular) | Bf max | 6
+     SPAN 1 | 8 | 500 | 300 | 175 | R | 300 | min | max |  | 300 | 1
+     SPAN 2 | 6 | 500 | 300 | 175 | R | 300 | DEAD | 1 | 1.4 |  | 300 | 1
+     SPAN 3 | IMPOSED | 0 | 1.6 |  | 0 | 1
+     SPAN 4 | REBAR LAYERING |  | 0 | 1
+     SPAN 5 | Support steel |  | 0 | 1
+     SPAN 6 | in alt layer ? | Y |  | 0 | 1
+     Can be K(nife), C(antilever) or E(ncastre) in line C.
+     SUPPORTS | ABOVE (m) | H (mm) | B (mm) | End Cond | BELOW (m) | H (mm) | B (mm) | End Cond | Can be F(ixed) or P(inned) in columns F&J
+     Support 1 | 3.5 | 300 | 300 | F | 4 | 300 | 300 | P |  | End
+     Support 2 | 3.5 | 300 | 300 | F | 5 | 300 | 300 | P |  | Int
+     Support 3 | 3.5 | 300 | 300 | F | 4 | 300 | 300 | P |  | End
+     Support 4 |  | 0
+     Support 5 | 0 | 0 | 0 | 0 |  | 0
+     Support 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |  | 0
+     Support 7 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |  | 0
+     LOADING | UDLs (kN/m)    PLs (kN)    Position (m) | 
+  -- ACTIONS imgs 0
+     OPERATING INSTRUCTIONS
+     Project | Spreadsheets to BS 8110 | REINFORCED CONCRETE COUNCIL | ENTER DATA IN BLUE CELLS ONLY.
+     Client | Advisory Group | Made by | Date | Page | RED MESSAGES INDICATE ENTRY ERRORS.
+     Location | D&D: Main beam Grids C to H,  from grid 1 to 3 | rmw | 36490 | 56 | ADJUST REDISTRIBUTION, then GOTO 'SPANS' sheet
+     CONTINUOUS BEAM (Analysis & Design) to BS 8110:1997 | Checked | Revision | Job No
+     Originated from RCC41.xls on CD                       © 1999 BCA for RCC | chg | - | R68
+     BENDING MOMENT DIAGRAMS (kNm)
+     CHOOSE REDISTRIBUTION LIMITS (3.2.2.1)
+     0 = Full redistribution.
+     1 = Limit alt span upward redistribution to %.
+     2 = No span moment redistribution.
+     Limited span redistribution selected
+     1 | Elastic Moments | 3 | 1 | Redistributed Envelope | 3
+      | 0.3
+     SUPPORT No | 1 | 2 | 3 |  | 0.3
+     Elastic M | 193.078 | 401.731 | 86.2007 | ~ | ~ | ~ | kNm/m |  | 0.3
+     Redistributed M | 154.462 | 281.212 | 86.2007 | ~ | ~ | ~ | kNm/m |  | 0.3
+     ßb | 0.8 | 0.7 | 1 | ~ | ~ | ~ | ~ |  | 0.3
+     Redistribution | 0.2 | 0.3 | 0 | SELECT REDISTRIBUTION % HERE | 0.3
+      | 0.3
+     SPAN No | 1 | 2 | 
+     Elastic M | 276.516 | 152.751 | ~ | ~ | ~ | ~
+     Redistributed M | 328.966 | 146.124 | ~ | ~ | ~ | ~
+     ßb | 1.18968 | 0.956618 | ~ | ~ | ~ | ~
+     SHEARS (kN)
+     1 | Elastic Shears | 3 | 1 | Redistributed Shears | 3
+     SPAN No | 1 | 2
+     Elastic V | 252.938 | 300.265 | 252.43 | 180.429 | ~ | ~
+  -- SPANS imgs 0
+     OPERATING INSTRUCTIONS
+     Project | Spreadsheets to BS 8110 | REINFORCED CONCRETE COUNCIL | ENTER DATA IN BLUE CELLS ONLY.
+     Client | Advisory Group | Made by | Date | Page | RED MESSAGES INDICATE ENTRY ERRORS.
+     Location | D&D: Main beam Grids C to H,  from grid 1 to 3 | rmw | 36490 | 57 | ADJUST REBAR UNTIL CHECKS AT BOTTOM ARE OK.
+     CONTINUOUS BEAM (Analysis & Design) to BS 8110:1997 | Checked | Revision | Job No
+     Originated from RCC41.xls on CD                       © 1999 BCA for RCC | chg | - | R68
+     SPAN 1 | LEFT | CENTRE | RIGHT
+     ACTIONS | M | kNm | 116.733 | 328.966 | 250.22
+     ßb | 0.8 | 1.18968 | 0.7
+     DESIGN | d | mm | 433 | 432 | 415
+     As | mm² | 655.642 | 2187.53 | 1617.24
+     As' | mm² | 0 | 0 | 799.776
+     TOP STEEL | Layer 1 | 3 | T | 20 | 2 | T | 16 | 3 | T | 32 | 
+     Layer 2 | 0 | 0 | 0 | 
+     As prov | mm² | 942.478 | As' prov | 402.124 | As prov | 2412.74
+     BTM STEEL | Layer 1 | 3 | T | 20 | 3 | T | 32 | 2 | T | 25 | 
+     Layer 2 | 0 | 0 | 0 | 
+     As' prov | mm² | 942.478 | As prov | 2412.74 | As' prov | 981.748
+     DEFLECTION | L/d | 18.5185 | Allowed | 24.1492
+     SHEAR | V | kN | 216.922 | Link Ø | 249.836
+     v | N/mm² | 1.66992 | 12 | 2.00671
+     vc | N/mm² | 0.527191 | Nominal | 0.731466
+     LINKS | R12 @ 150 for 1950 | R12 @ 300 | R12 @ 125 for 2125
+     legs | No | 2 | 2 | 2
+     CHECKS | % As | ok | ok | ok
+     Cover | ok | ok | ok
+     min S | ok | ok | ok
+     max S | ok | ok | ok
+  -- Weight imgs 0
+     Project | Spreadsheets to BS 8110 | REINFORCED CONCRETE COUNCIL | 2 | 3 | 25
+     Client | Advisory Group | Made by | Date | Page | spans | Laps | 30
+     Location | D&D: Main beam Grids C to H,  from grid 1 to 3 | rmw | 36490 | 58 | 35
+     CONTINUOUS BEAM (Analysis & Design) to BS 8110:1997 | Checked | Revision | Job No | 40
+     Originated from RCC41.xls on CD                       © 1999 BCA for RCC | chg | - | R68
+     1 | 0
+     APPROXIMATE WEIGHT of REINFORCEMENT | Bobs | 20
+     Location | No | Type | Dia | Length | Unit wt | Weight | 25
+     TOP STEEL | Support 1 | 3 | T | 20 | 2950 | 2.46615 | 21.8254 | 2950 | Lap x | 32
+     0 | 0 | 0 | 0 | 0 | 0 | 1810 | Hooks | 40
+     Span 1 | 2 | T | 16 | 4775 | 1.57834 | 15.0731 | 4768 | 1.4 | 50
+     0 | 0 | 0 | 0 | 0 | 0 | 4768
+     Support 2 | 3 | T | 32 | 4200 | 6.31334 | 79.5481 | 4200
+     0 | 0 | 0 | 0 | 0 | 0 | 2800
+     Span 2 | 2 | T | 25 | 5650 | 3.85336 | 43.543 | 5650 | 2
+     0 | 0 | 0 | 0 | 0 | 0 | 5650
+     Support 3 | 2 | T | 16 | 2225 | 1.57834 | 7.0236 | 2210
+     0 | 0 | 0 | 0 | 0 | 0 | 1410
+     0 | 0 | 0 | 0 | 0 | 0 | 0 | -200 | 1.4
+     0 | 0 | 0 | 0 | 0 | 0 | -200
+     0 | 0 | 0 | 0 | 0 | 0 | 0 | 60
+     0 | 0 | 0 | 0 | 0 | 0 | 60
+     0 | 0 | 0 | 0 | 0 | 0 | 0 | -50 | 1.4
+     0 | 0 | 0 | 0 | 0 | 0 | -50
+     0 | 0 | 0 | 0 | 0 | 0 | 0 | 60
+     0 | 0 | 0 | 0 | 0 | 0 | 60
+     0 | 0 | 0 | 0 | 0 | 0 | 0 | -50 | 1.4
+     0 | 0 | 0 | 0 | 0 | 0 | -50
+  -- Analysis imgs 0
+     Project | Spreadsheets to BS 8110
+     Location | D&D: Main beam Grids C to H,  from grid 1 to 3 | ANALYSIS I
+     CONTINUOUS BEAM (Analysis & Design) to BS 8110:1997
+     Originated from RCC41.xls on CD                       © 1999 BCA for RCC
+     ANALYSIS
+     Min load | 1 | x dead load
+     Live load | 0.4 | x dead load + | 1.6 | x imposed load | (Table 2.1)
+     Distribution Factors
+     SUPT 1 | SUPT 2 | SUPT 3
+     Up col | Lo col | R | L | Up col | Lo col | R | L | Up col | Lo col | R
+     A w | 150000 | 150000 | 150000 | 150000 | 0
+     A f | 0 | 0 | 0 | 0 | 0
+     X bar | 250 | 250 | 250 | 250 | 7
+     I | 675000000 | 675000000 | 3125000000 | 3125000000 | 675000000 | 675000000 | 3125000000 | 3125000000 | 675000000 | 675000000 | 7
+     Stiffness | 1.92857e+08 | 126562500 | 390625000 | 390625000 | 1.92857e+08 | 101250000 | 5.20833e+08 | 5.20833e+08 | 1.92857e+08 | 126562500 | 0
+     Sum | 7.10045e+08 | 1.20557e+09 | 8.40253e+08
+     Factor | 0.271613 | 0.178246 | 0.550141 | 0.324018 | 0.159972 | 0.0839855 | 0.432024 | 0.619853 | 0.229523 | 0.150624 | 0
+     SUPT 4 | SUPT 5 | SUPT 6
+     L | Up col | Lo col | R | L | Up col | Lo col | R | L | Up col | Lo col | R
+     A w | 0 | 0 | 0 | 0 | 0 | 0
+     A f | 0 | 0 | 0 | 0 | 0 | 0
+     X bar | 7 | 7 | 7 | 7 | 7 | 7
+     I | 7 | 0 | 0 | 7 | 7 | 0 | 0 | 7 | 7 | 0 | 0 | 7
+     Stiffness | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0
+     Sum | 0 | 0 | 0
+     Factor | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0
+     SUPT 7
+     L | Up col | Lo col
+================================================================================
+MET CROSS.xls exists=True imgs=0 err=
+SHEETS: ['Port. 1', 'Port. 2', 'Port. 3', 'Hoja3']
+  -- Port. 1 imgs 0
+     ING.
+     J.R.T.G.
+     Calcular los Cortantes y Momentos de la estructura adjunta:
+     a | 1
+     d | e
+     MOMENTO DE EMPOTRAMIENTO PERFECTO (Mº ik)
+     Mº ik = w L2/12
+     RIGIDECES RELATIVAS  (K ik)
+     K ik = I / L
+     Kab = I 1 / L1 | = | 0.4 | I
+     Kda = I 3 / H | = | 0.333333 | I
+     Keb = I 4 / H | = | 0.333333 | I
+     -5.20829
+     0.000649251
+     -0.00119029
+     0.00872882
+     -0.0160028
+     0.117354
+     -0.215149
+     1.57776
+     -2.89256
+     4.54545
+     -8.33333
+     -0.545455
+     5.20829 | 0.000541043 | 0.00727402 | 0.0977951 | 1.3148 | 3.78788 | -0.454545 | a
+     2.60414 | 0.000270521 | 0.00363701 | 0.0488976 | 0.6574 | 1.89394 | 0
+     FUERZAS CORTANTES | Vik = +Vºik-(Mik+Mki)/ Lik
+     VIGAS
+  -- Port. 2 imgs 0
+     ING.
+     J.R.T.G.
+     Calcular los Cortantes y Momentos de la estructura adjunta:
+     a | 1 | b | 2
+     3 | 4
+     d | e
+     L1 | L2
+     MOMENTO DE EMPOTRAMIENTO PERFECTO
+     Mºab | = | -2.66667 | Tn-m. | Mºba
+     Mºbc | = | -2.66667 | Tn-m. | Mºcb
+     RIGIDECES RELATIVAS  K ik = I / L
+     Kab = I 1 / L1 | = | 0.592593 | I
+     Kbc = I 2 / L2 | = | 0.592593 | I
+     Kda = I 3 / H | = | 0.25 | I
+     Keb = I 4 / H | = | 0.25 | I
+     Kfc = I 5 / H | = | 0.25 | I
+     -0.791234
+     -0.000356263
+     0.000506562
+     -0.00245366
+     0.0034888
+     -0.0168989
+     0.0240281
+     -0.116386
+     0.165486
+     0.136155
+     -0.193596
+     1.87546
+  -- Port. 3 imgs 0
+     ING.
+     J.R.T.G.
+     Calcular los Cortantes y Momentos de la estructura adjunta:
+     W1 | W2
+     a | 1 | b | 2
+     3 | 4
+     d | e
+     L1 | L2
+     MOMENTO DE EMPOTRAMIENTO PERFECTO
+     Mºab | = | -7.8 | Tn-m. | Mºba
+     Mºbc | = | -4.16667 | Tn-m. | Mºcb
+     RIGIDECES RELATIVAS  K ik = I / L
+     Kab = I 1 / L1 | = | 0.395062 | I
+     Kbc = I 2 / L2 | = | 0.274348 | I
+     Kda = I 3 / H | = | 0.222222 | I
+     Keb = I 4 / H | = | 0.304832 | I
+     Kfc = I 5 / H | = | 0.222222 | I
+     -3.21345
+     -7.46783e-05
+     0.000116685
+     -0.000719608
+     0.00112439
+     -0.00693422
+     0.0108347
+     -0.0668188
+     0.104404
+     0.795356
+     -1.24274
+  -- Hoja3 imgs 0
+     Alt | Letra | Alt | Letra | Alt | Letra | Alt | Letra
+     1 | ☺ | 51 | 3 | 101 | e | 151 | ù
+     2 | ☻ | 52 | 4 | 102 | f | 152 | ÿ
+     3 | ♥ | 53 | 5 | 103 | g | 153 | Ö
+     4 | ♦ | 54 | 6 | 104 | h | 154 | Ü
+     5 | ♣ | 55 | 7 | 105 | i | 155 | ø
+     6 | ♠ | 56 | 8 | 106 | j | 156 | £
+     7 | • | 57 | 9 | 107 | k | 157 | Ø
+     8 | ◘ | 58 | : | 108 | l | 158 | ×
+     9 | ○ | 59 | ; | 109 | m | 159 | ƒ
+     10 | ◙ | 60 | < | 110 | n | 160 | á
+     11 | ♂ | 61 | = | 111 | o | 161 | í
+     12 | ♀ | 62 | > | 112 | p | 162 | ó
+     13 | ♪ | 63 | ? | 113 | q | 163 | ú
+     14 | ♫ | 64 | @ | 114 | r | 164 | ñ
+     15 | ☼ | 65 | A | 115 | s | 165 | Ñ
+     16 | ► | 66 | B | 116 | t | 166 | ª
+     17 | ◄ | 67 | C | 117 | u | 167 | º
+     18 | ↕ | 68 | D | 118 | v | 168 | ¿
+     19 | ‼ | 69 | E | 119 | w | 169 | ®
+     20 | ¶ | 70 | F | 120 | x | 170 | ¬
+     21 | § | 71 | G | 121 | y | 171 | ½
+     22 | ▬ | 72 | H | 122 | z | 172 | ¼
+     23 | ↨ | 73 | I | 123 | { | 173 | ¡
+     24 | ↑ | 74 | J | 124 | | | 174 | «
+     25 | ↓ | 75 | K | 125 | } | 175 | »
+     26 | → | 76 | L | 126 | ~ | 176 | ░
+     27 | ← | 77 | M | 127 | ⌂ | 177 | ▒
+================================================================================
+f315326464_BeamAnal.xls exists=True imgs=None err=XLRDError: Workbook is encrypted
+SHEETS: None
