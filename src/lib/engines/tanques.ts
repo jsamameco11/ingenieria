@@ -189,7 +189,7 @@ function presionDinamica(Ptotal: number, HL: number, hCentroide: number, y: numb
   return (Ptotal / 2) * (4 * HL - 6 * hCentroide - (6 * HL - 12 * hCentroide) * (y / HL)) / (HL * HL);
 }
 
-type SismoParams = { Z: number; U: number; S: number; Tp: number; Tl: number; Rwi: number; Rwc: number };
+type SismoParams = { Z: number; U: number; S: number; Tp: number; Tl: number; Rwi: number; Rwc: number; zona: number };
 
 function leerSismo(raw: Record<string, string>): SismoParams {
   const zona = Math.round(num(raw, "zona", 4)) as 1 | 2 | 3 | 4;
@@ -205,7 +205,20 @@ function leerSismo(raw: Record<string, string>): SismoParams {
     Tl: sitio.Tl,
     Rwi: num(raw, "Rwi", 2.5),
     Rwc: num(raw, "Rwc", 1),
+    zona,
   };
+}
+
+/** Tabla del espectro de diseño E.030 (factor C y Sa=ZUCS, sin dividir entre R) en un barrido de periodos. */
+function tablaEspectroE030(sismo: SismoParams) {
+  const puntos = [0, 0.1, sismo.Tp * 0.5, sismo.Tp, sismo.Tp * 1.5, sismo.Tp * 2, sismo.Tl * 0.5, sismo.Tl, sismo.Tl * 1.5, sismo.Tl * 2, sismo.Tl * 3]
+    .filter((t, i, a) => t >= 0 && a.findIndex((x) => Math.abs(x - t) < 1e-6) === i)
+    .sort((a, b) => a - b);
+  return puntos.map((T) => {
+    const C = e030C(T, sismo.Tp, sismo.Tl);
+    const Sa = sismo.Z * sismo.U * C * sismo.S;
+    return [`${T.toFixed(2)} s`, fmt(C, 3), `${fmt(Sa, 3)} g`];
+  });
 }
 
 /* ---------------------------------------------------------------------- *
@@ -388,9 +401,11 @@ export const reservorioApoyado: Engine = (raw) => {
       result: `Wi=${fmt(hns.Wi, 2)} t (hi=${fmt(hns.hiEBP, 2)} m) · Wc=${fmt(hns.Wc, 2)} t (hc=${fmt(hns.hcEBP, 2)} m)` },
     { n: "08", title: "Periodos de vibración", formula: "Ti — pared flexible (ACI 350.3 fig. 9.2.1)   ·   Tc = 2π/√[(3,68g/D)tanh(3,68HL/D)]",
       result: `Ti=${fmt(per.Ti, 4)} s · Tc=${fmt(hns.Tc, 3)} s` },
-    { n: "09", title: "Espectro E.030 y coeficientes de amplificación", formula: "C(T) según E.030 (zona/suelo) · Sa = Z·U·C·S",
-      substitution: `Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s`,
-      result: `Ci=${fmt(Ci, 3)} → Sa,imp=${fmt(SaImp, 3)}g  ·  Cc=${fmt(Cc, 3)} → Sa,conv=${fmt(SaConv, 3)}g` },
+    { n: "09", title: "Espectro de diseño E.030 y coeficientes de amplificación",
+      formula: "C(T): T<0,2Tp → 1+7,5(T/Tp) · Tp≤T≤TL → 2,5 · T>Tp → 2,5(Tp/T) · T>TL → 2,5(TpTL/T²)   ·   Sa = Z·U·C·S (fracción de g, sin dividir entre R)",
+      substitution: `Zona sísmica ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · Categoría: U=${fmt(sismo.U, 2)} · Suelo: S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s`,
+      result: `Ci(Ti=${fmt(per.Ti, 4)}s)=${fmt(Ci, 3)} → Sa,imp=${fmt(SaImp, 3)}g  ·  Cc(Tc=${fmt(hns.Tc, 3)}s)=${fmt(Cc, 3)} → Sa,conv=${fmt(SaConv, 3)}g`,
+      table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S en todo el rango de periodos", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
     { n: "10", title: "Fuerzas laterales y corte basal", formula: "Pw,Pr,Pi = Sa,imp·W/Rwi  ·  Pc = Sa,conv·Wc/Rwc  ·  V=√[(Pw+Pr+Pi)²+Pc²]",
       substitution: `Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
       result: `Pw=${fmt(Pw, 2)} t · Pr=${fmt(Pr, 2)} t · Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t → V=${fmt(Vbasal, 2)} t`,
@@ -448,7 +463,7 @@ export const reservorioApoyado: Engine = (raw) => {
     nPtsHs: packPts(lamHs.map((p) => ({ x: p.y, M: p.N }))),
     nPtsEnv: packPts(envolNPts),
     MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3),
-    asHoriz: barHoriz.texto, asVert: barVert.texto, asLosa: barLosa.texto,
+    asHoriz: barHoriz.texto, asVert: barVert.texto, asLosa: barLosa.texto, asRing: `${ringPick.barra} · As=${fmt(AsRing, 2)} cm²`,
     Wtotal: Wtotal.toFixed(2), Vbasal: Vbasal.toFixed(2), Mvolteo: Mvolteo.toFixed(2),
   };
 
@@ -631,10 +646,11 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     { n: nn(4), title: "Análisis sísmico — Housner", formula: "Wi, Wc, hi, hc (ACI 350.3-06 §9.2), Ti, Tc",
       substitution: `D/HL=${fmt(hns.DH, 3)}`,
       result: `Wi=${fmt(hns.Wi, 2)} t · Wc=${fmt(hns.Wc, 2)} t · Ti=${fmt(per.Ti, 4)} s · Tc=${fmt(hns.Tc, 3)} s` },
-    { n: nn(5), title: "Espectro E.030 y presión hidrodinámica",
-      formula: "Sa=Z·U·C(T)·S  ·  p_i(y), p_c(y) — ACI 350.3 ec. 9-23/9-24",
-      substitution: `Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
-      result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t` },
+    { n: nn(5), title: "Espectro de diseño E.030 y presión hidrodinámica",
+      formula: "C(T) por tramos (E.030 art. 14) · Sa=Z·U·C(T)·S  ·  p_i(y), p_c(y) — ACI 350.3 ec. 9-23/9-24",
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s · Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
+      result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t`,
+      table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
     { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env análogo",
       result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m` },
     { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
@@ -666,6 +682,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     nPtsEnv: packPts(envolNPts),
     MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3),
     asHoriz: barHoriz.texto, asVert: barVert.texto,
+    asRingSup: `${ringSup.barra} · As=${fmt(AsRingSup, 2)} cm²`,
+    asRingInf: `${ringInf.barra}${TringInf >= 0 ? ` · As=${fmt(AsRingInf, 2)} cm²` : " (mínimo)"}`,
     Wcuba: Wcuba.toFixed(2), Wagua: Vreal.toFixed(2),
   };
 
@@ -910,8 +928,9 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       note: "Motor propio verificado contra la solución exacta de un voladizo (0 % de error en desplazamiento y momento de empotramiento) antes de integrarlo a esta memoria." },
     { n: nn(2), title: "Periodo, rigidez lateral y fuerza sísmica sobre la torre (péndulo invertido, E.030 estático)",
       formula: "k = 1/δ(F=1)  (rigidez lateral exacta del pórtico, por análisis matricial)   ·   T=2π√(W/(g·k))   ·   V=Z·U·C·S·W/R",
-      substitution: `Sistema: péndulo invertido, R=${fmt(Rtorre, 2)} · T=${fmt(Ttorre, 3)} s · C=${fmt(Ct, 3)}`,
-      result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre, por equilibrio global)` },
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Sistema: péndulo invertido, R=${fmt(Rtorre, 2)} · T=${fmt(Ttorre, 3)} s · C=${fmt(Ct, 3)}`,
+      result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre, por equilibrio global)`,
+      table: { caption: "Espectro de diseño E.030 de la torre — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
     { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (resultado directo de la matriz)",
       formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²) por columna   ·   P/φPn + M/φMn ≤ 1",
       substitution: `ρ=${fmt(rhoProp * 100, 1)}% · columna más solicitada de las ${nCol} del modelo`,
@@ -1073,9 +1092,10 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       result: `Peso del fuste=${fmt(pesoFuste, 2)} t · W total (cuba+agua+fuste)=${fmt(Wtotal, 2)} t`,
       note: "Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando el diámetro o el espesor del fuste en los datos de entrada." },
     { n: nn(1), title: "Periodo y fuerza sísmica (E.030, sistema de muros estructurales)",
-      formula: "T=H/Ct (Ct=60)   ·   V=Z·U·C·S·W/R",
-      substitution: `T=${fmt(T1, 3)} s · C=${fmt(Csis, 3)} · R=${fmt(Rfuste, 1)} (muros estructurales)`,
-      result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)` },
+      formula: "T=H/Ct (Ct=60, E.030 art. 28)   ·   V=Z·U·C·S·W/R",
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · T=${fmt(T1, 3)} s · C=${fmt(Csis, 3)} · R=${fmt(Rfuste, 1)} (muros estructurales)`,
+      result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)`,
+      table: { caption: "Espectro de diseño E.030 del fuste — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
     { n: nn(2), title: "Esfuerzos en la sección anular del fuste", formula: "σ = P/A ± M·c/I",
       result: `σ_máx=${fmt(sigmaMax, 1)} kg/cm² (compresión) ${sigmaMax <= sigmaAdmConc ? "≤" : ">"} 0,45f'c=${fmt(sigmaAdmConc, 1)} kg/cm²   ·   σ_mín=${fmt(sigmaMin, 1)} kg/cm²`,
       note: sigmaMin < 0 ? "La sección presenta tracción neta en la fibra extrema: se arma la pared para esa tracción." : "Toda la sección permanece en compresión.",

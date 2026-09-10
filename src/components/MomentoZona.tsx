@@ -1,3 +1,5 @@
+import { FichaSeccionFig } from "./DiagramTanques";
+
 export function unpackMomentos(s: string) {
   return String(s || "")
     .split(";")
@@ -453,6 +455,50 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mSecMuro") {
+      return (
+        <FichaSeccionFig
+          titulo="Pared de la cuba"
+          shape="franja"
+          dim1={nv(values, "tMuro", 0.25) * 100}
+          aceroPrincipal={`Horizontal (anillo): ${sv(values, "asHoriz", "—")}`}
+          aceroSecundario={`Vertical (flexión): ${sv(values, "asVert", "—")}`}
+        />
+      );
+    }
+    if (part === "mSecDomo") {
+      return (
+        <FichaSeccionFig
+          titulo={kind === "reservorioApoyado" ? "Cúpula de techo" : "Cúpula superior (techo)"}
+          shape="curva"
+          dim1={nv(values, kind === "reservorioApoyado" ? "tDomo" : "tDomoSup", 0.08) * 100}
+          aceroPrincipal="Malla mínima de temperatura (ρ=0,18 %, ambas caras)"
+          aceroSecundario={`Anillo de borde: ${sv(values, kind === "reservorioApoyado" ? "asRing" : "asRingSup", "—")}`}
+        />
+      );
+    }
+    if (part === "mSecLosa" && kind === "reservorioApoyado") {
+      return (
+        <FichaSeccionFig
+          titulo="Losa de fondo"
+          shape="franja"
+          dim1={nv(values, "tLosa", 0.2) * 100}
+          aceroPrincipal={`Ambos sentidos: ${sv(values, "asLosa", "—")}`}
+          aceroSecundario="Apoyada sobre subrasante mejorada"
+        />
+      );
+    }
+    if (part === "mSecDomoInf" && kind !== "reservorioApoyado") {
+      return (
+        <FichaSeccionFig
+          titulo="Cúpula inferior (fondo) y anillo inferior"
+          shape="curva"
+          dim1={nv(values, "tDomoInf", 0.12) * 100}
+          aceroPrincipal={`Anillo inferior: ${sv(values, "asRingInf", "—")}`}
+          aceroSecundario="Casquete en compresión bajo el peso propio y el agua sobre su huella"
+        />
+      );
+    }
   }
   if (kind === "tanqueElevadoColumnas") {
     if (part === "mColumna") {
@@ -488,6 +534,42 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
           leftLabel="Columna izquierda"
           rightLabel="Columna derecha"
           note="Elemento entre dos columnas adyacentes en el nivel de arriostre más solicitado."
+        />
+      );
+    }
+    if (part === "mSecColumna") {
+      return (
+        <FichaSeccionFig
+          titulo="Columna de la torre"
+          shape="circular"
+          dim1={nv(values, "dCol", 0.5) * 100}
+          aceroPrincipal={`ρ=2,0 % · verificar con el diagrama de interacción P–M–M`}
+          aceroSecundario={`${sv(values, "nCol", "—")} columnas en el perímetro`}
+        />
+      );
+    }
+    if (part === "mSecViga") {
+      return (
+        <FichaSeccionFig
+          titulo="Viga de arriostre"
+          shape="franja"
+          dim1={nv(values, "dArr", 0.4) * 100}
+          aceroPrincipal={`As=${sv(values, "asArr", "—")} cm²`}
+          aceroSecundario={`Sección ${(nv(values, "bArr", 0.3) * 100).toFixed(0)}×${(nv(values, "dArr", 0.4) * 100).toFixed(0)} cm`}
+        />
+      );
+    }
+  }
+  if (kind === "tanqueElevadoFuste") {
+    if (part === "mSecFuste") {
+      return (
+        <FichaSeccionFig
+          titulo="Fuste (sección anular)"
+          shape="anular"
+          dim1={nv(values, "Dfuste", 3) * 100}
+          dim2={nv(values, "eFuste", 0.25) * 100}
+          aceroPrincipal={`As=${sv(values, "AsFuste", "—")} cm² (dos capas)`}
+          aceroSecundario="Sección hueca de concreto armado, en voladizo"
         />
       );
     }

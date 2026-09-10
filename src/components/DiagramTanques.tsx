@@ -418,4 +418,97 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
   );
 }
 
+/* ---------------- Ficha de sección por elemento (referencial, junto al predimensionamiento) ---------------- */
+
+type FichaSeccionProps = {
+  titulo: string;
+  shape: "franja" | "circular" | "anular" | "curva";
+  /** franja/curva: espesor en cm. circular/anular: diámetro en cm. */
+  dim1: number;
+  /** anular: espesor de pared en cm. curva: radio de curvatura relativo (0-1, estético). */
+  dim2?: number;
+  aceroPrincipal: string;
+  aceroSecundario?: string;
+  notas?: string;
+};
+
+export function FichaSeccionFig({ titulo, shape, dim1, dim2, aceroPrincipal, aceroSecundario, notas }: FichaSeccionProps) {
+  const W = 260, H = 190;
+  const cx = W / 2, cy = 96;
+
+  let dibujo: ReactNode = null;
+  if (shape === "franja" || shape === "curva") {
+    const ePx = Math.max(18, Math.min(70, dim1 * 2.1));
+    const anchoPx = 170;
+    const x0 = cx - anchoPx / 2, y0 = cy - ePx / 2;
+    const nBar = 6;
+    dibujo = (
+      <g>
+        {shape === "curva" ? (
+          <path d={`M ${x0} ${y0 + ePx} Q ${cx} ${y0 - 10} ${x0 + anchoPx} ${y0 + ePx} L ${x0 + anchoPx} ${y0 + ePx * 1.02} Q ${cx} ${y0 + ePx * 1.02 - 10 * 0.86} ${x0} ${y0 + ePx * 1.02} Z`} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+        ) : (
+          <rect x={x0} y={y0} width={anchoPx} height={ePx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+        )}
+        {Array.from({ length: nBar }).map((_, i) => {
+          const x = x0 + 14 + (i * (anchoPx - 28)) / (nBar - 1);
+          return (
+            <g key={`b-${i}`}>
+              <circle cx={x} cy={y0 + 6} r="2.6" fill={NAVY} />
+              <circle cx={x} cy={y0 + ePx - 6} r="2.6" fill={NAVY} />
+            </g>
+          );
+        })}
+        <line x1={x0} y1={y0 + ePx + 14} x2={x0 + anchoPx} y2={y0 + ePx + 14} stroke={NAVY} strokeWidth="0.7" />
+        <line x1={x0} y1={y0 + ePx + 8} x2={x0} y2={y0 + ePx + 20} stroke={NAVY} strokeWidth="0.7" />
+        <line x1={x0 + anchoPx} y1={y0 + ePx + 8} x2={x0 + anchoPx} y2={y0 + ePx + 20} stroke={NAVY} strokeWidth="0.7" />
+        <text x={cx} y={y0 + ePx + 30} fontSize="9" fill={INK} textAnchor="middle">
+          e = {dim1.toFixed(1)} cm (franja de 1,00 m)
+        </text>
+      </g>
+    );
+  } else {
+    const Dpx = Math.max(50, Math.min(150, dim1 * 1.05));
+    const r = Dpx / 2;
+    const nBar = 8;
+    dibujo = (
+      <g>
+        <circle cx={cx} cy={cy} r={r} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+        {shape === "anular" && dim2 ? (
+          <circle cx={cx} cy={cy} r={Math.max(6, r - dim2 * 1.05)} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
+        ) : null}
+        <circle cx={cx} cy={cy} r={r - 8} fill="none" stroke={INK} strokeWidth="0.7" strokeDasharray="2,2" />
+        {Array.from({ length: nBar }).map((_, i) => {
+          const ang = (2 * Math.PI * i) / nBar;
+          const bx = cx + (r - 8) * Math.cos(ang);
+          const by = cy + (r - 8) * Math.sin(ang);
+          return <circle key={`cb-${i}`} cx={bx} cy={by} r="2.6" fill={NAVY} />;
+        })}
+        <text x={cx} y={cy + r + 22} fontSize="9" fill={INK} textAnchor="middle">
+          {shape === "anular" ? `Ø ext=${dim1.toFixed(0)} cm · e=${(dim2 ?? 0).toFixed(0)} cm` : `Ø = ${dim1.toFixed(0)} cm`}
+        </text>
+      </g>
+    );
+  }
+
+  return (
+    <div className="croquis croquis-compact" data-fig-part="momento">
+      <div className="croquis-head">
+        <p>{`Sección referencial · ${titulo}`}</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+          <defs><TickMarkers /><Defs /></defs>
+          <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
+          <text x={cx} y={16} fontSize="9.5" fill={NAVY} textAnchor="middle" fontWeight="600">{titulo}</text>
+          {dibujo}
+          <rect x="10" y={H - 34} width={W - 20} height="26" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
+          <text x="16" y={H - 22} fontSize="8" fill={NAVY}>{aceroPrincipal}</text>
+          <text x="16" y={H - 11} fontSize="7.5" fill="#5a4a28">{aceroSecundario ?? notas ?? ""}</text>
+        </svg>
+      </div>
+      <p className="croquis-cap">{`${aceroPrincipal}${aceroSecundario ? `  ·  ${aceroSecundario}` : ""}`}</p>
+    </div>
+  );
+}
+
 export { CubaIntzePlanta };
