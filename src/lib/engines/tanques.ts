@@ -249,11 +249,11 @@ export const reservorioApoyado: Engine = (raw) => {
   const gammaC = num(raw, "gammaC", 2.4);
   const fc = num(raw, "fc", 210);
   const fy = num(raw, "fy", 4200);
-  const fct = num(raw, "fct", 10);
-  const fat = num(raw, "fat", 1000);
   const scDomo = num(raw, "scDomo", 0.1);
   const qadm = num(raw, "qadm", 2);
   const nu = 0.15;
+  const Sn = 1.3;
+  const PHI_T = 0.9;
 
   const D0 = Math.cbrt((4 * Vreq) / (Math.PI * rHD));
   const D = Math.round(D0 / 0.25) * 0.25;
@@ -276,10 +276,10 @@ export const reservorioApoyado: Engine = (raw) => {
   const sigmaDomo = tm2AKgcm2(memDomo.Nfi / tDomo);
   const sigmaAdmDomo = 0.05 * fc;
   const NthDomoTm = memDomo.Nth;
-  const asDomoAnillo = NthDomoTm > 0 ? (NthDomoTm * 1000) / fat : 0;
+  const asDomoAnillo = NthDomoTm > 0 ? (Sn * NthDomoTm * 1000) / (PHI_T * fy) : 0;
 
   const Tring = memDomo.Hthrust * R;
-  const AsRing = (Tring * 1000) / fat;
+  const AsRing = (Sn * Tring * 1000) / (PHI_T * fy);
   const bRing = 0.3, hRing = Math.max(0.3, tMuroRound + 0.1);
   const ringPick = elegirBarraAnillo(AsRing / (hRing * 100) * 100 > 0 ? AsRing : 0.01);
 
@@ -333,13 +333,13 @@ export const reservorioApoyado: Engine = (raw) => {
   }
 
   const dCmMuro = tMuroRound * 100 - 5;
-  const asHorizReq = (NenvMax * 1000) / fat;
+  const asHorizReq = (Sn * NenvMax * 1000) / (PHI_T * fy);
   const asHorizMin = asMinTemp(dCmMuro);
   const asHorizFinal = Math.max(asHorizReq, asHorizMin);
   const barHoriz = elegirBarraAnillo(asHorizFinal);
-  const tCheck = (1 / fct - 9 / fat) * (NenvMax * 1000) / 100;
+  const rhoHoriz = asHorizFinal / (100 * dCmMuro);
 
-  const flexVert = flexionAs(MenvMax, dCmMuro, fc, fy);
+  const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
   const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
   const barVert = elegirBarraAnillo(asVertFinal);
 
@@ -404,11 +404,11 @@ export const reservorioApoyado: Engine = (raw) => {
       table: { caption: "Envolvente N y M por altura", headers: ["y/HL", "N (t/m)", "M (t·m/m)"],
         rows: muestrear(lamHs.map((p, i) => ({ y: p.y, w: 0, N: envolNPts[i].M, M: envolMPts[i].M, V: 0 })))
           .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3)]) } },
-    { n: "13", title: "Acero horizontal (anillo) de la pared — método de tensión directa (WSD)",
-      formula: "As = N_env / f_at   ·   Asmín = 0,0018·d   ·   e_req = N_env(1/f_ct − n/f_at)/100",
-      substitution: `f_at=${fmt(fat, 0)} kg/cm² · f_ct=${fmt(fct, 0)} kg/cm² · n=Es/Ec≈9`,
+    { n: "13", title: "Acero horizontal (anillo) de la pared — tracción directa amplificada por durabilidad sanitaria",
+      formula: "As = Sn·N_env / (φ·fy)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)   ·   φ=0,9   ·   Asmín=0,0018·d",
+      substitution: `Sn=${fmt(Sn, 2)} · φ=${fmt(PHI_T, 2)} · fy=${fmt(fy, 0)} kg/cm²`,
       result: `As=${fmt(asHorizFinal, 2)} cm²/m → ${barHoriz.texto} (As,prov=${fmt(barHoriz.AsProv, 2)} cm²/m)`,
-      note: `Espesor por fisuración: e_req=${fmt(Math.max(tCheck, 0), 1)} cm ${tCheck <= tMuroRound * 100 ? "≤" : ">"} e_muro=${fmt(tMuroRound * 100, 1)} cm.` },
+      note: `El factor Sn amplifica la carga de servicio en vez de exigir sección no fisurada: controla el ancho de fisura sin sobredimensionar el espesor. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
     { n: "14", title: "Acero vertical (flexión) de la pared", formula: "Mu=φf'c·b·d²·ω(1−0,59ω)   ·   φ=0,9",
       substitution: `Mu=${fmt(MenvMax, 2)} t·m/m · d=${fmt(dCmMuro, 1)} cm`,
       result: `As=${fmt(asVertFinal, 2)} cm²/m → ${barVert.texto}` },
@@ -419,7 +419,7 @@ export const reservorioApoyado: Engine = (raw) => {
       substitution: `Rs=${fmt(domo.Rs, 2)} m · φf=${fmt((domo.phiF * 180) / Math.PI, 1)}° · wu=${fmt(wuDomo, 3)} t/m²`,
       result: `N_φ=${fmt(memDomo.Nfi, 3)} t/m (compresión) → σc=${fmt(sigmaDomo, 1)} kg/cm² ${sigmaDomo <= sigmaAdmDomo ? "≤" : ">"} ${fmt(sigmaAdmDomo, 1)} kg/cm²`,
       note: NthDomoTm > 0 ? `N_θ=${fmt(NthDomoTm, 3)} t/m (tracción) → As=${fmt(asDomoAnillo, 2)} cm²/m` : "N_θ de compresión: acero mínimo de temperatura." },
-    { n: "17", title: "Diseño de la viga collarín (anillo superior)", formula: "H = N_φ(φf)·cos φf   ·   T = H·R   ·   As = T/f_at (WSD)",
+    { n: "17", title: "Diseño de la viga collarín (anillo superior)", formula: "H = N_φ(φf)·cos φf   ·   T = H·R   ·   As = Sn·T/(φ·fy)",
       substitution: `R=${fmt(R, 2)} m`,
       result: `T=${fmt(Tring, 3)} t → As=${fmt(AsRing, 2)} cm² → sección ${fmt(bRing * 100, 0)}×${fmt(hRing * 100, 0)} cm, ${ringPick.barra} (n≈${Math.max(4, Math.ceil(AsRing / barByName(ringPick.barra).as))})` },
     { n: "18", title: "Estabilidad global — volteo y deslizamiento", formula: "FSv = W·(D/2)/Mv ≥ 1,5   ·   FSd = μ·W/V ≥ 1,5",
@@ -437,7 +437,7 @@ export const reservorioApoyado: Engine = (raw) => {
     ok("Deslizamiento sísmico FS≥1,5", fmt(FSdeslizamiento, 2), "≥ 1,5", FSdeslizamiento >= 1.5),
     ok("Compresión de la cúpula", `${fmt(sigmaDomo, 1)} kg/cm²`, `≤ ${fmt(sigmaAdmDomo, 1)} kg/cm²`, sigmaDomo <= sigmaAdmDomo),
     ok("Capacidad portante de la losa", `${fmt(qServicio / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qServicio / 10 <= qadm),
-    ok("Espesor de muro por fisuración", `${fmt(tMuroRound * 100, 1)} cm`, `≥ ${fmt(Math.max(tCheck, 0), 1)} cm`, tMuroRound * 100 >= tCheck),
+    ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
   ];
 
   const dims: Record<string, string> = {
@@ -493,10 +493,11 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const gammaC = num(raw, "gammaC", 2.4);
   const fc = num(raw, "fc", 210);
   const fy = num(raw, "fy", 4200);
-  const fat = num(raw, "fat", 1000);
   const bl = num(raw, "bl", 0.3);
   const scDomo = num(raw, "scDomo", 0.1);
   const nu = 0.15;
+  const Sn = 1.3;
+  const PHI_T = 0.9;
 
   const D = Math.max(2, numOrAuto(raw, "D", Math.round(Math.cbrt((4 * Vreq) / (Math.PI * 0.55)) / 0.25) * 0.25));
   const R = D / 2;
@@ -521,7 +522,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const domoSup = cupulaEsferica(D + 0.15, fSup, DvAcceso / 2);
   const memSup = membranaCupula(domoSup.Rs, domoSup.phiF, domoSup.phi0, 1.4 * gammaC * tDomoSup, 1.7 * scDomo);
   const TringSup = memSup.Hthrust * R;
-  const AsRingSup = (TringSup * 1000) / fat;
+  const AsRingSup = (Sn * TringSup * 1000) / (PHI_T * fy);
   const ringSup = elegirBarraAnillo(AsRingSup > 0 ? AsRingSup : 0.01);
   const { Ls: LsCono, alpha } = conoTruncado(R, rp, hCono);
   const sismo = leerSismo(raw);
@@ -545,7 +546,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const TringInfDomo = memInf.Hthrust * rp;
 
     const TringInf = TringInfDomo - TconoInward;
-    const AsRingInf = Math.abs(TringInf) * 1000 / fat;
+    const AsRingInf = (Sn * Math.abs(TringInf) * 1000) / (PHI_T * fy);
     const ringInf = elegirBarraAnillo(AsRingInf > 0 ? AsRingInf : 0.01);
 
     const presHidro = (y: number) => Math.max(0, 1.0 * (HL - y));
@@ -581,33 +582,28 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     }
 
     const dCmMuro = tMuro * 100 - 5;
-    const asHorizFinal = Math.max((NenvMax * 1000) / fat, asMinTemp(dCmMuro));
+    const asHorizFinal = Math.max((Sn * NenvMax * 1000) / (PHI_T * fy), asMinTemp(dCmMuro));
     const barHoriz = elegirBarraAnillo(asHorizFinal);
-    const flexVert = flexionAs(MenvMax, dCmMuro, fc, fy);
+    const rhoHoriz = asHorizFinal / (100 * dCmMuro);
+    const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
     const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
     const barVert = elegirBarraAnillo(asVertFinal);
-    const tCheckCm = (1 / num(raw, "fct", 10) - 9 / fat) * (NenvMax * 1000) / 100;
 
     return {
       tMuro, tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
       WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
       lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, lamImp, lamConv, NenvMax, MenvMax, envolNPts, envolMPts,
-      dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, tCheckCm,
+      dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, rhoHoriz,
     };
   }
 
-  let tMuro = Math.ceil(Math.max(0.2, h1 / 12) / 0.025) * 0.025;
-  let pasada = pasadaMuro(tMuro);
-  for (let iter = 0; iter < 4; iter++) {
-    if (pasada.tCheckCm <= tMuro * 100 + 1e-6) break;
-    tMuro = Math.ceil(pasada.tCheckCm / 2.5) * 2.5 / 100;
-    pasada = pasadaMuro(tMuro);
-  }
+  const tMuro = Math.ceil(Math.max(0.2, h1 / 14) / 0.025) * 0.025;
+  const pasada = pasadaMuro(tMuro);
   const {
     tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
     WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
     lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, NenvMax, MenvMax, envolNPts, envolMPts,
-    barHoriz, barVert, tCheckCm,
+    barHoriz, barVert, rhoHoriz,
   } = pasada;
   void tCono; void HconoInward; void wInfDomo;
 
@@ -616,7 +612,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     { n: nn(0), title: "Geometría de la cuba tipo INTZE", formula: "V = π R²h1 + (πh_c/3)(R²+R·r'+r'²) − (πf'/6)(3r'²+f'²)",
       substitution: `D=${fmt(D, 2)} m · r'=${fmt(rp, 2)} m · h_cono=${fmt(hCono, 2)} m · f'=${fmt(fInf, 2)} m`,
       result: `h1=${fmt(h1, 2)} m (pared cilíndrica) → V=${fmt(Vreal, 1)} m³ (requerido ${fmt(Vreq, 0)} m³)` },
-    { n: nn(1), title: "Predimensionamiento de espesores", formula: "e_muro≈h1/12 · e_cono=e_muro · e_domo,sup=D/220 · e_domo,inf=D/160",
+    { n: nn(1), title: "Predimensionamiento de espesores", formula: "e_muro≈h1/14 (mín. 20 cm) · e_cono=e_muro · e_domo,sup=D/220 · e_domo,inf=D/160",
       result: `e_muro=${fmt(tMuro * 100, 1)} cm · e_domo,sup=${fmt(tDomoSup * 100, 1)} cm · e_domo,inf=${fmt(tDomoInf * 100, 1)} cm` },
     { n: nn(2), title: "Metrado de pesos de la cuba", formula: "Ww + Wcono + Wdomo,sup + Wdomo,inf + Wanillos",
       table: { headers: ["Elemento", "Peso (t)"], rows: [
@@ -641,9 +637,9 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t` },
     { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env análogo",
       result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m` },
-    { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=N_env/f_at (WSD)  ·  Vertical: Mu=φf'c b d²ω(1−0,59ω)",
+    { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
-      note: `Verificación de espesor por fisuración: e_req≈${fmt(Math.max(tCheckCm, 0), 1)} cm ${tCheckCm <= tMuro * 100 ? "≤" : ">"} e_muro=${fmt(tMuro * 100, 1)} cm.` },
+      note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
     { n: nn(8), title: "Cúpula superior (techo) — teoría de membrana", formula: "N_φ, N_θ, empuje H=N_φcos φf",
       result: `N_φ=${fmt(memSup.Nfi, 3)} t/m · Anillo superior: T=${fmt(TringSup, 3)} t → ${ringSup.barra} (n≈${Math.max(4, Math.ceil(AsRingSup / barByName(ringSup.barra).as))})` },
     { n: nn(9), title: "Fondo cónico (tronco de cono)", formula: "N_φ,cono(r') = W_sobre / (2π·r'·sen α)",
@@ -657,7 +653,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
 
   const checks: CalcCheck[] = [
     ok("Volumen de cuba ≥ requerido", `${fmt(Vreal, 1)} m³`, `≥ ${fmt(Vreq, 0)} m³`, Vreal >= Vreq * 0.98),
-    ok("Espesor de muro por fisuración", `${fmt(tMuro * 100, 1)} cm`, `≥ ${fmt(Math.max(tCheckCm, 0), 1)} cm`, tMuro * 100 >= tCheckCm),
+    ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
   ];
 
   const dims: Record<string, string> = {
