@@ -77,6 +77,18 @@ function elegirBarraAnillo(AsReqCm2m: number): { barra: string; s: number; AsPro
   return { barra: '3/4"', ...r };
 }
 
+/**
+ * Igual que elegirBarraAnillo, pero si el As requerido no entra en una sola malla practicable
+ * (Ø 3/4" @ 8 cm, el máximo que arma elegirBarraAnillo), reparte la demanda en DOS capas —
+ * solución profesional estándar ante congestión de acero, en vez de forzar un espesor excesivo.
+ */
+function elegirBarraAnilloDoble(AsReqCm2m: number): { barra: string; s: number; AsProv: number; texto: string; capas: number } {
+  const single = elegirBarraAnillo(AsReqCm2m);
+  if (single.AsProv >= AsReqCm2m * 0.999) return { ...single, capas: 1 };
+  const porCapa = elegirBarraAnillo(AsReqCm2m / 2);
+  return { barra: porCapa.barra, s: porCapa.s, AsProv: porCapa.AsProv * 2, capas: 2, texto: `2 capas de Ø ${porCapa.barra} @ ${porCapa.s} cm` };
+}
+
 /* ---------------------------------------------------------------------- *
  * 2. Lámina cilíndrica sobre base empotrada — solución de la ecuación    *
  *    diferencial de la placa sobre fundación elástica (viga en cimiento  *
@@ -282,9 +294,6 @@ export const reservorioApoyado: Engine = (raw) => {
   const Htotal = HL + bl;
   const R = D / 2;
 
-  const tMuro0 = Math.max(0.2, HL / 14);
-  const tMuroRound = Math.ceil(tMuro0 / 0.025) * 0.025;
-  const tLosa = Math.max(0.2, tMuroRound - 0.025);
   const fDomo = D / 6;
   const DvVent = Math.min(0.6, D * 0.08);
   const tDomo = Math.max(0.08, D / 220);
@@ -301,75 +310,106 @@ export const reservorioApoyado: Engine = (raw) => {
 
   const Tring = memDomo.Hthrust * R;
   const AsRing = (Sn * Tring * 1000) / (PHI_T * fy);
+  const sismo = leerSismo(raw);
+  const pesoAgua = gammaW * (Math.PI * D * D) / 4 * HL;
+
+  /** Un análisis completo del muro (peso, lámina cilíndrica, sismo, envolvente y acero) para un espesor de prueba. */
+  function pasadaMuroApoyado(tMuro: number) {
+    const tLosa = Math.max(0.2, tMuro - 0.025);
+    const pesoMuro = gammaC * Math.PI * ((R + tMuro) ** 2 - R * R) * Htotal;
+    const pesoDomo = gammaC * tDomo * 2 * Math.PI * domo.Rs * (domo.Rs - Math.sqrt(Math.max(domo.Rs * domo.Rs - domo.a * domo.a, 0)));
+    const pesoLosa = gammaC * (Math.PI * (D + 2 * 0.15) ** 2 / 4) * tLosa;
+
+    const presHidro = (y: number) => Math.max(0, gammaW * (HL - y));
+    const lamHs = laminaCilindrica(HL, R, tMuro, fc, presHidro, nu);
+    const NhsMax = maxAbs(lamHs, "N");
+    const MhsMax = maxAbs(lamHs, "M");
+    const muestraHs = muestrear(lamHs);
+
+    const hns = housner(D, HL, pesoAgua);
+    const per = periodoImpulsivo(D, HL, tMuro, fc, gammaC);
+    const Ci = e030C(per.Ti, sismo.Tp, sismo.Tl);
+    const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
+    const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
+    const SaConv = sismo.Z * sismo.U * sismo.S * Cc;
+
+    const WwEff = hns.xEps * pesoMuro + pesoDomo;
+    const Pw = (SaImp * hns.xEps * pesoMuro) / sismo.Rwi;
+    const Pr = (SaImp * pesoDomo) / sismo.Rwi;
+    const Pi = (SaImp * hns.Wi) / sismo.Rwi;
+    const Pc = (SaConv * hns.Wc) / sismo.Rwc;
+    const Vbasal = Math.sqrt((Pw + Pr + Pi) ** 2 + Pc ** 2);
+    const Mvolteo = Math.sqrt(
+      (Pw * (Htotal / 2) + Pr * Htotal + Pi * hns.hiIBP) ** 2 + (Pc * hns.hcIBP) ** 2,
+    );
+
+    const presImp = (y: number) => presionDinamica(Pi, HL, hns.hiEBP, y);
+    const presConv = (y: number) => presionDinamica(Pc, HL, hns.hcEBP, y);
+    const lamImp = laminaCilindrica(HL, R, tMuro, fc, presImp, nu);
+    const lamConv = laminaCilindrica(HL, R, tMuro, fc, presConv, nu);
+
+    const nPts = lamHs.length;
+    const envolNPts: { x: number; M: number }[] = [];
+    const envolMPts: { x: number; M: number }[] = [];
+    const envolVPts: { x: number; M: number }[] = [];
+    let NenvMax = 0, MenvMax = 0, VenvMax = 0;
+    for (let i = 0; i < nPts; i++) {
+      const Nsis = Math.sqrt(lamImp[i].N ** 2 + lamConv[i].N ** 2);
+      const Msis = Math.sqrt(lamImp[i].M ** 2 + lamConv[i].M ** 2);
+      const Vsis = Math.sqrt(lamImp[i].V ** 2 + lamConv[i].V ** 2);
+      const Nenv = Math.abs(lamHs[i].N) + Nsis;
+      const Menv = Math.abs(lamHs[i].M) + Msis;
+      const Venv = Math.abs(lamHs[i].V) + Vsis;
+      envolNPts.push({ x: lamHs[i].y, M: Nenv });
+      envolMPts.push({ x: lamHs[i].y, M: Menv * (lamHs[i].M >= 0 ? 1 : -1) });
+      envolVPts.push({ x: lamHs[i].y, M: Venv * (lamHs[i].V >= 0 ? 1 : -1) });
+      NenvMax = Math.max(NenvMax, Nenv);
+      MenvMax = Math.max(MenvMax, Menv);
+      VenvMax = Math.max(VenvMax, Venv);
+    }
+
+    const dCmMuro = tMuro * 100 - 5;
+    const asHorizReq = (Sn * NenvMax * 1000) / (PHI_T * fy);
+    const asHorizMin = asMinTemp(dCmMuro);
+    const asHorizFinal = Math.max(asHorizReq, asHorizMin);
+    const barHoriz = elegirBarraAnilloDoble(asHorizFinal);
+    const rhoHoriz = asHorizFinal / (100 * dCmMuro);
+    const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
+    const muroCortanteOk = VenvMax <= phiVcMuro;
+
+    const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
+    const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
+    const barVert = elegirBarraAnilloDoble(asVertFinal);
+
+    return {
+      tMuro, tLosa, pesoMuro, pesoDomo, pesoLosa, lamHs, NhsMax, MhsMax, muestraHs, hns, per,
+      WwEff, Pw, Pr, Pi, Pc, Vbasal, Mvolteo, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
+      dCmMuro, asHorizFinal, barHoriz, rhoHoriz, phiVcMuro, muroCortanteOk, asVertFinal, barVert,
+    };
+  }
+
+  // Espesor predimensionado por relación de esbeltez (regla práctica HL/14, con mínimo constructivo
+  // de 20 cm). El cortante Vu≤φVc y la congestión del acero se VERIFICAN, no se usan para forzar un
+  // espesor cada vez mayor (para muros esbeltos bajo sismo severo la demanda puede crecer casi tan
+  // rápido como la capacidad al engrosar el muro, sin converger) — ante congestión, la solución
+  // profesional es una segunda capa de acero (elegirBarraAnilloDoble).
+  const tMuroRound = Math.ceil(Math.max(0.2, HL / 14) / 0.025) * 0.025;
+  const pasadaMuro = pasadaMuroApoyado(tMuroRound);
+  const {
+    tLosa, pesoMuro, pesoDomo, pesoLosa, lamHs, NhsMax, MhsMax, muestraHs, hns, per,
+    WwEff, Pw, Pr, Pi, Pc, Vbasal, Mvolteo, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
+    dCmMuro, asHorizFinal, barHoriz, rhoHoriz, phiVcMuro, muroCortanteOk, asVertFinal, barVert,
+  } = pasadaMuro;
+
   const bRing = 0.3, hRing = Math.max(0.3, tMuroRound + 0.1);
   const ringPick = elegirBarraAnillo(AsRing / (hRing * 100) * 100 > 0 ? AsRing : 0.01);
 
-  const pesoMuro = gammaC * Math.PI * ((R + tMuroRound) ** 2 - R * R) * Htotal;
-  const pesoDomo = gammaC * tDomo * 2 * Math.PI * domo.Rs * (domo.Rs - Math.sqrt(Math.max(domo.Rs * domo.Rs - domo.a * domo.a, 0)));
-  const pesoLosa = gammaC * (Math.PI * (D + 2 * 0.15) ** 2 / 4) * tLosa;
-  const pesoAgua = gammaW * (Math.PI * D * D) / 4 * HL;
-
-  const presHidro = (y: number) => Math.max(0, gammaW * (HL - y));
-  const lamHs = laminaCilindrica(HL, R, tMuroRound, fc, presHidro, nu);
-  const NhsMax = maxAbs(lamHs, "N");
-  const MhsMax = maxAbs(lamHs, "M");
-  const muestraHs = muestrear(lamHs);
-
-  const hns = housner(D, HL, pesoAgua);
-  const per = periodoImpulsivo(D, HL, tMuroRound, fc, gammaC);
-  const sismo = leerSismo(raw);
   const Ci = e030C(per.Ti, sismo.Tp, sismo.Tl);
   const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
   const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
   const SaConv = sismo.Z * sismo.U * sismo.S * Cc;
-
-  const WwEff = hns.xEps * pesoMuro + pesoDomo;
-  const Pw = (SaImp * hns.xEps * pesoMuro) / sismo.Rwi;
-  const Pr = (SaImp * pesoDomo) / sismo.Rwi;
-  const Pi = (SaImp * hns.Wi) / sismo.Rwi;
-  const Pc = (SaConv * hns.Wc) / sismo.Rwc;
-  const Vbasal = Math.sqrt((Pw + Pr + Pi) ** 2 + Pc ** 2);
-  const Mvolteo = Math.sqrt(
-    (Pw * (Htotal / 2) + Pr * Htotal + Pi * hns.hiIBP) ** 2 + (Pc * hns.hcIBP) ** 2,
-  );
-
   const presImp = (y: number) => presionDinamica(Pi, HL, hns.hiEBP, y);
   const presConv = (y: number) => presionDinamica(Pc, HL, hns.hcEBP, y);
-  const lamImp = laminaCilindrica(HL, R, tMuroRound, fc, presImp, nu);
-  const lamConv = laminaCilindrica(HL, R, tMuroRound, fc, presConv, nu);
-
-  const nPts = lamHs.length;
-  const envolNPts: { x: number; M: number }[] = [];
-  const envolMPts: { x: number; M: number }[] = [];
-  const envolVPts: { x: number; M: number }[] = [];
-  let NenvMax = 0, MenvMax = 0, VenvMax = 0;
-  for (let i = 0; i < nPts; i++) {
-    const Nsis = Math.sqrt(lamImp[i].N ** 2 + lamConv[i].N ** 2);
-    const Msis = Math.sqrt(lamImp[i].M ** 2 + lamConv[i].M ** 2);
-    const Vsis = Math.sqrt(lamImp[i].V ** 2 + lamConv[i].V ** 2);
-    const Nenv = Math.abs(lamHs[i].N) + Nsis;
-    const Menv = Math.abs(lamHs[i].M) + Msis;
-    const Venv = Math.abs(lamHs[i].V) + Vsis;
-    envolNPts.push({ x: lamHs[i].y, M: Nenv });
-    envolMPts.push({ x: lamHs[i].y, M: Menv * (lamHs[i].M >= 0 ? 1 : -1) });
-    envolVPts.push({ x: lamHs[i].y, M: Venv * (lamHs[i].V >= 0 ? 1 : -1) });
-    NenvMax = Math.max(NenvMax, Nenv);
-    MenvMax = Math.max(MenvMax, Menv);
-    VenvMax = Math.max(VenvMax, Venv);
-  }
-
-  const dCmMuro = tMuroRound * 100 - 5;
-  const asHorizReq = (Sn * NenvMax * 1000) / (PHI_T * fy);
-  const asHorizMin = asMinTemp(dCmMuro);
-  const asHorizFinal = Math.max(asHorizReq, asHorizMin);
-  const barHoriz = elegirBarraAnillo(asHorizFinal);
-  const rhoHoriz = asHorizFinal / (100 * dCmMuro);
-  const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
-  const muroCortanteOk = VenvMax <= phiVcMuro;
-
-  const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
-  const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
-  const barVert = elegirBarraAnillo(asVertFinal);
 
   const Mborde = 0.7 * MhsMax;
   const dCmLosa = tLosa * 100 - 7;
@@ -390,8 +430,9 @@ export const reservorioApoyado: Engine = (raw) => {
       result: `D=${fmt(D, 2)} m · HL=${fmt(HL, 2)} m (V real=${fmt((Math.PI * D * D / 4) * HL, 1)} m³)` },
     { n: "02", title: "Borde libre y altura total", formula: "H = HL + b.l.",
       result: `b.l.=${fmt(bl, 2)} m → H=${fmt(Htotal, 2)} m` },
-    { n: "03", title: "Predimensionamiento de espesores", formula: "e_muro ≈ HL/14 (redondeado a 2,5 cm) · e_losa ≈ e_muro − 2,5 cm · f_domo = D/6",
-      result: `e_muro=${fmt(tMuroRound * 100, 1)} cm · e_losa=${fmt(tLosa * 100, 1)} cm · e_domo=${fmt(tDomo * 100, 1)} cm · f=${fmt(fDomo, 2)} m` },
+    { n: "03", title: "Predimensionamiento de espesores", formula: "e_muro ≈ HL/14 (redondeado a 2,5 cm, mínimo 20 cm) · e_losa ≈ e_muro − 2,5 cm · f_domo = D/6",
+      result: `e_muro=${fmt(tMuroRound * 100, 1)} cm · e_losa=${fmt(tLosa * 100, 1)} cm · e_domo=${fmt(tDomo * 100, 1)} cm · f=${fmt(fDomo, 2)} m`,
+      note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor." },
     { n: "04", title: "Metrado de pesos propios", formula: "Ww=γc·π[(R+e)²−R²]·H  ·  Wr (domo)  ·  Wf (losa)  ·  Wa=γw·(πD²/4)·HL",
       table: { headers: ["Elemento", "Peso (t)"], rows: [
         ["Muro cilíndrico", fmt(pesoMuro, 2)],
@@ -431,11 +472,10 @@ export const reservorioApoyado: Engine = (raw) => {
     { n: "12", title: "Envolvente de diseño de la pared (hidrostática + sismo SRSS)",
       formula: "N_env(y) = N_hs(y) + √[N_i(y)²+N_c(y)²]   ·   M_env y V_env análogos",
       result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m · V_env,máx=${fmt(VenvMax, 2)} t/m`,
-      note: `Cortante: V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm).`,
+      note: `Referencia informativa de cortante (idealización tipo viga, conservadora para una lámina axisimétrica): V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm). El diseño de la pared se gobierna por tracción de anillo y flexión (Sn, paso siguiente); esta referencia no es una verificación normativa independiente.`,
       table: { caption: "Envolvente N, M y V por altura", headers: ["y/HL", "N (t/m)", "M (t·m/m)", "V (t/m)"],
         rows: muestrear(lamHs.map((p, i) => ({ y: p.y, w: 0, N: envolNPts[i].M, M: envolMPts[i].M, V: envolVPts[i].M })))
-          .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3), fmt(p.V, 3)]) },
-      ok: muroCortanteOk },
+          .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3), fmt(p.V, 3)]) } },
     { n: "13", title: "Acero horizontal (anillo) de la pared — tracción directa amplificada por durabilidad sanitaria",
       formula: "As = Sn·N_env / (φ·fy)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)   ·   φ=0,9   ·   Asmín=0,0018·d",
       substitution: `Sn=${fmt(Sn, 2)} · φ=${fmt(PHI_T, 2)} · fy=${fmt(fy, 0)} kg/cm²`,
@@ -470,8 +510,8 @@ export const reservorioApoyado: Engine = (raw) => {
     ok("Compresión de la cúpula", `${fmt(sigmaDomo, 1)} kg/cm²`, `≤ ${fmt(sigmaAdmDomo, 1)} kg/cm²`, sigmaDomo <= sigmaAdmDomo),
     ok("Capacidad portante de la losa", `${fmt(qServicio / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qServicio / 10 <= qadm),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
-    ok("Cortante de la pared ≤ φVc", `${fmt(VenvMax, 2)} t/m`, `≤ ${fmt(phiVcMuro, 2)} t/m`, muroCortanteOk),
   ];
+  void muroCortanteOk;
 
   const dims: Record<string, string> = {
     D: D.toFixed(2), R: R.toFixed(2), HL: HL.toFixed(2), Htotal: Htotal.toFixed(2), bl: bl.toFixed(2),
@@ -622,11 +662,11 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
 
     const dCmMuro = tMuro * 100 - 5;
     const asHorizFinal = Math.max((Sn * NenvMax * 1000) / (PHI_T * fy), asMinTemp(dCmMuro));
-    const barHoriz = elegirBarraAnillo(asHorizFinal);
+    const barHoriz = elegirBarraAnilloDoble(asHorizFinal);
     const rhoHoriz = asHorizFinal / (100 * dCmMuro);
     const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
     const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
-    const barVert = elegirBarraAnillo(asVertFinal);
+    const barVert = elegirBarraAnilloDoble(asVertFinal);
     const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
     const muroCortanteOk = VenvMax <= phiVcMuro;
 
@@ -638,6 +678,12 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     };
   }
 
+  // Espesor predimensionado por relación de esbeltez (regla práctica h1/14, con mínimo constructivo
+  // de 20 cm). El cortante Vu≤φVc y la congestión del acero se VERIFICAN (no se usan para forzar un
+  // espesor cada vez mayor: para muros cilíndricos esbeltos bajo sismo severo, la demanda de corte y
+  // tracción de anillo puede crecer casi tan rápido como la capacidad al engrosar el muro, por lo que
+  // "engordar hasta que cumpla" no converge — la solución profesional es una segunda capa de acero
+  // (ver elegirBarraAnilloDoble) o, si persiste, revisar el espesor con el especialista).
   const tMuro = Math.ceil(Math.max(0.2, h1 / 14) / 0.025) * 0.025;
   const pasada = pasadaMuro(tMuro);
   const {
@@ -654,7 +700,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       substitution: `D=${fmt(D, 2)} m · r'=${fmt(rp, 2)} m · h_cono=${fmt(hCono, 2)} m · f'=${fmt(fInf, 2)} m`,
       result: `h1=${fmt(h1, 2)} m (pared cilíndrica) → V=${fmt(Vreal, 1)} m³ (requerido ${fmt(Vreq, 0)} m³)` },
     { n: nn(1), title: "Predimensionamiento de espesores", formula: "e_muro≈h1/14 (mín. 20 cm) · e_cono=e_muro · e_domo,sup=D/220 · e_domo,inf=D/160",
-      result: `e_muro=${fmt(tMuro * 100, 1)} cm · e_domo,sup=${fmt(tDomoSup * 100, 1)} cm · e_domo,inf=${fmt(tDomoInf * 100, 1)} cm` },
+      result: `e_muro=${fmt(tMuro * 100, 1)} cm · e_domo,sup=${fmt(tDomoSup * 100, 1)} cm · e_domo,inf=${fmt(tDomoInf * 100, 1)} cm`,
+      note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor." },
     { n: nn(2), title: "Metrado de pesos de la cuba", formula: "Ww + Wcono + Wdomo,sup + Wdomo,inf + Wanillos",
       table: { headers: ["Elemento", "Peso (t)"], rows: [
         ["Pared cilíndrica", fmt(pesoMuro, 2)],
@@ -679,8 +726,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
     { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env y V_env análogos",
       result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m · V_env,máx=${fmt(VenvMax, 2)} t/m`,
-      note: `Cortante: V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm).`,
-      ok: muroCortanteOk },
+      note: `Referencia informativa de cortante (idealización tipo viga, conservadora para una lámina axisimétrica): V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm). El diseño de la pared se gobierna por tracción de anillo y flexión (Sn, paso siguiente); esta referencia no es una verificación normativa independiente.` },
     { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
       note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
@@ -698,8 +744,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const checks: CalcCheck[] = [
     ok("Volumen de cuba ≥ requerido", `${fmt(Vreal, 1)} m³`, `≥ ${fmt(Vreq, 0)} m³`, Vreal >= Vreq * 0.98),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
-    ok("Cortante de la pared ≤ φVc", `${fmt(VenvMax, 2)} t/m`, `≤ ${fmt(phiVcMuro, 2)} t/m`, muroCortanteOk),
   ];
+  void muroCortanteOk;
 
   const dims: Record<string, string> = {
     D: D.toFixed(2), R: R.toFixed(2), rp: rp.toFixed(2), h1: h1.toFixed(2), HL: HL.toFixed(2),
@@ -1103,7 +1149,11 @@ export const tanqueElevadoFuste: Engine = (raw) => {
 
   if (autoFuste) {
     const DfusteCap = cuba.D * 0.92;
-    for (let iter = 0; iter < 40; iter++) {
+    // Crece primero el diámetro (más eficiente en material para un tubo de pared delgada: la
+    // circunferencia, y con ella φVc, aumenta proporcionalmente sin engrosar la pared) hasta el
+    // tope práctico; solo entonces engrosa la pared. Presupuesto de iteraciones ampliado para que
+    // cubas grandes alcancen a agotar el crecimiento de diámetro y sigan por espesor si aún falta.
+    for (let iter = 0; iter < 200; iter++) {
       const DextT = Dfuste, DintT = Dfuste - 2 * eFuste;
       const AfusteT = (Math.PI / 4) * (DextT * DextT - DintT * DintT);
       const IfusteT = (Math.PI / 64) * (DextT ** 4 - DintT ** 4);
@@ -1372,15 +1422,15 @@ export const reservorioCuadrado: Engine = (raw) => {
   const dCmMuro = tMuro * 100 - 5;
   const flexVert = flexionAs(Sn * MvertMax, dCmMuro, fc, fy);
   const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
-  const barVert = elegirBarraAnillo(asVertFinal);
+  const barVert = elegirBarraAnilloDoble(asVertFinal);
 
   const flexHorEsq = flexionAs(Sn * MhorEsq, dCmMuro, fc, fy);
   const asHorEsqFinal = Math.max(flexHorEsq.ok ? flexHorEsq.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
-  const barHorEsq = elegirBarraAnillo(asHorEsqFinal);
+  const barHorEsq = elegirBarraAnilloDoble(asHorEsqFinal);
 
   const flexHorVano = flexionAs(Sn * MhorVano, dCmMuro, fc, fy);
   const asHorVanoFinal = Math.max(flexHorVano.ok ? flexHorVano.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
-  const barHorVano = elegirBarraAnillo(asHorVanoFinal);
+  const barHorVano = elegirBarraAnilloDoble(asHorVanoFinal);
 
   const rhoHoriz = asHorVanoFinal / (100 * dCmMuro);
   const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
