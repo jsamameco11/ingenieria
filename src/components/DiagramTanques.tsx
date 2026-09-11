@@ -204,7 +204,6 @@ function CubaIntzeElevacion({ values, cx = 210, baseY = 250, scale }: { values: 
     <g>
       <path d={g.path} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
       <rect x={cx - g.Rpx} y={g.aguaTop} width={g.Rpx * 2} height={g.yAnilloSup - g.aguaTop} fill="url(#tq-water)" opacity="0.85" />
-      <rect x={cx - g.rpPx * 0.55} y={g.yAnilloInf} width={g.rpPx * 0.55} height={g.yAnilloInf - (g.yAnilloInf + g.fInfPx * 0.8)} fill="none" />
       <line x1={cx - g.rpPx - 6} y1={g.yAnilloInf} x2={cx + g.rpPx + 6} y2={g.yAnilloInf} stroke={NAVY} strokeWidth="2.4" />
       <line x1={cx - g.Rpx - 6} y1={g.yAnilloSup} x2={cx + g.Rpx + 6} y2={g.yAnilloSup} stroke={NAVY} strokeWidth="2.4" />
       <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 5} fontSize="8" fill={INK} textAnchor="end">
@@ -638,6 +637,7 @@ function miniDiagrama(pts: { x: number; M: number }[], x0: number, y0: number, w
   const fill = `${d} L ${xOf(xmax).toFixed(1)} ${yMid.toFixed(1)} L ${xOf(xmin).toFixed(1)} ${yMid.toFixed(1)} Z`;
   const iMax = pts.reduce((b, p, i, a) => (Math.abs(p.M) > Math.abs(a[b].M) ? i : b), 0);
   const pk = pts[iMax];
+  const labelY = Math.max(y0 + 9, Math.min(y0 + h - 3, yOf(pk.M) + (pk.M >= 0 ? -5 : 12)));
   return (
     <g>
       <text x={x0} y={y0 - 3} fontSize="8.5" fill={NAVY} fontWeight="600">{etiqueta}</text>
@@ -645,20 +645,37 @@ function miniDiagrama(pts: { x: number; M: number }[], x0: number, y0: number, w
       <path d={fill} fill="rgba(26,68,115,0.14)" />
       <path d={d} fill="none" stroke={NAVY} strokeWidth="1.5" />
       <line x1={x0} y1={y0} x2={x0} y2={y0 + h - 10} stroke={NAVY} strokeWidth="0.6" strokeDasharray="2,2" />
-      <text x={xOf(pk.x)} y={yOf(pk.M) + (pk.M >= 0 ? -5 : 12)} fontSize="8" fill={pk.M >= 0 ? "#1f6b3a" : "#8b1e1e"} textAnchor="middle" fontWeight="600">
+      <text x={xOf(pk.x)} y={labelY} fontSize="8" fill={pk.M >= 0 ? "#1f6b3a" : "#8b1e1e"} textAnchor="middle" fontWeight="600">
         {pk.M >= 0 ? "+" : ""}{pk.M.toFixed(2)} {unidad}
       </text>
     </g>
   );
 }
 
+/** Envuelve un texto en varias líneas de hasta maxChars caracteres, partiendo por palabras. */
+function wrapText(s: string, maxChars: number): string[] {
+  const words = String(s || "").split(" ");
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (t.length > maxChars && cur) { lines.push(cur); cur = w; }
+    else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 export function ElementoDiagramaFig({ titulo, formula, shape, dim1, dim2, ejeLabel, diagramas, aceroPrincipal, aceroSecundario, nota }: ElementoDiagramaProps) {
+  const formulaLines = wrapText(formula, 90);
+  const headerH = 22 + formulaLines.length * 11;
   const diagH = 116;
-  const diagGap = 10;
+  const diagGap = 20;
   const rightW = 360;
   const W = 190 + rightW + 20;
-  const H = 40 + diagramas.length * diagH + (diagramas.length - 1) * diagGap + 44;
-  const cxElem = 95, cyElem = 40 + (H - 40 - 40) / 2;
+  const diagStartY = headerH + 14;
+  const H = diagStartY - 10 + diagramas.length * diagH + (diagramas.length - 1) * diagGap + 44;
+  const cxElem = 95, cyElem = headerH + (H - headerH - 40) / 2;
 
   return (
     <div className="croquis" data-fig-part="momento">
@@ -670,12 +687,14 @@ export function ElementoDiagramaFig({ titulo, formula, shape, dim1, dim2, ejeLab
           <defs><TickMarkers /><Defs /></defs>
           <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
           <text x="10" y="16" fontSize="10" fill={NAVY} fontWeight="600">{titulo}</text>
-          <text x="10" y="28" fontSize="7.5" fill="#6b6458">{formula}</text>
+          {formulaLines.map((line, i) => (
+            <text key={i} x="10" y={28 + i * 11} fontSize="7.5" fill="#6b6458">{line}</text>
+          ))}
           <line x1={175} y1="6" x2={175} y2={H - 6} stroke="#c4b48a" strokeWidth="0.8" strokeDasharray="2,2" />
-          <g transform={`translate(0, 6)`}>{dibujarElemento(cxElem, cyElem - 6, shape, dim1, dim2, 0.82)}</g>
-          <text x={cxElem} y={H - 8} fontSize="7.5" fill={INK} textAnchor="middle">{ejeLabel}</text>
+          <g transform={`translate(0, 6)`}>{dibujarElemento(cxElem, cyElem, shape, dim1, dim2, 0.82)}</g>
+          <text x={cxElem} y={H - 8} fontSize="7" fill={INK} textAnchor="middle">{ejeLabel}</text>
           {diagramas.map((dg, i) => (
-            <g key={i}>{miniDiagrama(dg.pts, 190, 34 + i * (diagH + diagGap), rightW - 10, diagH, dg.unidad, dg.etiqueta)}</g>
+            <g key={i}>{miniDiagrama(dg.pts, 190, diagStartY + i * (diagH + diagGap), rightW - 10, diagH, dg.unidad, dg.etiqueta)}</g>
           ))}
           <rect x="188" y={H - 34} width={W - 198} height="26" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
           <text x="194" y={H - 22} fontSize="8" fill={NAVY}>{aceroPrincipal}</text>
@@ -683,6 +702,180 @@ export function ElementoDiagramaFig({ titulo, formula, shape, dim1, dim2, ejeLab
         </svg>
       </div>
       <p className="croquis-cap">{`${formula}  ·  ${aceroPrincipal}${aceroSecundario ? `  ·  ${aceroSecundario}` : ""}`}</p>
+    </div>
+  );
+}
+
+/* ---------------- Modelo matricial 3D — visualización isométrica de esfuerzos ---------------- */
+
+type Node3DLite = { id: number; x: number; y: number; z: number };
+type ElemStressLite = { n1: number; n2: number; tipo: "col" | "beam" | "diag"; val: number };
+
+function parseNodes3D(s: string): Node3DLite[] {
+  return String(s || "")
+    .split(";")
+    .filter(Boolean)
+    .map((row) => {
+      const [id, x, y, z] = row.split(",").map(Number);
+      return { id, x, y, z };
+    })
+    .filter((n) => Number.isFinite(n.id) && Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.z));
+}
+
+function parseElemStress(s: string): ElemStressLite[] {
+  return String(s || "")
+    .split(";")
+    .filter(Boolean)
+    .map((row) => {
+      const [n1, n2, tipo, val] = row.split(",");
+      return { n1: Number(n1), n2: Number(n2), tipo: tipo as ElemStressLite["tipo"], val: Number(val) };
+    })
+    .filter((e) => Number.isFinite(e.n1) && Number.isFinite(e.n2) && Number.isFinite(e.val));
+}
+
+/** Escala de color tipo "jet" simplificada: azul (bajo) → verde → ámbar → rojo (alto). t en [0,1]. */
+function colorEsfuerzo(t: number) {
+  const v = Math.max(0, Math.min(1, t));
+  const stops: { p: number; c: [number, number, number] }[] = [
+    { p: 0, c: [40, 90, 168] },
+    { p: 0.4, c: [43, 140, 90] },
+    { p: 0.7, c: [214, 169, 45] },
+    { p: 1, c: [178, 40, 40] },
+  ];
+  let a = stops[0], b = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (v >= stops[i].p && v <= stops[i + 1].p) { a = stops[i]; b = stops[i + 1]; break; }
+  }
+  const f = (v - a.p) / Math.max(1e-6, b.p - a.p);
+  const r = Math.round(a.c[0] + (b.c[0] - a.c[0]) * f);
+  const g = Math.round(a.c[1] + (b.c[1] - a.c[1]) * f);
+  const bch = Math.round(a.c[2] + (b.c[2] - a.c[2]) * f);
+  return `rgb(${r},${g},${bch})`;
+}
+
+/**
+ * Visualización isométrica del modelo de elementos finitos (pórtico espacial de la torre) con
+ * esfuerzos por color: interacción P–M en columnas, demanda relativa en vigas y diagonales —
+ * análoga a un gráfico de esfuerzos de un software de análisis estructural (SAP2000/ETABS).
+ */
+export function TorreMatricial3D({ values }: { values: Record<string, string> }) {
+  const nodes = parseNodes3D(values.nodes3D || "");
+  const elems = parseElemStress(values.elems3D || "");
+  if (nodes.length === 0 || elems.length === 0) return null;
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const Htorre = nv(values, "Htorre", 14);
+  const hcgCuba = nv(values, "hcgCuba", 2);
+  const Dcuba = nv(values, "D", 8);
+  const nCol = Math.max(3, Math.round(nv(values, "nCol", 6)));
+
+  const cosA = Math.cos(Math.PI / 6), sinA = Math.sin(Math.PI / 6);
+  const proj = (x: number, y: number, z: number) => ({ sx: (x - y) * cosA, sy: (x + y) * sinA - z });
+
+  const cubaTopNodes: { x: number; y: number; z: number }[] = [];
+  for (let i = 0; i < nCol * 3; i++) {
+    const ang = (2 * Math.PI * i) / (nCol * 3);
+    cubaTopNodes.push({ x: (Dcuba / 2) * Math.cos(ang), y: (Dcuba / 2) * Math.sin(ang), z: Htorre + hcgCuba * 2 });
+  }
+  const cubaMidNodes = cubaTopNodes.map((p) => ({ ...p, z: Htorre + hcgCuba }));
+
+  const allPts = [...nodes.map((n) => proj(n.x, n.y, n.z)), ...cubaTopNodes.map((p) => proj(p.x, p.y, p.z))];
+  const xs = allPts.map((p) => p.sx), ys = allPts.map((p) => p.sy);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+
+  const W = 560, H = 600, pad = 56, padTop = 30;
+  const scale = Math.min((W - 2 * pad) / Math.max(1e-6, maxX - minX), (H - padTop - 100) / Math.max(1e-6, maxY - minY));
+  const toScreen = (x: number, y: number, z: number) => {
+    const p = proj(x, y, z);
+    return { X: pad + (p.sx - minX) * scale, Y: padTop + (p.sy - minY) * scale };
+  };
+
+  const drawList = elems
+    .map((e) => {
+      const a = nodeMap.get(e.n1), b = nodeMap.get(e.n2);
+      if (!a || !b) return null;
+      const depth = a.x + a.y + a.z + b.x + b.y + b.z;
+      return { e, a, b, depth };
+    })
+    .filter((v): v is { e: ElemStressLite; a: Node3DLite; b: Node3DLite; depth: number } => v !== null)
+    .sort((p, q) => p.depth - q.depth);
+
+  const strokeW: Record<ElemStressLite["tipo"], number> = { col: 5, beam: 3.2, diag: 1.6 };
+  const dash: Record<ElemStressLite["tipo"], string | undefined> = { col: undefined, beam: undefined, diag: "4,3" };
+
+  const groundY = Math.max(...nodes.filter((n) => n.z < 0.01).map((n) => toScreen(n.x, n.y, n.z).Y), 0);
+
+  const legendStops = Array.from({ length: 21 }, (_, i) => i / 20);
+
+  return (
+    <div className="croquis" data-fig-part="momento">
+      <div className="croquis-head">
+        <p>Modelo matricial 3D — esfuerzos del pórtico espacial (vista isométrica)</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+          <defs><TickMarkers /><Defs /></defs>
+          <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
+          <ellipse cx={W / 2} cy={groundY + 8} rx={(maxX - minX) * scale * 0.62} ry="14" fill="url(#tq-soil)" opacity="0.7" />
+          {/* Cuba esquemática (referencial) sobre la corona de la torre */}
+          <polygon
+            points={cubaTopNodes.map((p) => { const s = toScreen(p.x, p.y, p.z); return `${s.X},${s.Y}`; }).join(" ")}
+            fill="#c9dce8" opacity="0.35" stroke={NAVY} strokeWidth="0.8" strokeDasharray="2,2"
+          />
+          <polygon
+            points={cubaMidNodes.map((p) => { const s = toScreen(p.x, p.y, p.z); return `${s.X},${s.Y}`; }).join(" ")}
+            fill="#c9dce8" opacity="0.22" stroke={NAVY} strokeWidth="0.6" strokeDasharray="2,2"
+          />
+          {cubaTopNodes.map((p, i) => {
+            const s1 = toScreen(p.x, p.y, p.z);
+            const s2 = toScreen(cubaMidNodes[i].x, cubaMidNodes[i].y, cubaMidNodes[i].z);
+            return <line key={`cubaEdge-${i}`} x1={s1.X} y1={s1.Y} x2={s2.X} y2={s2.Y} stroke={NAVY} strokeWidth="0.5" strokeDasharray="2,2" opacity="0.4" />;
+          })}
+          <text x={(() => { const c = toScreen(0, 0, Htorre + hcgCuba * 2); return c.X; })()} y={(() => { const c = toScreen(0, 0, Htorre + hcgCuba * 2); return c.Y - 10; })()} fontSize="8" fill="#2f6a8f" textAnchor="middle">
+            Cuba (referencial)
+          </text>
+          {/* Elementos del modelo, coloreados por esfuerzo, ordenados por profundidad (pintor) */}
+          {drawList.map(({ e, a, b }, i) => {
+            const s1 = toScreen(a.x, a.y, a.z);
+            const s2 = toScreen(b.x, b.y, b.z);
+            const t = e.tipo === "col" ? e.val / 1.2 : e.val;
+            return (
+              <line
+                key={i}
+                x1={s1.X} y1={s1.Y} x2={s2.X} y2={s2.Y}
+                stroke={colorEsfuerzo(t)}
+                strokeWidth={strokeW[e.tipo]}
+                strokeDasharray={dash[e.tipo]}
+                strokeLinecap="round"
+              />
+            );
+          })}
+          {nodes.map((n) => {
+            const s = toScreen(n.x, n.y, n.z);
+            return <circle key={n.id} cx={s.X} cy={s.Y} r="2.2" fill={NAVY} opacity="0.75" />;
+          })}
+          <text x={W / 2} y={18} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
+            Modelo matricial 3D — esfuerzos del pórtico espacial (vista isométrica)
+          </text>
+          {/* Leyenda de color */}
+          <defs>
+            <linearGradient id="tq-legend-grad" x1="0" y1="0" x2="1" y2="0">
+              {legendStops.map((t, i) => (
+                <stop key={i} offset={`${(t * 100).toFixed(0)}%`} stopColor={colorEsfuerzo(t)} />
+              ))}
+            </linearGradient>
+          </defs>
+          <rect x={W / 2 - 140} y={H - 46} width="280" height="12" fill="url(#tq-legend-grad)" stroke={NAVY} strokeWidth="0.6" />
+          <text x={W / 2 - 140} y={H - 52} fontSize="7.5" fill={INK}>bajo</text>
+          <text x={W / 2} y={H - 52} fontSize="7.5" fill={INK} textAnchor="middle">medio</text>
+          <text x={W / 2 + 140} y={H - 52} fontSize="7.5" fill={INK} textAnchor="end">alto</text>
+          <text x={W / 2} y={H - 20} fontSize="7.5" fill={INK} textAnchor="middle">
+            Columnas: P/φPn+M/φMn (0 → 1,2+) · Vigas y diagonales: demanda relativa al elemento más solicitado de su tipo (0 → 1)
+          </text>
+        </svg>
+      </div>
+      <p className="croquis-cap">
+        Modelo de elementos finitos resuelto por rigidez directa 3D — {nodes.length} nudos, {elems.length} elementos (columnas, vigas de anillo y diagonales en X). Color por esfuerzo, análogo a un post-proceso de SAP2000/ETABS.
+      </p>
     </div>
   );
 }

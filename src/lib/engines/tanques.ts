@@ -14,6 +14,14 @@ function packPts(pts: { x: number; M: number }[]) {
   return pts.map((p) => `${p.x.toFixed(3)},${p.M.toFixed(3)}`).join(";");
 }
 
+/** Empaqueta nudos 3D (id,x,y,z) y elementos con su utilización (n1,n2,tipo,val) para la visualización isométrica de esfuerzos. */
+function packNodes3D(nodes: { id: number; x: number; y: number; z: number }[]) {
+  return nodes.map((n) => `${n.id},${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}`).join(";");
+}
+function packElemStress(elems: { n1: number; n2: number; tipo: string; val: number }[]) {
+  return elems.map((e) => `${e.n1},${e.n2},${e.tipo},${e.val.toFixed(3)}`).join(";");
+}
+
 /** Campos con "0 = automático": si el usuario deja 0 (o vacío), se usa el valor calculado. */
 function numOrAuto(raw: Record<string, string>, key: string, auto: number) {
   const v = num(raw, key, 0);
@@ -333,16 +341,21 @@ export const reservorioApoyado: Engine = (raw) => {
   const nPts = lamHs.length;
   const envolNPts: { x: number; M: number }[] = [];
   const envolMPts: { x: number; M: number }[] = [];
-  let NenvMax = 0, MenvMax = 0;
+  const envolVPts: { x: number; M: number }[] = [];
+  let NenvMax = 0, MenvMax = 0, VenvMax = 0;
   for (let i = 0; i < nPts; i++) {
     const Nsis = Math.sqrt(lamImp[i].N ** 2 + lamConv[i].N ** 2);
     const Msis = Math.sqrt(lamImp[i].M ** 2 + lamConv[i].M ** 2);
+    const Vsis = Math.sqrt(lamImp[i].V ** 2 + lamConv[i].V ** 2);
     const Nenv = Math.abs(lamHs[i].N) + Nsis;
     const Menv = Math.abs(lamHs[i].M) + Msis;
+    const Venv = Math.abs(lamHs[i].V) + Vsis;
     envolNPts.push({ x: lamHs[i].y, M: Nenv });
     envolMPts.push({ x: lamHs[i].y, M: Menv * (lamHs[i].M >= 0 ? 1 : -1) });
+    envolVPts.push({ x: lamHs[i].y, M: Venv * (lamHs[i].V >= 0 ? 1 : -1) });
     NenvMax = Math.max(NenvMax, Nenv);
     MenvMax = Math.max(MenvMax, Menv);
+    VenvMax = Math.max(VenvMax, Venv);
   }
 
   const dCmMuro = tMuroRound * 100 - 5;
@@ -351,6 +364,8 @@ export const reservorioApoyado: Engine = (raw) => {
   const asHorizFinal = Math.max(asHorizReq, asHorizMin);
   const barHoriz = elegirBarraAnillo(asHorizFinal);
   const rhoHoriz = asHorizFinal / (100 * dCmMuro);
+  const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
+  const muroCortanteOk = VenvMax <= phiVcMuro;
 
   const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
   const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
@@ -414,11 +429,13 @@ export const reservorioApoyado: Engine = (raw) => {
       formula: "p_i(y) = (Pi/2)[4HL−6hi−(6HL−12hi)(y/HL)]/HL²   ·   p_c análoga con Pc, hc  (ACI 350.3 ec. 9-23/9-24)",
       result: `p_i(0)=${fmt(presImp(0), 3)} t/m² · p_c(0)=${fmt(presConv(0), 3)} t/m²` },
     { n: "12", title: "Envolvente de diseño de la pared (hidrostática + sismo SRSS)",
-      formula: "N_env(y) = N_hs(y) + √[N_i(y)²+N_c(y)²]   ·   M_env análogo",
-      result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m`,
-      table: { caption: "Envolvente N y M por altura", headers: ["y/HL", "N (t/m)", "M (t·m/m)"],
-        rows: muestrear(lamHs.map((p, i) => ({ y: p.y, w: 0, N: envolNPts[i].M, M: envolMPts[i].M, V: 0 })))
-          .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3)]) } },
+      formula: "N_env(y) = N_hs(y) + √[N_i(y)²+N_c(y)²]   ·   M_env y V_env análogos",
+      result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m · V_env,máx=${fmt(VenvMax, 2)} t/m`,
+      note: `Cortante: V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm).`,
+      table: { caption: "Envolvente N, M y V por altura", headers: ["y/HL", "N (t/m)", "M (t·m/m)", "V (t/m)"],
+        rows: muestrear(lamHs.map((p, i) => ({ y: p.y, w: 0, N: envolNPts[i].M, M: envolMPts[i].M, V: envolVPts[i].M })))
+          .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3), fmt(p.V, 3)]) },
+      ok: muroCortanteOk },
     { n: "13", title: "Acero horizontal (anillo) de la pared — tracción directa amplificada por durabilidad sanitaria",
       formula: "As = Sn·N_env / (φ·fy)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)   ·   φ=0,9   ·   Asmín=0,0018·d",
       substitution: `Sn=${fmt(Sn, 2)} · φ=${fmt(PHI_T, 2)} · fy=${fmt(fy, 0)} kg/cm²`,
@@ -453,6 +470,7 @@ export const reservorioApoyado: Engine = (raw) => {
     ok("Compresión de la cúpula", `${fmt(sigmaDomo, 1)} kg/cm²`, `≤ ${fmt(sigmaAdmDomo, 1)} kg/cm²`, sigmaDomo <= sigmaAdmDomo),
     ok("Capacidad portante de la losa", `${fmt(qServicio / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qServicio / 10 <= qadm),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
+    ok("Cortante de la pared ≤ φVc", `${fmt(VenvMax, 2)} t/m`, `≤ ${fmt(phiVcMuro, 2)} t/m`, muroCortanteOk),
   ];
 
   const dims: Record<string, string> = {
@@ -462,7 +480,8 @@ export const reservorioApoyado: Engine = (raw) => {
     mPtsEnv: packPts(envolMPts),
     nPtsHs: packPts(lamHs.map((p) => ({ x: p.y, M: p.N }))),
     nPtsEnv: packPts(envolNPts),
-    MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3),
+    vPtsEnv: packPts(envolVPts),
+    MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3), VenvMax: VenvMax.toFixed(3),
     asHoriz: barHoriz.texto, asVert: barVert.texto, asLosa: barLosa.texto, asRing: `${ringPick.barra} · As=${fmt(AsRing, 2)} cm²`,
     Wtotal: Wtotal.toFixed(2), Vbasal: Vbasal.toFixed(2), Mvolteo: Mvolteo.toFixed(2),
   };
@@ -582,18 +601,23 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const lamImp = laminaCilindrica(h1, R, tMuro, fc, presImp, nu);
     const lamConv = laminaCilindrica(h1, R, tMuro, fc, presConv, nu);
 
-    let NenvMax = 0, MenvMax = 0;
+    let NenvMax = 0, MenvMax = 0, VenvMax = 0;
     const envolNPts: { x: number; M: number }[] = [];
     const envolMPts: { x: number; M: number }[] = [];
+    const envolVPts: { x: number; M: number }[] = [];
     for (let i = 0; i < lamHs.length; i++) {
       const Nsis = Math.sqrt(lamImp[i].N ** 2 + lamConv[i].N ** 2);
       const Msis = Math.sqrt(lamImp[i].M ** 2 + lamConv[i].M ** 2);
+      const Vsis = Math.sqrt(lamImp[i].V ** 2 + lamConv[i].V ** 2);
       const Nenv = Math.abs(lamHs[i].N) + Nsis;
       const Menv = Math.abs(lamHs[i].M) + Msis;
+      const Venv = Math.abs(lamHs[i].V) + Vsis;
       envolNPts.push({ x: lamHs[i].y, M: Nenv });
       envolMPts.push({ x: lamHs[i].y, M: Menv * (lamHs[i].M >= 0 ? 1 : -1) });
+      envolVPts.push({ x: lamHs[i].y, M: Venv * (lamHs[i].V >= 0 ? 1 : -1) });
       NenvMax = Math.max(NenvMax, Nenv);
       MenvMax = Math.max(MenvMax, Menv);
+      VenvMax = Math.max(VenvMax, Venv);
     }
 
     const dCmMuro = tMuro * 100 - 5;
@@ -603,12 +627,14 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const flexVert = flexionAs(Sn * MenvMax, dCmMuro, fc, fy);
     const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
     const barVert = elegirBarraAnillo(asVertFinal);
+    const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
+    const muroCortanteOk = VenvMax <= phiVcMuro;
 
     return {
       tMuro, tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
       WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
-      lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, lamImp, lamConv, NenvMax, MenvMax, envolNPts, envolMPts,
-      dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, rhoHoriz,
+      lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, lamImp, lamConv, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
+      dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, rhoHoriz, phiVcMuro, muroCortanteOk,
     };
   }
 
@@ -617,8 +643,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const {
     tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
     WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
-    lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, NenvMax, MenvMax, envolNPts, envolMPts,
-    barHoriz, barVert, rhoHoriz,
+    lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
+    barHoriz, barVert, rhoHoriz, dCmMuro, phiVcMuro, muroCortanteOk,
   } = pasada;
   void tCono; void HconoInward; void wInfDomo;
 
@@ -651,8 +677,10 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s · Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
       result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t`,
       table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
-    { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env análogo",
-      result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m` },
+    { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env y V_env análogos",
+      result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m · V_env,máx=${fmt(VenvMax, 2)} t/m`,
+      note: `Cortante: V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm).`,
+      ok: muroCortanteOk },
     { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
       note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
@@ -670,6 +698,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const checks: CalcCheck[] = [
     ok("Volumen de cuba ≥ requerido", `${fmt(Vreal, 1)} m³`, `≥ ${fmt(Vreq, 0)} m³`, Vreal >= Vreq * 0.98),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
+    ok("Cortante de la pared ≤ φVc", `${fmt(VenvMax, 2)} t/m`, `≤ ${fmt(phiVcMuro, 2)} t/m`, muroCortanteOk),
   ];
 
   const dims: Record<string, string> = {
@@ -680,7 +709,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     mPtsEnv: packPts(envolMPts),
     nPtsHs: packPts(lamHs.map((p) => ({ x: p.y, M: p.N }))),
     nPtsEnv: packPts(envolNPts),
-    MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3),
+    vPtsEnv: packPts(envolVPts),
+    MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3), VenvMax: VenvMax.toFixed(3),
     asHoriz: barHoriz.texto, asVert: barVert.texto,
     asRingSup: `${ringSup.barra} · As=${fmt(AsRingSup, 2)} cm²`,
     asRingInf: `${ringInf.barra}${TringInf >= 0 ? ` · As=${fmt(AsRingInf, 2)} cm²` : " (mínimo)"}`,
@@ -755,18 +785,23 @@ function construirTorreColumnas(nCol: number, Rcol: number, Htorre: number, nArr
       elements.push({ n1: nodeGrid[lvl][c], n2: nodeGrid[lvl][c2], E, G, A: Abeam, Iy: IbeamY, Iz: IbeamZ, J: Jbeam });
     }
   }
+  const diagElemIdx: number[] = [];
   for (let lvl = 0; lvl < nArr; lvl++) {
     for (let c = 0; c < nCol; c++) {
       const c2 = (c + 1) % nCol;
+      diagElemIdx.push(elements.length);
       elements.push({ n1: nodeGrid[lvl][c], n2: nodeGrid[lvl + 1][c2], E, G, A: Adiag, Iy: Itiny, Iz: Itiny, J: Itiny });
+      diagElemIdx.push(elements.length);
       elements.push({ n1: nodeGrid[lvl][c2], n2: nodeGrid[lvl + 1][c], E, G, A: Adiag, Iy: Itiny, Iz: Itiny, J: Itiny });
     }
   }
+  const linkElemIdx: number[] = [];
   for (let c = 0; c < nCol; c++) {
+    linkElemIdx.push(elements.length);
     elements.push({ n1: nodeGrid[nArr][c], n2: masterNodeId, E, G, A: Acol, Iy: Icol, Iz: Icol, J: Jcol, stiffMult: 300 });
   }
 
-  return { nodes, elements, nodeGrid, masterNodeId, colElemIdx, beamElemIdx, Acol, Icol };
+  return { nodes, elements, nodeGrid, masterNodeId, colElemIdx, beamElemIdx, diagElemIdx, linkElemIdx, Acol, Icol };
 }
 
 export const tanqueElevadoColumnas: Engine = (raw) => {
@@ -827,6 +862,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       VuColT = Math.max(VuColT, Vcomb);
     });
     const perfilColumna: { x: number; M: number }[] = [];
+    const perfilColumnaV: { x: number; M: number }[] = [];
     for (let lvl = 0; lvl <= nArr; lvl++) {
       const y = lvl * hEntre;
       if (lvl < nArr) {
@@ -834,15 +870,20 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         const fl = unit.forces[ei];
         const Msign = fl.My1 !== 0 ? Math.sign(fl.My1) : 1;
         perfilColumna.push({ x: y, M: Msign * Math.hypot(fl.My1, fl.Mz1) * VtorreT });
+        const Vsign = fl.Vy1 !== 0 ? Math.sign(fl.Vy1) : 1;
+        perfilColumnaV.push({ x: y, M: Vsign * Math.hypot(fl.Vy1, fl.Vz1) * VtorreT });
       } else {
         const ei = modelo.colElemIdx[(nArr - 1) * nCol + colGov];
         const fl = unit.forces[ei];
         const Msign = fl.My2 !== 0 ? Math.sign(fl.My2) : 1;
         perfilColumna.push({ x: y, M: Msign * Math.hypot(fl.My2, fl.Mz2) * VtorreT });
+        const Vsign = fl.Vy2 !== 0 ? Math.sign(fl.Vy2) : 1;
+        perfilColumnaV.push({ x: y, M: Vsign * Math.hypot(fl.Vy2, fl.Vz2) * VtorreT });
       }
     }
     let MuArrT = 0, VuArrT = 0;
     let perfilViga: { x: number; M: number }[] = [{ x: 0, M: 0 }, { x: 1, M: 0 }];
+    let perfilVigaV: { x: number; M: number }[] = [{ x: 0, M: 0 }, { x: 1, M: 0 }];
     modelo.beamElemIdx.forEach((ei) => {
       const fl = unit.forces[ei];
       const M1 = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
@@ -852,6 +893,13 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         const sign1 = fl.My1 !== 0 ? Math.sign(fl.My1) : 1;
         const sign2 = fl.My2 !== 0 ? Math.sign(fl.My2) : 1;
         perfilViga = [{ x: 0, M: sign1 * M1 }, { x: 1, M: sign2 * M2 }];
+      }
+      const V1 = Math.hypot(fl.Vy1, fl.Vz1) * VtorreT;
+      const V2 = Math.hypot(fl.Vy2, fl.Vz2) * VtorreT;
+      if (Math.max(V1, V2) > VuArrT) {
+        const sv1 = fl.Vy1 !== 0 ? Math.sign(fl.Vy1) : 1;
+        const sv2 = fl.Vy2 !== 0 ? Math.sign(fl.Vy2) : 1;
+        perfilVigaV = [{ x: 0, M: sv1 * V1 }, { x: 1, M: sv2 * V2 }];
       }
       VuArrT = Math.max(VuArrT, Math.hypot(fl.Vy1, fl.Vz1) * VtorreT);
     });
@@ -866,10 +914,43 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     const derivaMasterT = dxUnit * VtorreT;
     const derivaRatioT = (derivaMasterT * (0.75 * Rtorre)) / (Htorre + hcgCuba);
 
+    /** Utilización por elemento (P–M para columnas, demanda relativa para vigas y diagonales), para la visualización 3D de esfuerzos. */
+    type ElemStress = { n1: number; n2: number; tipo: "col" | "beam" | "diag"; val: number };
+    const elemStress: ElemStress[] = [];
+    modelo.colElemIdx.forEach((ei) => {
+      const el = modelo.elements[ei];
+      const fg = grav.forces[ei];
+      const fl = unit.forces[ei];
+      const Ncomb = Math.abs(fg.N1) + Math.abs(fl.N1) * VtorreT;
+      const Mcomb = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
+      const util = Ncomb / Math.max(PhiPnT, 1e-6) + Mcomb / Math.max(PhiMnT, 1e-6);
+      elemStress.push({ n1: el.n1, n2: el.n2, tipo: "col", val: util });
+    });
+    let maxBeamDemand = 1e-6;
+    const beamRaw: { n1: number; n2: number; val: number }[] = [];
+    modelo.beamElemIdx.forEach((ei) => {
+      const el = modelo.elements[ei];
+      const fl = unit.forces[ei];
+      const demand = Math.max(Math.hypot(fl.My1, fl.Mz1), Math.hypot(fl.My2, fl.Mz2)) * VtorreT;
+      maxBeamDemand = Math.max(maxBeamDemand, demand);
+      beamRaw.push({ n1: el.n1, n2: el.n2, val: demand });
+    });
+    beamRaw.forEach((b) => elemStress.push({ n1: b.n1, n2: b.n2, tipo: "beam", val: b.val / maxBeamDemand }));
+    let maxDiagDemand = 1e-6;
+    const diagRaw: { n1: number; n2: number; val: number }[] = [];
+    modelo.diagElemIdx.forEach((ei) => {
+      const el = modelo.elements[ei];
+      const fl = unit.forces[ei];
+      const demand = Math.abs(fl.N1) * VtorreT;
+      maxDiagDemand = Math.max(maxDiagDemand, demand);
+      diagRaw.push({ n1: el.n1, n2: el.n2, val: demand });
+    });
+    diagRaw.forEach((d) => elemStress.push({ n1: d.n1, n2: d.n2, tipo: "diag", val: d.val / maxDiagDemand }));
+
     return {
       modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff,
       PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
-      bArrT, dArrT, dDiagT, perfilColumna, perfilViga,
+      bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
     };
   }
 
@@ -885,10 +966,11 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   }
 
   const {
+    modelo: modeloFinal,
     WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre,
     PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
-    bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga,
+    bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
   } = analizarTorreMatricial(dCol);
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
@@ -973,6 +1055,9 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     Dcim: Dcim.toFixed(2), asArr: fmt(asArr, 2),
     PuCol: PuCol.toFixed(2), MuCol: MuCol.toFixed(2), derivaRatio: derivaRatio.toFixed(4),
     mPtsColumna: packPts(perfilColumna), mPtsViga: packPts(perfilViga),
+    vPtsColumna: packPts(perfilColumnaV), vPtsViga: packPts(perfilVigaV),
+    nodes3D: packNodes3D(modeloFinal.nodes), elems3D: packElemStress(elemStress),
+    hcgCuba: (cuba.Htotal / 2).toFixed(2),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -1044,6 +1129,8 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const Wtotal = cuba.pesoTotalCuba + pesoFuste;
   const Vfuste = (sismo.Z * sismo.U * sismo.S * Csis * Wtotal) / Rfuste;
   const Mfuste = Vfuste * hcg;
+  const perfilFusteM = [{ x: 0, M: Mfuste }, { x: Htorre, M: Mfuste - Vfuste * Htorre }];
+  const perfilFusteV = [{ x: 0, M: Vfuste }, { x: Htorre, M: Vfuste }];
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
   const DcimAutoF = Dcim <= 0;
@@ -1135,6 +1222,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     ...cuba.dims,
     Dfuste: Dfuste.toFixed(2), eFuste: eFuste.toFixed(3), Htorre: Htorre.toFixed(2), Dcim: Dcim.toFixed(2),
     AsFuste: fmt(AsFusteFinal, 1), derivaRatio: derivaTubo.derivaRatio.toFixed(4),
+    mPtsFuste: packPts(perfilFusteM), vPtsFuste: packPts(perfilFusteV),
   };
 
   const recomendacion = cuba.Wagua < 500

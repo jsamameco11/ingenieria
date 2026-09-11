@@ -745,10 +745,6 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "12") {
         blocks.push({ type: "figure", part: "mMuro" });
-        blocks.push({ type: "figure", part: "mAnillo" });
-      }
-      if (mod.diagram === "reservorioApoyado" && s.n === "13") {
-        blocks.push({ type: "figure", part: "mSecMuro" });
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "15") {
         blocks.push({ type: "figure", part: "mSecLosa" });
@@ -758,8 +754,6 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "07") {
         blocks.push({ type: "figure", part: "mMuro" });
-        blocks.push({ type: "figure", part: "mAnillo" });
-        blocks.push({ type: "figure", part: "mSecMuro" });
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "08") {
         blocks.push({ type: "figure", part: "mSecDomo" });
@@ -767,13 +761,14 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "10") {
         blocks.push({ type: "figure", part: "mSecDomoInf" });
       }
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "13") {
+        blocks.push({ type: "figure", part: "mTorre3D" });
+      }
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "15") {
         blocks.push({ type: "figure", part: "mColumna" });
-        blocks.push({ type: "figure", part: "mSecColumna" });
       }
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16") {
         blocks.push({ type: "figure", part: "mViga" });
-        blocks.push({ type: "figure", part: "mSecViga" });
       }
       if (mod.diagram === "tanqueElevadoFuste" && s.n === "15") {
         blocks.push({ type: "figure", part: "mSecFuste" });

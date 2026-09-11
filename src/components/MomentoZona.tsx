@@ -1,4 +1,4 @@
-import { FichaSeccionFig } from "./DiagramTanques";
+import { ElementoDiagramaFig, FichaSeccionFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
 
 export function unpackMomentos(s: string) {
   return String(s || "")
@@ -420,49 +420,24 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
   if (kind === "reservorioApoyado" || kind === "tanqueElevadoColumnas" || kind === "tanqueElevadoFuste") {
     const L = nv(values, kind === "reservorioApoyado" ? "HL" : "h1", 4);
     if (part === "mMuro") {
-      const pts = unpackMomentos(sv(values, "mPtsEnv"));
+      const ptsM = unpackMomentos(sv(values, "mPtsEnv"));
+      const ptsN = unpackMomentos(sv(values, "nPtsEnv"));
+      const ptsV = unpackMomentos(sv(values, "vPtsEnv"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento vertical M(y)", unidad: "t·m/m", pts: ptsM, nota: "M_y=−D_p·w''" });
+      if (ptsN.length >= 2) diagramas.push({ etiqueta: "Tensión de anillo N(y)", unidad: "t/m", pts: ptsN, nota: "N_θ=(Ec·e/R)·w(y)" });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(y)", unidad: "t/m", pts: ptsV, nota: "V=−D_p·w'''" });
       return (
-        <MomentoZonaFig
-          zona="Pared del reservorio — momento vertical (flexión)"
-          formula="D_p·w''''+(Ec·e/R²)w=p(y)   ·   M_y=−D_p·w''   (envolvente hidrostática + sismo SRSS)"
-          L={L}
-          shape="polyline"
-          pts={pts.length >= 2 ? pts : undefined}
-          acero={sv(values, "asVert")}
-          cara="base empotrada (M) → corona libre (M≈0)"
-          unidad="t·m/m"
-          leftLabel="Base (empotrada)"
-          rightLabel="Corona (libre)"
-          note="Lámina cilíndrica resuelta por integración numérica (equivalente a las tablas PCA). y medido desde la base."
-        />
-      );
-    }
-    if (part === "mAnillo") {
-      const pts = unpackMomentos(sv(values, "nPtsEnv"));
-      return (
-        <MomentoZonaFig
-          zona="Pared del reservorio — tensión de anillo (aro)"
-          formula="N_θ = (Ec·e/R)·w(y)   (envolvente hidrostática + sismo SRSS)"
-          L={L}
-          shape="polyline"
-          pts={pts.length >= 2 ? pts : undefined}
-          acero={sv(values, "asHoriz")}
-          cara="tracción — acero horizontal en ambas caras"
-          unidad="t/m"
-          leftLabel="Base (empotrada)"
-          rightLabel="Corona (libre)"
-          note="La tensión de anillo se anula en la base por el empotramiento con la losa de fondo (efecto de borde)."
-        />
-      );
-    }
-    if (part === "mSecMuro") {
-      return (
-        <FichaSeccionFig
-          titulo="Pared de la cuba"
+        <ElementoDiagramaFig
+          titulo="Pared de la cuba — lámina cilíndrica"
+          formula="D_p·w''''+(Ec·e/R²)w=p(y)   ·   base empotrada, corona libre (envolvente hidrostática + sismo SRSS)"
           shape="franja"
           dim1={nv(values, "tMuro", 0.25) * 100}
+          ejeLabel={`y=0 (base) → y=${L.toFixed(2)} m (corona)`}
+          diagramas={diagramas}
           aceroPrincipal={`Horizontal (anillo): ${sv(values, "asHoriz", "—")}`}
           aceroSecundario={`Vertical (flexión): ${sv(values, "asVert", "—")}`}
+          nota="Lámina cilíndrica resuelta por integración numérica (equivalente a las tablas PCA)."
         />
       );
     }
@@ -501,73 +476,66 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
   }
   if (kind === "tanqueElevadoColumnas") {
+    if (part === "mTorre3D") {
+      return <TorreMatricial3D values={values} />;
+    }
     if (part === "mColumna") {
-      const pts = unpackMomentos(sv(values, "mPtsColumna"));
+      const ptsM = unpackMomentos(sv(values, "mPtsColumna"));
+      const ptsV = unpackMomentos(sv(values, "vPtsColumna"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento M(y)", unidad: "t·m", pts: ptsM, nota: "M=√(My²+Mz²)" });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(y)", unidad: "t", pts: ptsV, nota: "V=√(Vy²+Vz²)" });
       return (
-        <MomentoZonaFig
-          zona="Torre — columna más solicitada (diagrama exacto del modelo matricial)"
-          formula="M(y) = √(My(y)²+Mz(y)²)   —   resultado directo del método de la rigidez directa (sismo), superpuesto a la carga axial de gravedad"
-          L={nv(values, "Htorre", 14)}
-          shape="polyline"
-          pts={pts.length >= 2 ? pts : undefined}
-          acero={sv(values, "asCol", "ver diseño P–M")}
-          cara="tracción en la cara de sotavento bajo sismo"
-          unidad="t·m"
-          leftLabel="Base (empotrada)"
-          rightLabel="Corona (bajo la cuba)"
-          note="Diagrama de la columna gobernante, extraído nudo a nudo del análisis matricial 3D (no es una envolvente aproximada)."
+        <ElementoDiagramaFig
+          titulo="Columna de la torre — más solicitada"
+          formula="M(y), V(y) — resultado directo del método de la rigidez directa (sismo), superpuesto a la carga axial de gravedad"
+          shape="circular"
+          dim1={nv(values, "dCol", 0.5) * 100}
+          ejeLabel={`y=0 (base) → y=${nv(values, "Htorre", 14).toFixed(2)} m (corona)`}
+          diagramas={diagramas}
+          aceroPrincipal="ρ=2,0 % · verificar con el diagrama de interacción P–M–M"
+          aceroSecundario={`${sv(values, "nCol", "—")} columnas en el perímetro`}
+          nota="Diagrama de la columna gobernante, extraído nudo a nudo del análisis matricial 3D (no es una envolvente aproximada)."
         />
       );
     }
     if (part === "mViga") {
-      const pts = unpackMomentos(sv(values, "mPtsViga"));
+      const ptsM = unpackMomentos(sv(values, "mPtsViga"));
+      const ptsV = unpackMomentos(sv(values, "vPtsViga"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento M(x)", unidad: "t·m", pts: ptsM });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(x)", unidad: "t", pts: ptsV });
       return (
-        <MomentoZonaFig
-          zona="Torre — viga de arriostre más solicitada (diagrama exacto del modelo matricial)"
-          formula="M(x) — resultado directo del elemento de anillo más solicitado bajo sismo"
-          L={1}
-          shape="polyline"
-          pts={pts.length >= 2 ? pts : undefined}
-          acero={sv(values, "asArr", "ver diseño")}
-          cara="según el sentido del sismo — se arma simétrica en ambas caras"
-          unidad="t·m"
-          leftLabel="Columna izquierda"
-          rightLabel="Columna derecha"
-          note="Elemento entre dos columnas adyacentes en el nivel de arriostre más solicitado."
-        />
-      );
-    }
-    if (part === "mSecColumna") {
-      return (
-        <FichaSeccionFig
-          titulo="Columna de la torre"
-          shape="circular"
-          dim1={nv(values, "dCol", 0.5) * 100}
-          aceroPrincipal={`ρ=2,0 % · verificar con el diagrama de interacción P–M–M`}
-          aceroSecundario={`${sv(values, "nCol", "—")} columnas en el perímetro`}
-        />
-      );
-    }
-    if (part === "mSecViga") {
-      return (
-        <FichaSeccionFig
-          titulo="Viga de arriostre"
+        <ElementoDiagramaFig
+          titulo="Viga de arriostre — más solicitada"
+          formula="M(x), V(x) — resultado directo del elemento de anillo más solicitado bajo sismo"
           shape="franja"
           dim1={nv(values, "dArr", 0.4) * 100}
+          ejeLabel="Columna izquierda → columna derecha"
+          diagramas={diagramas}
           aceroPrincipal={`As=${sv(values, "asArr", "—")} cm²`}
           aceroSecundario={`Sección ${(nv(values, "bArr", 0.3) * 100).toFixed(0)}×${(nv(values, "dArr", 0.4) * 100).toFixed(0)} cm`}
+          nota="Elemento entre dos columnas adyacentes en el nivel de arriostre más solicitado; se arma simétrica en ambas caras."
         />
       );
     }
   }
   if (kind === "tanqueElevadoFuste") {
     if (part === "mSecFuste") {
+      const ptsM = unpackMomentos(sv(values, "mPtsFuste"));
+      const ptsV = unpackMomentos(sv(values, "vPtsFuste"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento M(y)", unidad: "t·m", pts: ptsM, nota: "M(y)=Mu−Vu·y" });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(y)", unidad: "t", pts: ptsV, nota: "V constante (voladizo, carga única en la cuba)" });
       return (
-        <FichaSeccionFig
-          titulo="Fuste (sección anular)"
+        <ElementoDiagramaFig
+          titulo="Fuste — sección anular en voladizo"
+          formula="σ=P/A±Mc/I   ·   M(y), V(y) del tubo en voladizo bajo la fuerza sísmica en la cuba"
           shape="anular"
           dim1={nv(values, "Dfuste", 3) * 100}
           dim2={nv(values, "eFuste", 0.25) * 100}
+          ejeLabel={`y=0 (base) → y=${nv(values, "Htorre", 16).toFixed(2)} m (corona)`}
+          diagramas={diagramas}
           aceroPrincipal={`As=${sv(values, "AsFuste", "—")} cm² (dos capas)`}
           aceroSecundario="Sección hueca de concreto armado, en voladizo"
         />
