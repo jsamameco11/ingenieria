@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Block, MemoriaDoc } from "../lib/memoria";
+import { Formula } from "../components/Formula";
 
 type PhotoBlock = Extract<Block, { type: "photo" }>;
 type TableBlock = Extract<Block, { type: "table" }>;
@@ -278,7 +279,7 @@ function BlockView({
         {b.formula ? (
           <div className="paso-row">
             <span className="paso-lab">Fórmula</span>
-            <div className="eq">{b.formula}</div>
+            <Formula tex={b.formulaTex} fallback={b.formula} />
           </div>
         ) : null}
         {b.desarrollo && b.desarrollo.length ? (

@@ -683,6 +683,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         n: s.n || String(i + 1).padStart(2, "0"),
         titulo: s.title,
         formula: s.formula ?? "",
+        formulaTex: s.formulaTex,
         sustituye: s.substitution || "Se aplican los datos de la tabla precedente.",
         resultado: s.result,
         interpreta: s.note,

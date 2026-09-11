@@ -4,6 +4,7 @@ import App from "./App";
 import { isControlSurface } from "./lib/auth/deviceLock";
 import { AuthProvider } from "./ui/AuthProvider";
 import "./styles.css";
+import "katex/dist/katex.min.css";
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { err: string }> {
   state = { err: "" };

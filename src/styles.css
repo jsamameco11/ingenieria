@@ -964,6 +964,10 @@ button.nav-label.nav-label-white {
   word-break: break-word;
 }
 .eq span { float: right; font-style: normal; font-family: var(--ui); font-size: 12px; color: var(--brass); }
+.eq-tex { font-style: normal; overflow-x: auto; overflow-y: hidden; overflow-wrap: normal; word-break: normal; white-space: nowrap; min-width: 0; max-width: 100%; }
+.eq-tex .katex-display { margin: 0; }
+.eq-tex .katex { font-size: 1.05em; white-space: nowrap; }
+.eq-tex .katex * { overflow-wrap: normal; word-break: normal; }
 
 .kv { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 13.5px; }
 .kv td { padding: 4px 6px; vertical-align: baseline; }
@@ -1116,7 +1120,7 @@ button.nav-label.nav-label-white {
 .paso-nota { color: #5c5c5c; font-style: italic; }
 .paso-row {
   display: grid;
-  grid-template-columns: 108px 1fr;
+  grid-template-columns: 108px minmax(0, 1fr);
   gap: 8px 12px;
   align-items: start;
   margin: 0 0 10px;
@@ -5760,6 +5764,24 @@ button.pre-esp-pill:focus-visible {
   font-size: 12.5px;
   border-bottom: 1px solid #cfe6c9;
 }
+/* Al hacer scroll dentro de la tabla, el encabezado (KPIs) y la barra de herramientas se
+   colapsan; solo queda visible la barra de periodos ("Valorización N.° X"), que nunca forma
+   parte del área que se desplaza, así que se mantiene fija sin necesidad de position:sticky. */
+.valz-shell .msp-top,
+.valz-shell .msp-ribbon {
+  overflow: hidden;
+  max-height: 420px;
+  transition: max-height 0.22s ease, padding 0.2s ease, opacity 0.16s ease, border-color 0.16s ease;
+}
+.valz-shell .msp-top.is-collapsed,
+.valz-shell .msp-ribbon.is-collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  border-bottom-color: transparent;
+  pointer-events: none;
+}
 .valz-periodos {
   display: flex;
   gap: 8px;
@@ -5767,6 +5789,8 @@ button.pre-esp-pill:focus-visible {
   overflow-x: auto;
   background: #e8e2d4;
   border-bottom: 1px solid #c9bfa8;
+  position: relative;
+  z-index: 1;
 }
 .valz-periodo-tab {
   flex: 0 0 auto;
@@ -6047,6 +6071,8 @@ button.pre-esp-pill:focus-visible {
   }
   .msp-body { grid-template-columns: 1fr; }
   .msp-top { flex-direction: column; align-items: flex-start; }
+  .msp-kpis { flex-wrap: wrap; gap: 10px 18px; }
+  .valz-dg-card { grid-template-columns: 1fr; }
   .msp-cal-grid { grid-template-columns: 1fr 1fr; }
   .msp-week { flex-wrap: wrap; }
   .xls-tabs {

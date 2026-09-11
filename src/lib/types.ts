@@ -19,6 +19,8 @@ export type CalcStep = {
   n: string;
   title: string;
   formula?: string;
+  /** Versión en LaTeX de `formula`, renderizada con KaTeX (pantalla, impresión/PDF y Word). Si no está presente, se usa `formula` como texto plano. */
+  formulaTex?: string;
   substitution?: string;
   result: string;
   note?: string;

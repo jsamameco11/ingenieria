@@ -19,6 +19,8 @@ export type Block =
       n: string;
       titulo: string;
       formula: string;
+      /** Versión en LaTeX de `formula`, renderizada con KaTeX. Si falta, se usa `formula` como texto plano. */
+      formulaTex?: string;
       sustituye: string;
       resultado: string;
       interpreta?: string;
