@@ -475,6 +475,98 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
       );
     }
   }
+  if (kind === "reservorioCuadrado") {
+    if (part === "mMuroVert") {
+      const ptsM = unpackMomentos(sv(values, "mPtsVert"));
+      const ptsV = unpackMomentos(sv(values, "vPtsVert"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento vertical M(y)", unidad: "t·m/m", pts: ptsM, nota: "franja empotrada-empotrada" });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(y)", unidad: "t/m", pts: ptsV });
+      return (
+        <ElementoDiagramaFig
+          titulo="Muro — flexión vertical (dirección gobernante)"
+          formula="Viga empotrada-empotrada de luz HL bajo carga lineal — envolvente hidrostática + sismo SRSS"
+          shape="franja"
+          dim1={nv(values, "tMuro", 0.25) * 100}
+          ejeLabel={`y=0 (base) → y=${nv(values, "HL", 3.5).toFixed(2)} m (corona, bajo el techo)`}
+          diagramas={diagramas}
+          aceroPrincipal={`Vertical: ${sv(values, "asVert", "—")}`}
+          aceroSecundario="Empotrado en la losa de fondo y en la losa de techo"
+        />
+      );
+    }
+    if (part === "mMuroHorLy") {
+      const ptsM = unpackMomentos(sv(values, "mPtsHorLy"));
+      const ptsV = unpackMomentos(sv(values, "vPtsHorLy"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento horizontal M(x)", unidad: "t·m/m", pts: ptsM });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(x)", unidad: "t/m", pts: ptsV });
+      return (
+        <ElementoDiagramaFig
+          titulo="Muro de longitud Ly — flexión horizontal entre esquinas"
+          formula="Viga empotrada-empotrada de luz Ly bajo la presión de la base (dirección X del sismo)"
+          shape="franja"
+          dim1={nv(values, "tMuro", 0.25) * 100}
+          ejeLabel="Esquina izquierda → esquina derecha"
+          diagramas={diagramas}
+          aceroPrincipal={`Esquina: ${sv(values, "asHorEsq", "—")}`}
+          aceroSecundario={`Vano: ${sv(values, "asHorVano", "—")}`}
+          nota="Método simplificado: muro empotrado en ambas esquinas por el muro perpendicular."
+        />
+      );
+    }
+    if (part === "mMuroHorLx") {
+      const ptsM = unpackMomentos(sv(values, "mPtsHorLx"));
+      const ptsV = unpackMomentos(sv(values, "vPtsHorLx"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento horizontal M(x)", unidad: "t·m/m", pts: ptsM });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(x)", unidad: "t/m", pts: ptsV });
+      return (
+        <ElementoDiagramaFig
+          titulo="Muro de longitud Lx — flexión horizontal entre esquinas"
+          formula="Viga empotrada-empotrada de luz Lx bajo la presión de la base (dirección Y del sismo)"
+          shape="franja"
+          dim1={nv(values, "tMuro", 0.25) * 100}
+          ejeLabel="Esquina izquierda → esquina derecha"
+          diagramas={diagramas}
+          aceroPrincipal={`Esquina: ${sv(values, "asHorEsq", "—")}`}
+          aceroSecundario={`Vano: ${sv(values, "asHorVano", "—")}`}
+          nota="Método simplificado: muro empotrado en ambas esquinas por el muro perpendicular."
+        />
+      );
+    }
+    if (part === "mTecho") {
+      const ptsM = unpackMomentos(sv(values, "mPtsTecho"));
+      const ptsV = unpackMomentos(sv(values, "vPtsTecho"));
+      const diagramas: DiagramaSpec[] = [];
+      if (ptsM.length >= 2) diagramas.push({ etiqueta: "Momento M(x)", unidad: "t·m/m", pts: ptsM });
+      if (ptsV.length >= 2) diagramas.push({ etiqueta: "Cortante V(x)", unidad: "t/m", pts: ptsV });
+      return (
+        <ElementoDiagramaFig
+          titulo="Losa de techo — una vía, luz corta"
+          formula="Viga empotrada-empotrada de luz Ly bajo wu=1,4·γc·e+1,7·s/c"
+          shape="franja"
+          dim1={nv(values, "tTecho", 0.15) * 100}
+          ejeLabel="Muro izquierdo → muro derecho (dirección Ly)"
+          diagramas={diagramas}
+          aceroPrincipal={`Esquina: ${sv(values, "asTechoEsq", "—")}`}
+          aceroSecundario={`Vano: ${sv(values, "asTechoVano", "—")}`}
+          nota="Dirección larga (Lx): malla mínima de temperatura."
+        />
+      );
+    }
+    if (part === "mSecLosa") {
+      return (
+        <FichaSeccionFig
+          titulo="Losa de fondo"
+          shape="franja"
+          dim1={nv(values, "tLosa", 0.2) * 100}
+          aceroPrincipal={`Ambos sentidos: ${sv(values, "asLosa", "—")}`}
+          aceroSecundario="Apoyada sobre subrasante mejorada"
+        />
+      );
+    }
+  }
   if (kind === "tanqueElevadoColumnas") {
     if (part === "mTorre3D") {
       return <TorreMatricial3D values={values} />;

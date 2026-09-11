@@ -5,7 +5,7 @@ import { decodeBeam, planDespiece } from "../lib/beam2d";
 import { decodeDemands, decodePts } from "../lib/colpro";
 import { barByName } from "../lib/types";
 import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, parseHolesText, parsePolyText, resolvePmForma, steelZonesFor } from "../lib/pmSections";
-import { ReservorioApoyadoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
+import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
 
 const DimLive = createContext<{
   values: Record<string, string>;
@@ -293,6 +293,8 @@ export function Diagram({
       return <MuroContencion values={values} {...p} />;
     case "reservorioApoyado":
       return <ReservorioApoyadoCroquis values={values} />;
+    case "reservorioCuadrado":
+      return <ReservorioCuadradoCroquis values={values} />;
     case "tanqueElevadoColumnas":
       return <TanqueElevadoColumnasCroquis values={values} />;
     case "tanqueElevadoFuste":

@@ -1238,8 +1238,285 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   );
 };
 
+/* ---------------------------------------------------------------------- *
+ * 10. RESERVORIO CUADRADO / RECTANGULAR — muros planos en flexión         *
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Viga empotrada-empotrada de luz L bajo carga distribuida linealmente entre w0 (x=0) y w1 (x=L).
+ * Resultado exacto por superposición de dos casos clásicos verificados: carga uniforme (wL²/12 en
+ * ambos apoyos) + carga triangular pura entre 0 y (w1−w0) (wL²/30 en el extremo de carga nula,
+ * wL²/20 en el extremo de carga máxima) — válido porque la superposición es exacta en vigas elásticas.
+ */
+function vigaFijaLineal(w0: number, w1: number, L: number, n = 20) {
+  const dw = w1 - w0;
+  const MA = (w0 * L * L) / 12 + (dw * L * L) / 30;
+  const MB = (w0 * L * L) / 12 + (dw * L * L) / 20;
+  const pts: { x: number; M: number }[] = [];
+  const vpts: { x: number; M: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const x = (i / n) * L;
+    const Msimple = (w0 * x * (L - x)) / 2 + (dw / (6 * L)) * (L * L * x - x * x * x);
+    const M = Msimple - MA * (1 - x / L) - MB * (x / L);
+    const V = w0 * (L / 2 - x) + (dw / (6 * L)) * (L * L - 3 * x * x) - (dw * L) / 60;
+    pts.push({ x, M });
+    vpts.push({ x, M: V });
+  }
+  const Mmid = Math.max(...pts.map((p) => p.M));
+  return { MA, MB, Mmid, pts, vpts };
+}
+
+/** Envolvente puntual (hidrostática + SRSS sismo) de dos series de diagramas M(x)/V(x) ya calculadas. */
+function envolverDiagramas(
+  hs: { pts: { x: number; M: number }[]; vpts: { x: number; M: number }[] },
+  imp: { pts: { x: number; M: number }[]; vpts: { x: number; M: number }[] },
+  conv: { pts: { x: number; M: number }[]; vpts: { x: number; M: number }[] },
+) {
+  const n = hs.pts.length;
+  const mPts: { x: number; M: number }[] = [];
+  const vPts: { x: number; M: number }[] = [];
+  let Mmax = 0, Vmax = 0;
+  for (let i = 0; i < n; i++) {
+    const Msis = Math.sqrt(imp.pts[i].M ** 2 + conv.pts[i].M ** 2);
+    const Vsis = Math.sqrt(imp.vpts[i].M ** 2 + conv.vpts[i].M ** 2);
+    const Menv = Math.abs(hs.pts[i].M) + Msis;
+    const Venv = Math.abs(hs.vpts[i].M) + Vsis;
+    mPts.push({ x: hs.pts[i].x, M: Menv * (hs.pts[i].M >= 0 ? 1 : -1) });
+    vPts.push({ x: hs.vpts[i].x, M: Venv * (hs.vpts[i].M >= 0 ? 1 : -1) });
+    Mmax = Math.max(Mmax, Menv);
+    Vmax = Math.max(Vmax, Venv);
+  }
+  return { mPts, vPts, Mmax, Vmax };
+}
+
+export const reservorioCuadrado: Engine = (raw) => {
+  const Vreq = num(raw, "V", 50);
+  const rHB = num(raw, "rHB", 0.85);
+  const rLB = Math.max(1, num(raw, "rLB", 1));
+  const bl = num(raw, "bl", 0.3);
+  const gammaC = num(raw, "gammaC", 2.4);
+  const fc = num(raw, "fc", 210);
+  const fy = num(raw, "fy", 4200);
+  const scTecho = num(raw, "scTecho", 0.15);
+  const qadm = num(raw, "qadm", 2);
+  const mu = num(raw, "mu", 0.5);
+  const gammaW = 1;
+  const Sn = 1.3;
+
+  // V = Lx·Ly·HL = (rLB·Ly)·Ly·(rHB·Ly) = rLB·rHB·Ly³
+  const Ly0 = Math.cbrt(Vreq / Math.max(0.05, rLB * rHB));
+  const Ly = Math.max(1.5, Math.round(Ly0 / 0.25) * 0.25);
+  const Lx = Math.max(Ly, Math.round((rLB * Ly) / 0.25) * 0.25);
+  const HL = Vreq / (Lx * Ly);
+  const Htotal = HL + bl;
+
+  const tMuroFlex = Math.ceil(Math.max(0.2, HL / 14) / 0.025) * 0.025;
+  const tTecho = Math.max(0.1, Math.round((Ly / 28 / 0.025)) * 0.025);
+  const perimetro = 2 * (Lx + Ly);
+  const pesoAgua = gammaW * Lx * Ly * HL;
+
+  const sismo = leerSismo(raw);
+  const hnsX = housner(Lx, HL, pesoAgua);
+  const hnsY = housner(Ly, HL, pesoAgua);
+  const perX = periodoImpulsivo(Lx, HL, tMuroFlex, fc, gammaC);
+  const perY = periodoImpulsivo(Ly, HL, tMuroFlex, fc, gammaC);
+
+  function demandaDireccion(hns: Housner, per: { Ti: number }) {
+    const Ci = e030C(per.Ti, sismo.Tp, sismo.Tl);
+    const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
+    const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
+    const SaConv = sismo.Z * sismo.U * sismo.S * Cc;
+    const Pi = (SaImp * hns.Wi) / sismo.Rwi;
+    const Pc = (SaConv * hns.Wc) / sismo.Rwc;
+    return { Ci, Cc, SaImp, SaConv, Pi, Pc, Vbasal: Math.sqrt(Pi * Pi + Pc * Pc) };
+  }
+  const demX = demandaDireccion(hnsX, perX);
+  const demY = demandaDireccion(hnsY, perY);
+
+  /** Analiza un par de muros (longitud Lwall) sometidos a la demanda de la dirección perpendicular. */
+  function analizarMuro(Lwall: number, hns: Housner, dem: ReturnType<typeof demandaDireccion>) {
+    const presImp = (y: number) => presionDinamica(dem.Pi, HL, hns.hiEBP, y);
+    const presConv = (y: number) => presionDinamica(dem.Pc, HL, hns.hcEBP, y);
+    const vertHs = vigaFijaLineal(gammaW * HL, 0, HL);
+    const vertImp = vigaFijaLineal(presImp(0), presImp(HL), HL);
+    const vertConv = vigaFijaLineal(presConv(0), presConv(HL), HL);
+    const vert = envolverDiagramas(vertHs, vertImp, vertConv);
+
+    const pBase = gammaW * HL + Math.sqrt(presImp(0) ** 2 + presConv(0) ** 2);
+    const horiz = vigaFijaLineal(pBase, pBase, Lwall);
+
+    return { vert, horiz, pBase };
+  }
+
+  const muroLy = analizarMuro(Ly, hnsX, demX);
+  const muroLx = analizarMuro(Lx, hnsY, demY);
+
+  const MvertMax = Math.max(muroLy.vert.Mmax, muroLx.vert.Mmax);
+  const VvertMax = Math.max(muroLy.vert.Vmax, muroLx.vert.Vmax);
+  const MhorEsq = Math.max(muroLy.horiz.MA, muroLy.horiz.MB, muroLx.horiz.MA, muroLx.horiz.MB);
+  const MhorVano = Math.max(muroLy.horiz.Mmid, muroLx.horiz.Mmid);
+  const VhorMax = Math.max(...muroLy.horiz.vpts.map((p) => Math.abs(p.M)), ...muroLx.horiz.vpts.map((p) => Math.abs(p.M)));
+  const VmuroMax = Math.max(VvertMax, VhorMax);
+
+  // El espesor final del muro debe satisfacer flexión (predimensionado) Y cortante Vu≤φVc=0,85·0,53√f'c·b·d;
+  // se resuelve en forma cerrada (sin iterar) despejando "d" directamente de la demanda de cortante.
+  const dReqCorteCm = (VmuroMax * 1000) / (0.85 * 0.53 * Math.sqrt(fc) * 100);
+  const tMuroCorte = Math.ceil((dReqCorteCm + 5) / 2.5) * 0.025;
+  const tMuro = Math.max(tMuroFlex, tMuroCorte);
+  const tLosa = Math.max(0.2, tMuro - 0.025);
+  const pesoMuro = gammaC * perimetro * tMuro * Htotal;
+  const pesoTecho = gammaC * Lx * Ly * tTecho;
+  const pesoLosa = gammaC * Lx * Ly * tLosa;
+  const Wtotal = pesoMuro + pesoTecho + pesoLosa + pesoAgua;
+
+  const dCmMuro = tMuro * 100 - 5;
+  const flexVert = flexionAs(Sn * MvertMax, dCmMuro, fc, fy);
+  const asVertFinal = Math.max(flexVert.ok ? flexVert.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
+  const barVert = elegirBarraAnillo(asVertFinal);
+
+  const flexHorEsq = flexionAs(Sn * MhorEsq, dCmMuro, fc, fy);
+  const asHorEsqFinal = Math.max(flexHorEsq.ok ? flexHorEsq.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
+  const barHorEsq = elegirBarraAnillo(asHorEsqFinal);
+
+  const flexHorVano = flexionAs(Sn * MhorVano, dCmMuro, fc, fy);
+  const asHorVanoFinal = Math.max(flexHorVano.ok ? flexHorVano.As : asMinTemp(dCmMuro), asMinTemp(dCmMuro));
+  const barHorVano = elegirBarraAnillo(asHorVanoFinal);
+
+  const rhoHoriz = asHorVanoFinal / (100 * dCmMuro);
+  const phiVcMuro = (0.85 * 0.53 * Math.sqrt(fc) * 100 * dCmMuro) / 1000;
+  const muroCortanteOk = VmuroMax <= phiVcMuro;
+
+  // Losa de techo: una vía, luz corta Ly, empotrada-empotrada (continuidad monolítica con los muros).
+  const wuTecho = 1.4 * gammaC * tTecho + 1.7 * scTecho;
+  const techo = vigaFijaLineal(wuTecho, wuTecho, Ly);
+  const dCmTecho = tTecho * 100 - 2.5;
+  const flexTechoEsq = flexionAs(techo.MA, dCmTecho, fc, fy);
+  const asTechoEsq = Math.max(flexTechoEsq.ok ? flexTechoEsq.As : asMinTemp(dCmTecho), asMinTemp(dCmTecho));
+  const barTechoEsq = elegirBarraAnillo(asTechoEsq);
+  const flexTechoVano = flexionAs(techo.Mmid, dCmTecho, fc, fy);
+  const asTechoVano = Math.max(flexTechoVano.ok ? flexTechoVano.As : asMinTemp(dCmTecho), asMinTemp(dCmTecho));
+  const barTechoVano = elegirBarraAnillo(asTechoVano);
+
+  // Losa de fondo: acero mínimo + momento de borde transferido desde la base del muro.
+  const Mborde = 0.7 * MvertMax;
+  const dCmLosa = tLosa * 100 - 7;
+  const flexLosa = flexionAs(Mborde, dCmLosa, fc, fy);
+  const asLosaFinal = Math.max(flexLosa.ok ? flexLosa.As : asMinTemp(dCmLosa), asMinTemp(dCmLosa));
+  const barLosa = elegirBarraAnillo(asLosaFinal);
+
+  // Estabilidad global — se evalúa cada dirección con su propio brazo de palanca y se reporta la gobernante.
+  const MvolteoDirX = Math.sqrt((demX.Pi * hnsX.hiIBP) ** 2 + (demX.Pc * hnsX.hcIBP) ** 2);
+  const MvolteoDirY = Math.sqrt((demY.Pi * hnsY.hiIBP) ** 2 + (demY.Pc * hnsY.hcIBP) ** 2);
+  const FSvX = (Wtotal * (Lx / 2)) / Math.max(MvolteoDirX, 1e-6);
+  const FSvY = (Wtotal * (Ly / 2)) / Math.max(MvolteoDirY, 1e-6);
+  const FSvolteo = Math.min(FSvX, FSvY);
+  const VbasalGob = Math.max(demX.Vbasal, demY.Vbasal);
+  const FSdeslizamiento = (mu * Wtotal) / Math.max(VbasalGob, 1e-6);
+
+  const areaLosa = Lx * Ly;
+  const qServicio = Wtotal / areaLosa;
+
+  const steps: CalcStep[] = [
+    { n: "01", title: "Volumen de diseño y geometría en planta", formula: "V = Lx·Ly·HL   ·   Lx = rL/B·Ly   ·   HL = rH/B·Ly",
+      substitution: `V=${fmt(Vreq, 1)} m³ · Lx/Ly=${fmt(rLB, 2)} · HL/Ly=${fmt(rHB, 2)}`,
+      result: `Lx=${fmt(Lx, 2)} m · Ly=${fmt(Ly, 2)} m · HL=${fmt(HL, 2)} m (V real=${fmt(Lx * Ly * HL, 1)} m³)` },
+    { n: "02", title: "Borde libre y altura total", formula: "H = HL + b.l.",
+      result: `b.l.=${fmt(bl, 2)} m → H=${fmt(Htotal, 2)} m` },
+    { n: "03", title: "Predimensionamiento de espesores", formula: "e_muro=máx(HL/14 ; d_requerido por cortante Vu≤φVc) · e_losa=e_muro−2,5cm · e_techo≈Ly/28 (losa maciza en una vía)",
+      substitution: `e_muro por flexión=${fmt(tMuroFlex * 100, 1)} cm · e_muro por cortante=${fmt(tMuroCorte * 100, 1)} cm`,
+      result: `e_muro=${fmt(tMuro * 100, 1)} cm (${tMuroCorte > tMuroFlex ? "gobierna el cortante" : "gobierna la flexión"}) · e_losa=${fmt(tLosa * 100, 1)} cm · e_techo=${fmt(tTecho * 100, 1)} cm` },
+    { n: "04", title: "Metrado de pesos propios", formula: "Wm=γc·perímetro·e_muro·H · Wt=γc·Lx·Ly·e_techo · Wf=γc·Lx·Ly·e_losa · Wa=γw·Lx·Ly·HL",
+      table: { headers: ["Elemento", "Peso (t)"], rows: [
+        ["Muros perimetrales", fmt(pesoMuro, 2)],
+        ["Losa de techo", fmt(pesoTecho, 2)],
+        ["Losa de fondo", fmt(pesoLosa, 2)],
+        ["Agua almacenada", fmt(pesoAgua, 2)],
+        ["Total", fmt(Wtotal, 2)],
+      ] },
+      result: `W total = ${fmt(Wtotal, 2)} t` },
+    { n: "05", title: "Presión hidrostática sobre los muros", formula: "p(y) = γw·(HL − y)",
+      result: `p(0)=${fmt(gammaW * HL, 3)} t/m² (base) · p(HL)=0 (superficie)` },
+    { n: "06", title: "Análisis sísmico — Housner por dirección (ACI 350.3-06, L sustituye a D)",
+      formula: "Wi/Wa=tanh(0,866L/HL)/(0,866L/HL) · Wc/Wa=0,230(L/HL)tanh(3,68HL/L) — L = dimensión paralela al sismo",
+      substitution: `Dirección X (L=Lx=${fmt(Lx, 2)} m): Lx/HL=${fmt(hnsX.DH, 3)} · Dirección Y (L=Ly=${fmt(Ly, 2)} m): Ly/HL=${fmt(hnsY.DH, 3)}`,
+      result: `X: Wi=${fmt(hnsX.Wi, 2)} t, Wc=${fmt(hnsX.Wc, 2)} t · Y: Wi=${fmt(hnsY.Wi, 2)} t, Wc=${fmt(hnsY.Wc, 2)} t`,
+      note: "El sismo en dirección X empuja los muros de longitud Ly (perpendiculares a X); el sismo en Y empuja los muros de longitud Lx." },
+    { n: "07", title: "Periodos de vibración por dirección", formula: "Ti — pared flexible (ACI 350.3 fig. 9.2.1) · Tc=2π/√[(3,68g/L)tanh(3,68HL/L)]",
+      result: `X: Ti=${fmt(perX.Ti, 4)} s, Tc=${fmt(hnsX.Tc, 3)} s · Y: Ti=${fmt(perY.Ti, 4)} s, Tc=${fmt(hnsY.Tc, 3)} s` },
+    { n: "08", title: "Espectro de diseño E.030",
+      formula: "C(T) por tramos (E.030 art. 14) · Sa=Z·U·C(T)·S",
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s`,
+      result: `Espectro evaluado en todo el rango de periodos (tabla adjunta)`,
+      table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
+    { n: "09", title: "Fuerzas laterales y presión hidrodinámica por dirección", formula: "Pi=Sa,imp·Wi/Rwi · Pc=Sa,conv·Wc/Rwc · p_i(y),p_c(y) — ACI 350.3 ec. 9-23/9-24",
+      substitution: `Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
+      result: `X: Pi=${fmt(demX.Pi, 2)} t, Pc=${fmt(demX.Pc, 2)} t → V=${fmt(demX.Vbasal, 2)} t · Y: Pi=${fmt(demY.Pi, 2)} t, Pc=${fmt(demY.Pc, 2)} t → V=${fmt(demY.Vbasal, 2)} t` },
+    { n: "10", title: "Envolvente de flexión vertical del muro (hidrostática + sismo SRSS, franja empotrada-empotrada)",
+      formula: "Viga empotrada-empotrada de luz HL bajo carga lineal — envolvente M_env=|M_hs|+√(Mi²+Mc²)",
+      result: `M_env,máx=${fmt(MvertMax, 2)} t·m/m · V_env,máx=${fmt(VvertMax, 2)} t/m`,
+      note: "Franja vertical de 1,00 m empotrada en la base (losa de fondo) y en la corona (losa de techo)." },
+    { n: "11", title: "Envolvente de flexión horizontal del muro (entre esquinas, franja empotrada-empotrada)",
+      formula: "Viga empotrada-empotrada de luz = longitud del muro, bajo la presión de la base (gobernante)",
+      result: `M_esquina=${fmt(MhorEsq, 2)} t·m/m · M_vano=${fmt(MhorVano, 2)} t·m/m · V_máx=${fmt(VhorMax, 2)} t/m`,
+      note: "Método simplificado y conservador: cada muro se analiza como viga empotrada-empotrada en las esquinas (restricción total del muro perpendicular), sin modelar el giro real del pórtico cerrado." },
+    { n: "12", title: "Acero vertical del muro — flexión amplificada por durabilidad sanitaria",
+      formula: "Mu=Sn·M_env   ·   Mu=φf'c·b·d²ω(1−0,59ω)   ·   φ=0,9   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)",
+      substitution: `Sn=${fmt(Sn, 2)} · Mu=${fmt(MvertMax, 2)} t·m/m · d=${fmt(dCmMuro, 1)} cm`,
+      result: `As=${fmt(asVertFinal, 2)} cm²/m → ${barVert.texto}` },
+    { n: "13", title: "Acero horizontal del muro (vano y esquina)", formula: "As=φf'c·b·d²ω(1−0,59ω) con Mu=Sn·M   ·   Asmín=0,0018·d",
+      result: `Esquina: As=${fmt(asHorEsqFinal, 2)} cm²/m → ${barHorEsq.texto}  ·  Vano: As=${fmt(asHorVanoFinal, 2)} cm²/m → ${barHorVano.texto}`,
+      note: `El acero de esquina se ancla en L, ℓd en ambos muros. ρ_horizontal(vano)=${fmt(rhoHoriz * 100, 3)} %.` },
+    { n: "14", title: "Diseño de la losa de techo (una vía, luz corta Ly, empotrada-empotrada)",
+      formula: "wu=1,4·γc·e_techo+1,7·s/c   ·   Mu,esquina=wuLy²/12 · Mu,vano=wuLy²/24",
+      substitution: `wu=${fmt(wuTecho, 3)} t/m² · Ly=${fmt(Ly, 2)} m`,
+      result: `Esquina: As=${fmt(asTechoEsq, 2)} cm²/m → ${barTechoEsq.texto}  ·  Vano: As=${fmt(asTechoVano, 2)} cm²/m → ${barTechoVano.texto}`,
+      note: "Losa maciza en una vía (dirección corta); en la dirección larga se coloca malla mínima de temperatura." },
+    { n: "15", title: "Diseño de la losa de fondo", formula: "M_borde=0,7·M_env,máx(base) · As=φf'c·b·d²ω(1−0,59ω) · Asmín=0,0018·d",
+      substitution: `M_borde=${fmt(Mborde, 2)} t·m/m · d=${fmt(dCmLosa, 1)} cm`,
+      result: `As=${fmt(asLosaFinal, 2)} cm²/m → ${barLosa.texto} (ambos sentidos fuera de la franja de borde)` },
+    { n: "16", title: "Estabilidad global — volteo y deslizamiento (dirección gobernante)", formula: "FSv=W·(L/2)/Mv≥1,5 · FSd=μW/V≥1,5",
+      substitution: `FSv,X=${fmt(FSvX, 2)} · FSv,Y=${fmt(FSvY, 2)}`,
+      result: `FSv=${fmt(FSvolteo, 2)} (gobernante) · FSd=${fmt(FSdeslizamiento, 2)}`,
+      ok: FSvolteo >= 1.5 && FSdeslizamiento >= 1.5 },
+    { n: "17", title: "Capacidad portante de la losa de fondo", formula: "q = W_total / (Lx·Ly) ≤ q_adm",
+      result: `q=${fmt(qServicio, 2)} t/m² (${fmt(qServicio / 10, 3)} kg/cm²) ≤ q_adm=${fmt(qadm, 2)} kg/cm²`,
+      ok: qServicio / 10 <= qadm },
+  ];
+
+  const checks: CalcCheck[] = [
+    ok("Volteo sísmico FS≥1,5", fmt(FSvolteo, 2), "≥ 1,5", FSvolteo >= 1.5),
+    ok("Deslizamiento sísmico FS≥1,5", fmt(FSdeslizamiento, 2), "≥ 1,5", FSdeslizamiento >= 1.5),
+    ok("Capacidad portante de la losa", `${fmt(qServicio / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qServicio / 10 <= qadm),
+    ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
+    ok("Cortante del muro ≤ φVc", `${fmt(VmuroMax, 2)} t/m`, `≤ ${fmt(phiVcMuro, 2)} t/m`, muroCortanteOk),
+  ];
+
+  const muroGov = muroLy.vert.Mmax >= muroLx.vert.Mmax ? muroLy : muroLx;
+  const dims: Record<string, string> = {
+    Lx: Lx.toFixed(2), Ly: Ly.toFixed(2), HL: HL.toFixed(2), Htotal: Htotal.toFixed(2), bl: bl.toFixed(2),
+    tMuro: tMuro.toFixed(3), tLosa: tLosa.toFixed(3), tTecho: tTecho.toFixed(3),
+    mPtsVert: packPts(muroGov.vert.mPts), vPtsVert: packPts(muroGov.vert.vPts),
+    mPtsHorLy: packPts(muroLy.horiz.pts), vPtsHorLy: packPts(muroLy.horiz.vpts),
+    mPtsHorLx: packPts(muroLx.horiz.pts), vPtsHorLx: packPts(muroLx.horiz.vpts),
+    mPtsTecho: packPts(techo.pts), vPtsTecho: packPts(techo.vpts),
+    MvertMax: MvertMax.toFixed(3), VvertMax: VvertMax.toFixed(3), MhorEsq: MhorEsq.toFixed(3), MhorVano: MhorVano.toFixed(3),
+    asVert: barVert.texto, asHorEsq: barHorEsq.texto, asHorVano: barHorVano.texto, asLosa: barLosa.texto,
+    asTechoEsq: barTechoEsq.texto, asTechoVano: barTechoVano.texto,
+    Wtotal: Wtotal.toFixed(2), FSvolteo: FSvolteo.toFixed(2), FSdeslizamiento: FSdeslizamiento.toFixed(2),
+  };
+
+  return out(
+    `Reservorio rectangular Lx=${fmt(Lx, 2)} m × Ly=${fmt(Ly, 2)} m · HL=${fmt(HL, 2)} m · V=${fmt(Lx * Ly * HL, 0)} m³`,
+    `Muros e=${fmt(tMuro * 100, 0)} cm ${barVert.texto} vert. / ${barHorVano.texto} horiz. (vano) · Losa techo e=${fmt(tTecho * 100, 0)} cm · Losa fondo e=${fmt(tLosa * 100, 0)} cm`,
+    steps,
+    checks,
+    dims,
+  );
+};
+
 export const tanquesEngines: Record<string, Engine> = {
   reservorioApoyado,
   tanqueElevadoColumnas,
   tanqueElevadoFuste,
+  reservorioCuadrado,
 };

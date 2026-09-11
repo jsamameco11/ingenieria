@@ -162,6 +162,88 @@ export function ReservorioApoyadoCroquis({ values }: { values: Record<string, st
   );
 }
 
+/* ---------------- Reservorio cuadrado / rectangular ---------------- */
+
+export function ReservorioCuadradoCroquis({ values }: { values: Record<string, string> }) {
+  const Lx = nv(values, "Lx", 5);
+  const Ly = nv(values, "Ly", 5);
+  const HL = nv(values, "HL", 3.5);
+  const bl = nv(values, "bl", 0.3);
+  const tMuro = nv(values, "tMuro", 0.25);
+  const tLosa = nv(values, "tLosa", 0.2);
+  const tTecho = nv(values, "tTecho", 0.15);
+
+  const W = 420, H = 340;
+  const scale = 220 / Math.max(Lx + 2 * tMuro, HL + bl + tTecho + 0.6);
+  const cx = W / 2;
+  const baseY = 290;
+  const tMuroPx = Math.max(3, tMuro * scale);
+  const tLosaPx = Math.max(3, tLosa * scale);
+  const tTechoPx = Math.max(3, tTecho * scale);
+  const HLpx = HL * scale;
+  const blPx = bl * scale;
+  const LxPx = Lx * scale;
+
+  const yLosaTop = baseY - tLosaPx;
+  const yAgua = yLosaTop - HLpx;
+  const yMuroTop = yAgua - blPx;
+  const yTechoTop = yMuroTop - tTechoPx;
+  const xIzq = cx - LxPx / 2 - tMuroPx;
+  const xDer = cx + LxPx / 2 + tMuroPx;
+
+  const elevacion = (
+    <g>
+      <rect x={xIzq - 40} y={baseY} width={xDer - xIzq + 80} height="14" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
+      <rect x={xIzq - 15} y={yLosaTop} width={xDer - xIzq + 30} height={tLosaPx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />
+      <rect x={xIzq} y={yMuroTop} width={tMuroPx} height={yLosaTop - yMuroTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />
+      <rect x={xDer - tMuroPx} y={yMuroTop} width={tMuroPx} height={yLosaTop - yMuroTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />
+      <rect x={cx - LxPx / 2} y={yAgua} width={LxPx} height={yLosaTop - yAgua} fill="url(#tq-water)" />
+      <rect x={xIzq - 6} y={yTechoTop} width={xDer - xIzq + 12} height={tTechoPx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.4" />
+      <line x1={xIzq - 25} y1={yAgua} x2={xIzq} y2={yAgua} stroke="#2f6a8f" strokeWidth="1" strokeDasharray="3,2" />
+      <text x={xIzq - 28} y={yAgua + 3} fontSize="8" fill="#2f6a8f" textAnchor="end">
+        N.A.
+      </text>
+      <Cota x1={xIzq} y1={baseY + 22} x2={xDer} y2={baseY + 22} text={`Lx = ${Lx.toFixed(2)} m`} side={14} />
+      <Cota x1={xDer + 26} y1={yAgua} x2={xDer + 26} y2={yLosaTop} text={`HL=${HL.toFixed(2)}`} side={16} vertical />
+      <Cota x1={xDer + 26} y1={yMuroTop} x2={xDer + 26} y2={yAgua} text={`b.l.=${bl.toFixed(2)}`} side={16} vertical />
+      <Cota x1={xIzq - 26} y1={yLosaTop} x2={xIzq - 26} y2={baseY} text={`e=${(tLosa * 100).toFixed(0)}cm`} side={-16} vertical />
+      <text x={cx} y={yTechoTop - 8} fontSize="8.5" fill={INK} textAnchor="middle">
+        Losa de techo e={(tTecho * 100).toFixed(1)} cm (una vía)
+      </text>
+      <text x={cx} y={20} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
+        Corte — reservorio rectangular
+      </text>
+    </g>
+  );
+
+  const LxPlanta = LxPx * 0.72;
+  const LyPlanta = LxPlanta * (Ly / Lx);
+  const planta = (
+    <g transform="translate(0,-4)">
+      <rect x={cx - LxPlanta / 2 - tMuroPx * 0.72} y={170 - LyPlanta / 2 - tMuroPx * 0.72} width={LxPlanta + tMuroPx * 1.44} height={LyPlanta + tMuroPx * 1.44} fill="none" stroke={NAVY} strokeWidth="1" strokeDasharray="2,2" />
+      <rect x={cx - LxPlanta / 2} y={170 - LyPlanta / 2} width={LxPlanta} height={LyPlanta} fill="url(#tq-water)" stroke={NAVY} strokeWidth="2" />
+      <line x1={cx} y1={170 - LyPlanta / 2 - 22} x2={cx} y2={170 + LyPlanta / 2 + 22} stroke={NAVY} strokeWidth="0.5" strokeDasharray="5,3" />
+      <line x1={cx - LxPlanta / 2 - 22} y1={170} x2={cx + LxPlanta / 2 + 22} y2={170} stroke={NAVY} strokeWidth="0.5" strokeDasharray="5,3" />
+      <Cota x1={cx - LxPlanta / 2} y1={170 + LyPlanta / 2 + 34} x2={cx + LxPlanta / 2} y2={170 + LyPlanta / 2 + 34} text={`Lx = ${Lx.toFixed(2)} m`} side={14} />
+      <Cota x1={cx - LxPlanta / 2 - 34} y1={170 - LyPlanta / 2} x2={cx - LxPlanta / 2 - 34} y2={170 + LyPlanta / 2} text={`Ly = ${Ly.toFixed(2)} m`} side={-14} vertical />
+      <text x={cx} y={26} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
+        Planta
+      </text>
+    </g>
+  );
+
+  return (
+    <Frame
+      heading="Geometría del reservorio rectangular"
+      caption={`Lx=${Lx.toFixed(2)} m × Ly=${Ly.toFixed(2)} m · HL=${HL.toFixed(2)} m · e_muro=${(tMuro * 100).toFixed(1)} cm`}
+      layers={[
+        { viewBox: `0 0 ${W} ${H}`, children: elevacion },
+        { viewBox: `0 0 ${W} 300`, children: planta },
+      ]}
+    />
+  );
+}
+
 /* ---------------- Cuba INTZE (compartida entre tanques elevados) ---------------- */
 
 function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record<string, string>) {

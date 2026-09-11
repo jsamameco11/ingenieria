@@ -662,6 +662,13 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "15") blocks.push({ type: "h2", text: "3.e Losa de fondo, cúpula y viga collarín" });
         if (s.n === "18") blocks.push({ type: "h2", text: "3.f Estabilidad global y cimentación" });
       }
+      if (mod.engine === "reservorioCuadrado") {
+        if (s.n === "05") blocks.push({ type: "h2", text: "3.b Cargas hidrostáticas" });
+        if (s.n === "06") blocks.push({ type: "h2", text: "3.c Análisis sísmico por dirección — Housner y ACI 350.3-06" });
+        if (s.n === "12") blocks.push({ type: "h2", text: "3.d Diseño de acero de los muros" });
+        if (s.n === "14") blocks.push({ type: "h2", text: "3.e Losas de techo y de fondo" });
+        if (s.n === "16") blocks.push({ type: "h2", text: "3.f Estabilidad global y cimentación" });
+      }
       if (mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste") {
         if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
         if (s.n === "07") blocks.push({ type: "h2", text: "3.c Diseño de acero de la cuba (pared, cúpulas, anillos)" });
@@ -745,6 +752,19 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "12") {
         blocks.push({ type: "figure", part: "mMuro" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && s.n === "10") {
+        blocks.push({ type: "figure", part: "mMuroVert" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && s.n === "11") {
+        blocks.push({ type: "figure", part: "mMuroHorLy" });
+        blocks.push({ type: "figure", part: "mMuroHorLx" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && s.n === "14") {
+        blocks.push({ type: "figure", part: "mTecho" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && s.n === "15") {
+        blocks.push({ type: "figure", part: "mSecLosa" });
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "15") {
         blocks.push({ type: "figure", part: "mSecLosa" });
