@@ -709,7 +709,7 @@ const LIMITE_DERIVA_CONCRETO = 0.007;
  * ---------------------------------------------------------------------- */
 
 /** Arma el modelo de nudos y elementos del pórtico espacial de la torre (columnas + vigas de anillo + diagonales en X). */
-function construirTorreColumnas(nCol: number, Rcol: number, Htorre: number, nArr: number, dCol: number, bArr: number, dArr: number, dDiag: number, hcgCuba: number, E: number, G: number) {
+function construirTorreColumnas(nCol: number, Rcol: number, Htorre: number, nArr: number, dCol: number, bArr: number, dArr: number, dDiag: number, hcgCuba: number, E: number, G: number, RcolBase: number = Rcol) {
   const hEntre = Htorre / nArr;
   const Acol = (Math.PI * dCol * dCol) / 4;
   const Icol = (Math.PI * dCol ** 4) / 64;
@@ -727,9 +727,10 @@ function construirTorreColumnas(nCol: number, Rcol: number, Htorre: number, nArr
   for (let lvl = 0; lvl <= nArr; lvl++) {
     const row: number[] = [];
     const z = lvl * hEntre;
+    const Rlvl = RcolBase - (RcolBase - Rcol) * (lvl / nArr);
     for (let c = 0; c < nCol; c++) {
       const ang = (2 * Math.PI * c) / nCol;
-      nodes.push({ id: nid, x: Rcol * Math.cos(ang), y: Rcol * Math.sin(ang), z, fixed: lvl === 0 });
+      nodes.push({ id: nid, x: Rlvl * Math.cos(ang), y: Rlvl * Math.sin(ang), z, fixed: lvl === 0 });
       row.push(nid);
       nid++;
     }
@@ -796,7 +797,8 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     const bArrT = Math.max(0.25, dColT * 0.65);
     const dArrT = Math.max(0.3, dColT * 0.85);
     const dDiagT = Math.max(0.2, dColT * 0.5);
-    const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc);
+    const RcolBase = Rcol * 1.35;
+    const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc, RcolBase);
     const pesoTorreT = gammaC * modelo.Acol * Htorre * nCol;
     const WtotalT = cuba.pesoTotalCuba + pesoTorreT;
 
@@ -966,7 +968,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
 
   const dims: Record<string, string> = {
     ...cuba.dims,
-    nCol: String(nCol), dCol: dCol.toFixed(2), Htorre: Htorre.toFixed(2), Rcol: Rcol.toFixed(2), nArr: String(nArr),
+    nCol: String(nCol), dCol: dCol.toFixed(2), Htorre: Htorre.toFixed(2), Rcol: Rcol.toFixed(2), RcolBase: (Rcol * 1.35).toFixed(2), nArr: String(nArr),
     bArr: bArr.toFixed(2), dArr: dArr.toFixed(2),
     Dcim: Dcim.toFixed(2), asArr: fmt(asArr, 2),
     PuCol: PuCol.toFixed(2), MuCol: MuCol.toFixed(2), derivaRatio: derivaRatio.toFixed(4),

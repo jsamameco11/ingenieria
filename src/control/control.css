@@ -157,10 +157,14 @@
 .ctl-app {
   display: grid;
   grid-template-columns: 260px 1fr;
+  height: 100dvh;
   min-height: 100dvh;
   background: var(--ctl-paper-2);
   color: var(--ctl-ink);
+  overflow: hidden;
 }
+
+.ctl-app > * { min-height: 0; }
 
 .ctl-app > aside.ctl-nav {
   --scroll-size: 8px;

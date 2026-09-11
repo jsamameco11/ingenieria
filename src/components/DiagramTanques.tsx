@@ -207,18 +207,18 @@ function CubaIntzeElevacion({ values, cx = 210, baseY = 250, scale }: { values: 
       <rect x={cx - g.rpPx * 0.55} y={g.yAnilloInf} width={g.rpPx * 0.55} height={g.yAnilloInf - (g.yAnilloInf + g.fInfPx * 0.8)} fill="none" />
       <line x1={cx - g.rpPx - 6} y1={g.yAnilloInf} x2={cx + g.rpPx + 6} y2={g.yAnilloInf} stroke={NAVY} strokeWidth="2.4" />
       <line x1={cx - g.Rpx - 6} y1={g.yAnilloSup} x2={cx + g.Rpx + 6} y2={g.yAnilloSup} stroke={NAVY} strokeWidth="2.4" />
-      <text x={cx + g.Rpx + 34} y={g.yAnilloSup + 3} fontSize="8" fill={INK}>
+      <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 5} fontSize="8" fill={INK} textAnchor="end">
         Anillo superior
       </text>
-      <text x={cx + g.rpPx + 34} y={g.yAnilloInf + 3} fontSize="8" fill={INK}>
+      <text x={cx - g.rpPx - 8} y={g.yAnilloInf - 5} fontSize="8" fill={INK} textAnchor="end">
         Anillo inferior
       </text>
-      <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 6} fontSize="8" fill={INK} textAnchor="end">
+      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="8" fill={INK} textAnchor="end">
         Fondo cónico
       </text>
       <Cota x1={cx - g.Rpx} y1={g.yTechoBase - g.fSupPx * 2 - 20} x2={cx + g.Rpx} y2={g.yTechoBase - g.fSupPx * 2 - 20} text={`D=${g.D.toFixed(2)} m`} side={14} />
-      <Cota x1={cx + g.Rpx + 60} y1={g.yTechoBase} x2={cx + g.Rpx + 60} y2={g.yAnilloSup} text={`h1=${g.h1.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx + g.Rpx + 60} y1={g.yAnilloSup} x2={cx + g.Rpx + 60} y2={g.yAnilloInf} text={`hc=${g.hCono.toFixed(2)}`} side={16} vertical />
+      <Cota x1={cx + g.Rpx + 44} y1={g.yTechoBase} x2={cx + g.Rpx + 44} y2={g.yAnilloSup} text={`h1=${g.h1.toFixed(2)}`} side={16} vertical />
+      <Cota x1={cx + g.Rpx + 44} y1={g.yAnilloSup} x2={cx + g.Rpx + 44} y2={g.yAnilloInf} text={`hc=${g.hCono.toFixed(2)}`} side={16} vertical />
       <Cota x1={cx - g.rpPx} y1={g.yAnilloInf + g.fInfPx * 2 + 16} x2={cx + g.rpPx} y2={g.yAnilloInf + g.fInfPx * 2 + 16} text={`r'=${(g.rp).toFixed(2)} m`} side={12} />
     </g>
   );
@@ -254,46 +254,49 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
   const nArr = Math.max(1, Math.round(nv(values, "nArr", 2)));
   const hEntreCalc = Htorre / nArr;
   const Rcol = nv(values, "Rcol", D * 0.41);
+  const RcolBase = nv(values, "RcolBase", Rcol * 1.35);
   const Dcim = nv(values, "Dcim", D * 1.15);
 
-  const W = 460, H = 430;
+  const W = 460, H = 460;
   const totalAltura = h1 + hCono + fSup + Htorre + 1.5;
-  const scale = 300 / Math.max(totalAltura, D * 1.1);
+  const scale = 300 / Math.max(totalAltura, RcolBase * 2.1);
   const cx = W / 2;
   const baseY = 400;
   const cubaBaseY = baseY - Htorre * scale;
   const RcolPx = Rcol * scale;
+  const RcolBasePx = RcolBase * scale;
   const dColPx = Math.max(4, dCol * scale);
   const DcimPx = (Dcim / 2) * scale;
 
-  // Columnas visibles en elevación: proyección ortográfica del arco frontal (la mitad del círculo que mira al observador).
+  // Columnas abatidas: más separadas en la base, convergen al radio de la cuba en la corona (torre real, no paralela).
   const nVisible = Math.max(2, Math.ceil(nCol / 2) + 1);
-  const colX: number[] = [];
-  for (let i = 0; i < nVisible; i++) {
-    const t = nVisible === 1 ? 0.5 : i / (nVisible - 1);
-    const ang = Math.PI * (1 - t); // de 180° (izquierda) a 0° (derecha), arco frontal
-    colX.push(cx + RcolPx * Math.cos(ang));
-  }
   const yTop = cubaBaseY;
   const yBase = baseY - 16;
-  const nivelesY: number[] = [];
+  const nivelesY: number[] = [yBase];
   for (let i = 1; i <= nArr; i++) nivelesY.push(yBase - (i / nArr) * (yBase - yTop));
+  const colXPorNivel: number[][] = nivelesY.map((_, lvl) => {
+    const Rlvl = RcolBasePx - (RcolBasePx - RcolPx) * (lvl / nArr);
+    return Array.from({ length: nVisible }, (_, i) => {
+      const t = nVisible === 1 ? 0.5 : i / (nVisible - 1);
+      const ang = Math.PI * (1 - t);
+      return cx + Rlvl * Math.cos(ang);
+    });
+  });
 
   const elevacion = (
     <g>
       <rect x={cx - DcimPx - 30} y={baseY} width={2 * (DcimPx + 30)} height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
       <rect x={cx - DcimPx} y={baseY - 16} width={2 * DcimPx} height="16" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
-      {/* Diagonales en X, por panel, entre columnas adyacentes visibles */}
+      {/* Diagonales en X, por panel, entre columnas adyacentes visibles (siguen el abatimiento) */}
       {(() => {
         const panels: ReactNode[] = [];
-        const levels = [yBase, ...nivelesY];
-        for (let lv = 0; lv < levels.length - 1; lv++) {
-          const yA = levels[lv], yB = levels[lv + 1];
-          for (let c = 0; c < colX.length - 1; c++) {
+        for (let lv = 0; lv < nivelesY.length - 1; lv++) {
+          const yA = nivelesY[lv], yB = nivelesY[lv + 1];
+          for (let c = 0; c < nVisible - 1; c++) {
             panels.push(
               <g key={`x-${lv}-${c}`}>
-                <line x1={colX[c]} y1={yA} x2={colX[c + 1]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
-                <line x1={colX[c + 1]} y1={yA} x2={colX[c]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
+                <line x1={colXPorNivel[lv][c]} y1={yA} x2={colXPorNivel[lv + 1][c + 1]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
+                <line x1={colXPorNivel[lv][c + 1]} y1={yA} x2={colXPorNivel[lv + 1][c]} y2={yB} stroke={NAVY} strokeWidth="1" strokeDasharray="5,2.5" opacity="0.85" />
               </g>,
             );
           }
@@ -301,23 +304,32 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
         return panels;
       })()}
       {/* Vigas de anillo horizontales en cada nivel de arriostre */}
-      {nivelesY.map((y, i) => (
-        <line key={`beam-${i}`} x1={colX[0]} y1={y} x2={colX[colX.length - 1]} y2={y} stroke={NAVY} strokeWidth="2.2" />
+      {nivelesY.map((y, lvl) => (
+        <line key={`beam-${lvl}`} x1={colXPorNivel[lvl][0]} y1={y} x2={colXPorNivel[lvl][nVisible - 1]} y2={y} stroke={NAVY} strokeWidth="2.2" />
       ))}
-      <line x1={colX[0]} y1={yBase} x2={colX[colX.length - 1]} y2={yBase} stroke={NAVY} strokeWidth="2.2" />
-      {/* Columnas (dibujadas al final para que tapen las diagonales, como en un alzado real) */}
-      {colX.map((x, i) => (
-        <rect key={`col-${i}`} x={x - dColPx / 2} y={yTop} width={dColPx} height={yBase - yTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.1" />
+      {/* Columnas abatidas: un trapecio por tramo entre niveles, dibujadas al final para tapar las diagonales */}
+      {Array.from({ length: nVisible }, (_, i) => (
+        <g key={`col-${i}`}>
+          {Array.from({ length: nivelesY.length - 1 }, (_, lv) => {
+            const x1c = colXPorNivel[lv][i], y1c = nivelesY[lv];
+            const x2c = colXPorNivel[lv + 1][i], y2c = nivelesY[lv + 1];
+            const dx = x2c - x1c, dy = y2c - y1c;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = (-dy / len) * (dColPx / 2), ny = (dx / len) * (dColPx / 2);
+            const poly = `${x1c - nx},${y1c - ny} ${x1c + nx},${y1c + ny} ${x2c + nx},${y2c + ny} ${x2c - nx},${y2c - ny}`;
+            return <polygon key={lv} points={poly} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.1" />;
+          })}
+        </g>
       ))}
       <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
-      <Cota x1={colX[0]} y1={baseY + 24} x2={colX[colX.length - 1]} y2={baseY + 24} text={`2·Rcol=${(2 * Rcol).toFixed(2)} m`} side={14} />
-      <Cota x1={cx + RcolPx + 60} y1={baseY - 16} x2={cx + RcolPx + 60} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx - RcolPx - 60} y1={yBase} x2={cx - RcolPx - 60} y2={nivelesY[0] ?? yTop} text={`h=${hEntreCalc.toFixed(2)}`} side={-16} vertical />
+      <Cota x1={colXPorNivel[0][0]} y1={baseY + 24} x2={colXPorNivel[0][nVisible - 1]} y2={baseY + 24} text={`2·Rcol,base=${(2 * RcolBase).toFixed(2)} m`} side={14} />
+      <Cota x1={cx + RcolBasePx + 44} y1={baseY - 16} x2={cx + RcolBasePx + 44} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
+      <Cota x1={cx - RcolBasePx - 44} y1={yBase} x2={cx - RcolBasePx - 44} y2={nivelesY[1] ?? yTop} text={`h=${hEntreCalc.toFixed(2)}`} side={-16} vertical />
       <text x={cx} y={20} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
         Elevación — tanque elevado sobre columnas
       </text>
-      <text x={cx} y={baseY + 42} fontSize="8" fill={INK} textAnchor="middle">
-        {nCol} columnas Ø{(dCol * 100).toFixed(0)} cm en el perímetro · {nArr} nivel(es) de arriostre con diagonales en X
+      <text x={cx} y={baseY + 54} fontSize="8" fill={INK} textAnchor="middle">
+        {nCol} columnas abatidas Ø{(dCol * 100).toFixed(0)} cm · {nArr} nivel(es) de arriostre con diagonales en X
       </text>
     </g>
   );
@@ -355,6 +367,16 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
 
 /* ---------------- Tanque elevado sobre fuste ---------------- */
 
+/** Niveles de vigas de arriostre interiores del fuste, espaciadas 2.5-3.5 m (típico constructivo). */
+function calcNivelesFuste(Htorre: number) {
+  if (Htorre <= 3.6) return { n: 1, espac: Htorre };
+  let n = Math.max(1, Math.round(Htorre / 3));
+  let espac = Htorre / n;
+  while (espac > 3.5 && n < 20) { n++; espac = Htorre / n; }
+  while (espac < 2.5 && n > 1) { n--; espac = Htorre / n; }
+  return { n, espac };
+}
+
 export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, string> }) {
   const D = nv(values, "D", 11);
   const h1 = nv(values, "h1", 5);
@@ -365,7 +387,7 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
   const eFuste = nv(values, "eFuste", 0.25);
   const Dcim = nv(values, "Dcim", Dfuste * 1.8);
 
-  const W = 420, H = 430;
+  const W = 420, H = 460;
   const totalAltura = h1 + hCono + fSup + Htorre + 1.5;
   const scale = 300 / Math.max(totalAltura, D * 1.1);
   const cx = W / 2;
@@ -374,20 +396,62 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
   const DfustePx = Dfuste * scale;
   const DcimPx = Dcim * scale;
   const eFustePx = Math.max(3, eFuste * scale);
+  const fusteTopY = cubaBaseY;
+  const fusteBotY = baseY - 18;
+
+  const { n: nVigas, espac: espacVigas } = calcNivelesFuste(Htorre);
+  const nivelesVigaY: number[] = [];
+  for (let i = 1; i < nVigas; i++) nivelesVigaY.push(fusteBotY - (i * espacVigas) * scale);
+  const vigaEspesorPx = Math.max(5, DfustePx * 0.055);
+
+  // Líneas verticales de encofrado (textura de fuste cilíndrico real) y escalera lateral.
+  const nCostillas = 5;
+  const costillasX = Array.from({ length: nCostillas }, (_, i) => cx - DfustePx / 2 + (DfustePx * (i + 1)) / (nCostillas + 1));
 
   const elevacion = (
     <g>
       <rect x={cx - DcimPx / 2 - 30} y={baseY} width={DcimPx + 60} height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
-      <rect x={cx - DcimPx / 2} y={baseY - 18} width={DcimPx} height="18" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
-      <rect x={cx - DfustePx / 2} y={cubaBaseY} width={DfustePx} height={baseY - 18 - cubaBaseY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.4" />
-      <line x1={cx - DfustePx / 2 + eFustePx} y1={cubaBaseY + 4} x2={cx - DfustePx / 2 + eFustePx} y2={baseY - 18} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
-      <line x1={cx + DfustePx / 2 - eFustePx} y1={cubaBaseY + 4} x2={cx + DfustePx / 2 - eFustePx} y2={baseY - 18} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
+      <rect x={cx - DcimPx / 2} y={fusteBotY} width={DcimPx} height="18" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
+      {/* Fuste: pared cilíndrica de concreto con sombreado de borde (efecto tubo) */}
+      <rect x={cx - DfustePx / 2} y={fusteTopY} width={DfustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
+      <rect x={cx - DfustePx / 2} y={fusteTopY} width={DfustePx * 0.12} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      <rect x={cx + DfustePx / 2 - DfustePx * 0.12} y={fusteTopY} width={DfustePx * 0.12} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      {costillasX.map((x, i) => (
+        <line key={`rib-${i}`} x1={x} y1={fusteTopY + 3} x2={x} y2={fusteBotY - 3} stroke="#8a7d63" strokeWidth="0.5" opacity="0.55" />
+      ))}
+      <line x1={cx - DfustePx / 2 + eFustePx} y1={fusteTopY + 4} x2={cx - DfustePx / 2 + eFustePx} y2={fusteBotY} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
+      <line x1={cx + DfustePx / 2 - eFustePx} y1={fusteTopY + 4} x2={cx + DfustePx / 2 - eFustePx} y2={fusteBotY} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
+      {/* Escalera lateral exterior típica de fuste */}
+      <line x1={cx + DfustePx / 2 + 6} y1={fusteTopY + 10} x2={cx + DfustePx / 2 + 6} y2={fusteBotY - 10} stroke={INK} strokeWidth="0.9" />
+      {(() => {
+        const nRungs = Math.max(3, Math.round((fusteBotY - fusteTopY) / 14));
+        return Array.from({ length: nRungs }, (_, i) => {
+          const y = fusteTopY + 10 + (i / (nRungs - 1)) * (fusteBotY - fusteTopY - 20);
+          return <line key={`rung-${i}`} x1={cx + DfustePx / 2 + 3} y1={y} x2={cx + DfustePx / 2 + 9} y2={y} stroke={INK} strokeWidth="0.7" />;
+        });
+      })()}
+      {/* Vigas de arriostre interiores (losas/anillos de rigidez), espaciadas 2.5-3.5 m */}
+      {nivelesVigaY.map((y, i) => (
+        <g key={`viga-${i}`}>
+          <rect x={cx - DfustePx / 2 - 3} y={y - vigaEspesorPx / 2} width={DfustePx + 6} height={vigaEspesorPx} fill={NAVY} opacity="0.9" />
+          <line x1={cx - DfustePx / 2 - 3} y1={y - vigaEspesorPx / 2} x2={cx - DfustePx / 2 - 14} y2={y - vigaEspesorPx / 2} stroke={NAVY} strokeWidth="0.7" strokeDasharray="2,2" />
+          <text x={cx - DfustePx / 2 - 17} y={y - vigaEspesorPx / 2 + 2.5} fontSize="6.8" fill={INK} textAnchor="end">
+            V.A. +{(Htorre - (fusteBotY - y) / scale).toFixed(1)}
+          </text>
+        </g>
+      ))}
       <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
       <Cota x1={cx - DfustePx / 2} y1={baseY + 24} x2={cx + DfustePx / 2} y2={baseY + 24} text={`Ø fuste=${Dfuste.toFixed(2)} m`} side={14} />
-      <Cota x1={cx + DfustePx / 2 + 40} y1={baseY - 18} x2={cx + DfustePx / 2 + 40} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx - DfustePx / 2 - 40} y1={baseY - 18} x2={cx - DfustePx / 2 - 40} y2={baseY} text={`Dcim=${Dcim.toFixed(2)}`} side={-16} vertical />
+      <Cota x1={cx + DfustePx / 2 + 40} y1={fusteBotY} x2={cx + DfustePx / 2 + 40} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
+      {nVigas > 1 && (
+        <Cota x1={cx - DfustePx / 2 - 44} y1={fusteBotY} x2={cx - DfustePx / 2 - 44} y2={nivelesVigaY[0]} text={`e=${espacVigas.toFixed(2)}`} side={-16} vertical />
+      )}
+      <Cota x1={cx - DfustePx / 2 - 44} y1={baseY - 18} x2={cx - DfustePx / 2 - 44} y2={baseY} text={`Dcim=${Dcim.toFixed(2)}`} side={-16} vertical />
       <text x={cx} y={20} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
         Elevación — tanque elevado sobre fuste
+      </text>
+      <text x={cx} y={baseY + 54} fontSize="8" fill={INK} textAnchor="middle">
+        Fuste Ø{Dfuste.toFixed(2)} m, e={(eFuste * 100).toFixed(0)} cm · {nVigas > 1 ? `${nVigas - 1} viga(s) de arriostre cada ${espacVigas.toFixed(2)} m` : "sin vigas intermedias (fuste corto)"}
       </text>
     </g>
   );
@@ -432,63 +496,97 @@ type FichaSeccionProps = {
   notas?: string;
 };
 
-export function FichaSeccionFig({ titulo, shape, dim1, dim2, aceroPrincipal, aceroSecundario, notas }: FichaSeccionProps) {
-  const W = 260, H = 190;
-  const cx = W / 2, cy = 96;
-
-  let dibujo: ReactNode = null;
+/** Dibuja el elemento (franja recta, franja curva tipo cáscara, circular o anular) centrado en (cx,cy). Reutilizable. */
+function dibujarElemento(cx: number, cy: number, shape: FichaSeccionProps["shape"], dim1: number, dim2: number | undefined, escala = 1) {
   if (shape === "franja" || shape === "curva") {
-    const ePx = Math.max(18, Math.min(70, dim1 * 2.1));
-    const anchoPx = 170;
-    const x0 = cx - anchoPx / 2, y0 = cy - ePx / 2;
+    const ePx = Math.max(16, Math.min(60, dim1 * 2)) * escala;
+    const anchoPx = 160 * escala;
+    const half = anchoPx / 2;
     const nBar = 6;
-    dibujo = (
+    const yBase = cy + ePx / 2;
+    const rise = shape === "curva" ? ePx * 1.1 : 0;
+    const domeY = (t: number, amp: number, yEdge: number) => yEdge - amp * (1 - t * t);
+    if (shape === "curva") {
+      const nSeg = 24;
+      const outer: string[] = [];
+      const inner: string[] = [];
+      for (let i = 0; i <= nSeg; i++) {
+        const t = -1 + (2 * i) / nSeg;
+        outer.push(`${i === 0 ? "M" : "L"} ${(cx + t * half).toFixed(1)} ${domeY(t, rise, yBase - ePx).toFixed(1)}`);
+      }
+      for (let i = nSeg; i >= 0; i--) {
+        const t = -1 + (2 * i) / nSeg;
+        inner.push(`L ${(cx + t * half).toFixed(1)} ${domeY(t, rise, yBase).toFixed(1)}`);
+      }
+      const pathD = `${outer.join(" ")} ${inner.join(" ")} Z`;
+      const tsBarras = [-0.72, -0.4, 0, 0.4, 0.72];
+      return (
+        <g>
+          <path d={pathD} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+          {tsBarras.map((t, i) => (
+            <g key={`bc-${i}`}>
+              <circle cx={cx + t * half} cy={domeY(t, rise, yBase - ePx) + 6} r={2.6 * escala} fill={NAVY} />
+              <circle cx={cx + t * half} cy={domeY(t, rise, yBase) - 6} r={2.6 * escala} fill={NAVY} />
+            </g>
+          ))}
+          <line x1={cx - half} y1={yBase + 16} x2={cx + half} y2={yBase + 16} stroke={NAVY} strokeWidth="0.7" />
+          <line x1={cx - half} y1={yBase + 10} x2={cx - half} y2={yBase + 22} stroke={NAVY} strokeWidth="0.7" />
+          <line x1={cx + half} y1={yBase + 10} x2={cx + half} y2={yBase + 22} stroke={NAVY} strokeWidth="0.7" />
+          <text x={cx} y={yBase + 32} fontSize={9 * escala} fill={INK} textAnchor="middle">
+            e = {dim1.toFixed(1)} cm (cáscara, franja de 1,00 m)
+          </text>
+        </g>
+      );
+    }
+    const x0 = cx - half, y0 = cy - ePx / 2;
+    return (
       <g>
-        {shape === "curva" ? (
-          <path d={`M ${x0} ${y0 + ePx} Q ${cx} ${y0 - 10} ${x0 + anchoPx} ${y0 + ePx} L ${x0 + anchoPx} ${y0 + ePx * 1.02} Q ${cx} ${y0 + ePx * 1.02 - 10 * 0.86} ${x0} ${y0 + ePx * 1.02} Z`} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
-        ) : (
-          <rect x={x0} y={y0} width={anchoPx} height={ePx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
-        )}
+        <rect x={x0} y={y0} width={anchoPx} height={ePx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
         {Array.from({ length: nBar }).map((_, i) => {
-          const x = x0 + 14 + (i * (anchoPx - 28)) / (nBar - 1);
+          const x = x0 + 14 * escala + (i * (anchoPx - 28 * escala)) / (nBar - 1);
           return (
             <g key={`b-${i}`}>
-              <circle cx={x} cy={y0 + 6} r="2.6" fill={NAVY} />
-              <circle cx={x} cy={y0 + ePx - 6} r="2.6" fill={NAVY} />
+              <circle cx={x} cy={y0 + 6 * escala} r={2.6 * escala} fill={NAVY} />
+              <circle cx={x} cy={y0 + ePx - 6 * escala} r={2.6 * escala} fill={NAVY} />
             </g>
           );
         })}
         <line x1={x0} y1={y0 + ePx + 14} x2={x0 + anchoPx} y2={y0 + ePx + 14} stroke={NAVY} strokeWidth="0.7" />
         <line x1={x0} y1={y0 + ePx + 8} x2={x0} y2={y0 + ePx + 20} stroke={NAVY} strokeWidth="0.7" />
         <line x1={x0 + anchoPx} y1={y0 + ePx + 8} x2={x0 + anchoPx} y2={y0 + ePx + 20} stroke={NAVY} strokeWidth="0.7" />
-        <text x={cx} y={y0 + ePx + 30} fontSize="9" fill={INK} textAnchor="middle">
+        <text x={cx} y={y0 + ePx + 30} fontSize={9 * escala} fill={INK} textAnchor="middle">
           e = {dim1.toFixed(1)} cm (franja de 1,00 m)
         </text>
       </g>
     );
-  } else {
-    const Dpx = Math.max(50, Math.min(150, dim1 * 1.05));
-    const r = Dpx / 2;
-    const nBar = 8;
-    dibujo = (
-      <g>
-        <circle cx={cx} cy={cy} r={r} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
-        {shape === "anular" && dim2 ? (
-          <circle cx={cx} cy={cy} r={Math.max(6, r - dim2 * 1.05)} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
-        ) : null}
-        <circle cx={cx} cy={cy} r={r - 8} fill="none" stroke={INK} strokeWidth="0.7" strokeDasharray="2,2" />
-        {Array.from({ length: nBar }).map((_, i) => {
-          const ang = (2 * Math.PI * i) / nBar;
-          const bx = cx + (r - 8) * Math.cos(ang);
-          const by = cy + (r - 8) * Math.sin(ang);
-          return <circle key={`cb-${i}`} cx={bx} cy={by} r="2.6" fill={NAVY} />;
-        })}
-        <text x={cx} y={cy + r + 22} fontSize="9" fill={INK} textAnchor="middle">
-          {shape === "anular" ? `Ø ext=${dim1.toFixed(0)} cm · e=${(dim2 ?? 0).toFixed(0)} cm` : `Ø = ${dim1.toFixed(0)} cm`}
-        </text>
-      </g>
-    );
   }
+  const Dpx = Math.max(46, Math.min(140, dim1 * 1.05)) * escala;
+  const r = Dpx / 2;
+  const nBar = 8;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={r} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+      {shape === "anular" && dim2 ? (
+        <circle cx={cx} cy={cy} r={Math.max(6, r - dim2 * 1.05 * escala)} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
+      ) : null}
+      <circle cx={cx} cy={cy} r={r - 8 * escala} fill="none" stroke={INK} strokeWidth="0.7" strokeDasharray="2,2" />
+      {Array.from({ length: nBar }).map((_, i) => {
+        const ang = (2 * Math.PI * i) / nBar;
+        const bx = cx + (r - 8 * escala) * Math.cos(ang);
+        const by = cy + (r - 8 * escala) * Math.sin(ang);
+        return <circle key={`cb-${i}`} cx={bx} cy={by} r={2.6 * escala} fill={NAVY} />;
+      })}
+      <text x={cx} y={cy + r + 20} fontSize={9 * escala} fill={INK} textAnchor="middle">
+        {shape === "anular" ? `Ø ext=${dim1.toFixed(0)} cm · e=${(dim2 ?? 0).toFixed(0)} cm` : `Ø = ${dim1.toFixed(0)} cm`}
+      </text>
+    </g>
+  );
+}
+
+export function FichaSeccionFig({ titulo, shape, dim1, dim2, aceroPrincipal, aceroSecundario, notas }: FichaSeccionProps) {
+  const W = 260, H = 190;
+  const cx = W / 2, cy = 96;
+  const dibujo: ReactNode = dibujarElemento(cx, cy, shape, dim1, dim2);
 
   return (
     <div className="croquis croquis-compact" data-fig-part="momento">
@@ -507,6 +605,84 @@ export function FichaSeccionFig({ titulo, shape, dim1, dim2, aceroPrincipal, ace
         </svg>
       </div>
       <p className="croquis-cap">{`${aceroPrincipal}${aceroSecundario ? `  ·  ${aceroSecundario}` : ""}`}</p>
+    </div>
+  );
+}
+
+/* ---------------- Elemento + diagrama(s) de M/N/V en un solo gráfico ---------------- */
+
+export type DiagramaSpec = { etiqueta: string; unidad: string; pts: { x: number; M: number }[]; nota?: string };
+
+type ElementoDiagramaProps = {
+  titulo: string;
+  formula: string;
+  shape: FichaSeccionProps["shape"];
+  dim1: number;
+  dim2?: number;
+  ejeLabel: string;
+  diagramas: DiagramaSpec[];
+  aceroPrincipal: string;
+  aceroSecundario?: string;
+  nota?: string;
+};
+
+function miniDiagrama(pts: { x: number; M: number }[], x0: number, y0: number, w: number, h: number, unidad: string, etiqueta: string) {
+  if (pts.length < 2) return null;
+  const peak = Math.max(0.01, ...pts.map((p) => Math.abs(p.M)));
+  const xmin = pts[0].x, xmax = pts[pts.length - 1].x;
+  const xOf = (x: number) => x0 + ((x - xmin) / Math.max(xmax - xmin, 1e-6)) * w;
+  const yMid = y0 + h / 2;
+  const amp = h / 2 - 8;
+  const yOf = (v: number) => yMid - (v / peak) * amp;
+  const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(p.x).toFixed(1)} ${yOf(p.M).toFixed(1)}`).join(" ");
+  const fill = `${d} L ${xOf(xmax).toFixed(1)} ${yMid.toFixed(1)} L ${xOf(xmin).toFixed(1)} ${yMid.toFixed(1)} Z`;
+  const iMax = pts.reduce((b, p, i, a) => (Math.abs(p.M) > Math.abs(a[b].M) ? i : b), 0);
+  const pk = pts[iMax];
+  return (
+    <g>
+      <text x={x0} y={y0 - 3} fontSize="8.5" fill={NAVY} fontWeight="600">{etiqueta}</text>
+      <line x1={x0} y1={yMid} x2={x0 + w} y2={yMid} stroke={NAVY} strokeWidth="1" />
+      <path d={fill} fill="rgba(26,68,115,0.14)" />
+      <path d={d} fill="none" stroke={NAVY} strokeWidth="1.5" />
+      <line x1={x0} y1={y0} x2={x0} y2={y0 + h - 10} stroke={NAVY} strokeWidth="0.6" strokeDasharray="2,2" />
+      <text x={xOf(pk.x)} y={yOf(pk.M) + (pk.M >= 0 ? -5 : 12)} fontSize="8" fill={pk.M >= 0 ? "#1f6b3a" : "#8b1e1e"} textAnchor="middle" fontWeight="600">
+        {pk.M >= 0 ? "+" : ""}{pk.M.toFixed(2)} {unidad}
+      </text>
+    </g>
+  );
+}
+
+export function ElementoDiagramaFig({ titulo, formula, shape, dim1, dim2, ejeLabel, diagramas, aceroPrincipal, aceroSecundario, nota }: ElementoDiagramaProps) {
+  const diagH = 116;
+  const diagGap = 10;
+  const rightW = 360;
+  const W = 190 + rightW + 20;
+  const H = 40 + diagramas.length * diagH + (diagramas.length - 1) * diagGap + 44;
+  const cxElem = 95, cyElem = 40 + (H - 40 - 40) / 2;
+
+  return (
+    <div className="croquis" data-fig-part="momento">
+      <div className="croquis-head">
+        <p>{`${titulo} — elemento y diagrama`}</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+          <defs><TickMarkers /><Defs /></defs>
+          <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
+          <text x="10" y="16" fontSize="10" fill={NAVY} fontWeight="600">{titulo}</text>
+          <text x="10" y="28" fontSize="7.5" fill="#6b6458">{formula}</text>
+          <line x1={175} y1="6" x2={175} y2={H - 6} stroke="#c4b48a" strokeWidth="0.8" strokeDasharray="2,2" />
+          <g transform={`translate(0, 6)`}>{dibujarElemento(cxElem, cyElem - 6, shape, dim1, dim2, 0.82)}</g>
+          <text x={cxElem} y={H - 8} fontSize="7.5" fill={INK} textAnchor="middle">{ejeLabel}</text>
+          {diagramas.map((dg, i) => (
+            <g key={i}>{miniDiagrama(dg.pts, 190, 34 + i * (diagH + diagGap), rightW - 10, diagH, dg.unidad, dg.etiqueta)}</g>
+          ))}
+          <rect x="188" y={H - 34} width={W - 198} height="26" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
+          <text x="194" y={H - 22} fontSize="8" fill={NAVY}>{aceroPrincipal}</text>
+          <text x="194" y={H - 11} fontSize="7.5" fill="#5a4a28">{aceroSecundario ?? nota ?? ""}</text>
+        </svg>
+      </div>
+      <p className="croquis-cap">{`${formula}  ·  ${aceroPrincipal}${aceroSecundario ? `  ·  ${aceroSecundario}` : ""}`}</p>
     </div>
   );
 }
