@@ -963,7 +963,7 @@ button.nav-label.nav-label-white {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.eq span { float: right; font-style: normal; font-family: var(--ui); font-size: 12px; color: var(--brass); }
+.eq:not(.eq-tex) span { float: right; font-style: normal; font-family: var(--ui); font-size: 12px; color: var(--brass); }
 .eq-tex { font-style: normal; overflow-x: auto; overflow-y: hidden; overflow-wrap: normal; word-break: normal; white-space: nowrap; min-width: 0; max-width: 100%; }
 .eq-tex .katex-display { margin: 0; }
 .eq-tex .katex { font-size: 1.05em; white-space: nowrap; }
@@ -2956,7 +2956,7 @@ html.is-printing .pre-print {
   .paso-row {
     grid-template-columns: 1fr;
   }
-  .eq span {
+  .eq:not(.eq-tex) span {
     float: none;
     display: block;
     margin-top: 4px;
