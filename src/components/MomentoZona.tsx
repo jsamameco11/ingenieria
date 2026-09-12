@@ -1,4 +1,4 @@
-import { ElementoDiagramaFig, FichaSeccionFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
+import { DiagramaCuerpoLibreFig, ElementoDiagramaFig, FichaSeccionFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
 
 export function unpackMomentos(s: string) {
   return String(s || "")
@@ -160,6 +160,11 @@ function sv(v: Record<string, string>, k: string, fb = "") {
 /** Figuras de momento por zona, según el croquis de la hoja. */
 export function figuraMomento(kind: string, part: string | undefined, values: Record<string, string>) {
   if (!part?.startsWith("m")) return null;
+  if (part === "mDCL") {
+    if (kind === "reservorioApoyado") return <DiagramaCuerpoLibreFig values={values} variant="cilindro" />;
+    if (kind === "reservorioCuadrado") return <DiagramaCuerpoLibreFig values={values} variant="caja" />;
+    if (kind === "tanqueElevadoColumnas" || kind === "tanqueElevadoFuste") return <DiagramaCuerpoLibreFig values={values} variant="torre" />;
+  }
   if (kind === "zapata") {
     if (part === "mDirL") {
       return (

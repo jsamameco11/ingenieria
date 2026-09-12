@@ -751,6 +751,13 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "16") blocks.push({ type: "figure", part: "mPata" });
         if (s.n === "17") blocks.push({ type: "figure", part: "mTalon" });
       }
+      if (
+        (mod.diagram === "reservorioApoyado" || mod.diagram === "reservorioCuadrado" ||
+          mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") &&
+        s.n === "01"
+      ) {
+        blocks.push({ type: "figure", part: "mDCL" });
+      }
       if (mod.diagram === "reservorioApoyado" && s.n === "12") {
         blocks.push({ type: "figure", part: "mMuro" });
       }

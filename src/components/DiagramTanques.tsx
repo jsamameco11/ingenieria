@@ -962,4 +962,232 @@ export function TorreMatricial3D({ values }: { values: Record<string, string> })
   );
 }
 
+/* ---------------- Diagrama de cuerpo libre (DCL) — vista 3D, cargas y reacciones ---------------- */
+
+const DCL_LOAD = "#8b1e1e";
+const DCL_REACT = "#8a6a1f";
+const DCL_WATER = "#2f6a8f";
+
+/** Flecha recta para una carga o reacción puntual, con etiqueta. */
+function DclArrow({ x1, y1, x2, y2, color, label, labelAnchor = "middle", labelDx = 0, labelDy = -6, width = 2.2, dashed = false }: {
+  x1: number; y1: number; x2: number; y2: number; color: string; label?: string; labelAnchor?: "start" | "middle" | "end"; labelDx?: number; labelDy?: number; width?: number; dashed?: boolean;
+}) {
+  return (
+    <g>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={width} markerEnd="url(#tq-load-arrow)" strokeDasharray={dashed ? "3,2" : undefined} />
+      {label ? (
+        <text x={x2 + labelDx} y={y2 + labelDy} fontSize="9.5" fill={color} fontWeight="700" textAnchor={labelAnchor} fontFamily="IBM Plex Mono, monospace">
+          {label}
+        </text>
+      ) : null}
+    </g>
+  );
+}
+
+/** Flecha curva (arco) para representar un momento, con etiqueta. */
+function DclMoment({ cx, cy, r, color, label, ccw = false }: { cx: number; cy: number; r: number; color: string; label: string; ccw?: boolean }) {
+  const a0 = ccw ? 20 : 160, a1 = ccw ? 300 : -80;
+  const rad = (a: number) => (a * Math.PI) / 180;
+  const x1 = cx + r * Math.cos(rad(a0)), y1 = cy - r * Math.sin(rad(a0));
+  const x2 = cx + r * Math.cos(rad(a1)), y2 = cy - r * Math.sin(rad(a1));
+  return (
+    <g>
+      <path d={`M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 1 ${ccw ? 0 : 1} ${x2.toFixed(1)} ${y2.toFixed(1)}`} fill="none" stroke={color} strokeWidth="2.2" markerEnd="url(#tq-load-arrow)" />
+      <text x={cx} y={cy + r + 15} fontSize="9.5" fill={color} fontWeight="700" textAnchor="middle" fontFamily="IBM Plex Mono, monospace">{label}</text>
+    </g>
+  );
+}
+
+/** Cuña de presión hidrostática: solo 3 flechas representativas (no un campo denso), estilo profesional de libro de texto. */
+function DclPresionHidrostatica({ xWall, yTop, yBase, maxLenPx, pBase }: { xWall: number; yTop: number; yBase: number; maxLenPx: number; pBase: number }) {
+  const fracs = [0.35, 0.68, 1];
+  const xEdge = xWall - maxLenPx - 8;
+  const pts = fracs.map((f) => {
+    const y = yTop + (yBase - yTop) * f;
+    const len = maxLenPx * f;
+    return { y, len, x0: xWall - len };
+  });
+  const wedgePath = `M ${xWall} ${yTop} L ${pts[pts.length - 1].x0} ${yBase} L ${xWall} ${yBase} Z`;
+  return (
+    <g>
+      <path d={wedgePath} fill={DCL_WATER} opacity="0.16" stroke={DCL_WATER} strokeWidth="1" strokeDasharray="2,2" />
+      {pts.map((p, i) => (
+        <line key={i} x1={p.x0} y1={p.y} x2={xWall - 3} y2={p.y} stroke={DCL_WATER} strokeWidth="1.6" markerEnd="url(#tq-load-arrow-w)" />
+      ))}
+      <text x={xEdge} y={yBase + 13} fontSize="8.5" fill={DCL_WATER} textAnchor="middle" fontFamily="IBM Plex Mono, monospace">
+        p_base={pBase.toFixed(2)} t/m²
+      </text>
+      <text x={(xWall + pts[0].x0) / 2 - 6} y={yTop + (yBase - yTop) * 0.16} fontSize="8" fill={DCL_WATER} textAnchor="middle">
+        p(y)=γw(HL−y)
+      </text>
+    </g>
+  );
+}
+
+type DclVariant = "cilindro" | "caja" | "torre";
+
+/**
+ * Diagrama de cuerpo libre en vista 3D (pseudo-isométrica): silueta del tanque, presión hidrostática
+ * representada con solo 3 flechas (no un campo denso), peso propio, fuerza sísmica y reacciones en la
+ * base (N, V, M) — el paso clásico de "planteamiento de cargas" antes del análisis detallado.
+ */
+export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<string, string>; variant: DclVariant }) {
+  const Wtotal = nv(values, "Wtotal", 50);
+  const Vbasal = nv(values, "Vbasal", 5);
+  const Mvolteo = nv(values, "Mvolteo", 10);
+  const gammaW = 1;
+
+  const W = 480, H = 420;
+  const cx = 190;
+  const baseY = 336;
+
+  let structure: ReactNode;
+  let yTop = 60, yWater = 200, halfW = 70;
+  let hSismoY = 220;
+
+  if (variant === "cilindro" || variant === "caja") {
+    const D = variant === "cilindro" ? nv(values, "D", 4.25) : nv(values, "Lx", 4);
+    const HL = nv(values, "HL", 3.5);
+    const bl = nv(values, "bl", 0.3);
+    const scale = 230 / Math.max(HL + bl, 1);
+    const rx = Math.min(95, Math.max(46, (D / 2) * scale * 0.62));
+    const ry = rx * 0.3;
+    const HLpx = HL * scale, blPx = bl * scale;
+    yWater = baseY - HLpx;
+    yTop = yWater - blPx;
+    halfW = rx;
+    hSismoY = baseY - HLpx * 0.4;
+
+    if (variant === "cilindro") {
+      structure = (
+        <g>
+          <ellipse cx={cx} cy={baseY} rx={rx} ry={ry} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.4" />
+          <line x1={cx - rx} y1={yTop} x2={cx - rx} y2={baseY} stroke={NAVY} strokeWidth="1.4" />
+          <line x1={cx + rx} y1={yTop} x2={cx + rx} y2={baseY} stroke={NAVY} strokeWidth="1.4" />
+          <rect x={cx - rx} y={yWater} width={rx * 2} height={Math.max(0, baseY - yWater)} fill="url(#tq-water)" opacity="0.8" clipPath="url(#tq-dcl-clip)" />
+          <ellipse cx={cx} cy={yTop} rx={rx} ry={ry} fill="#fbf8f1" stroke={NAVY} strokeWidth="1.4" />
+          <path d={`M ${cx - rx} ${yTop} A ${rx} ${ry} 0 0 0 ${cx + rx} ${yTop}`} fill="none" stroke={NAVY} strokeWidth="1" strokeDasharray="2,2" opacity="0.5" />
+          <line x1={cx - rx - 6} y1={yWater} x2={cx + rx + 6} y2={yWater} stroke={DCL_WATER} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={cx + rx + 9} y={yWater + 3} fontSize="8" fill={DCL_WATER}>N.A.</text>
+        </g>
+      );
+    } else {
+      const skew = 22;
+      structure = (
+        <g>
+          <polygon points={`${cx - halfW},${baseY} ${cx + halfW},${baseY} ${cx + halfW + skew},${baseY - 14} ${cx - halfW + skew},${baseY - 14}`} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
+          <line x1={cx - halfW} y1={yTop} x2={cx - halfW} y2={baseY} stroke={NAVY} strokeWidth="1.4" />
+          <line x1={cx + halfW} y1={yTop} x2={cx + halfW} y2={baseY} stroke={NAVY} strokeWidth="1.4" />
+          <rect x={cx - halfW} y={yWater} width={halfW * 2} height={Math.max(0, baseY - yWater)} fill="url(#tq-water)" opacity="0.8" />
+          <polygon points={`${cx - halfW},${yTop} ${cx + halfW},${yTop} ${cx + halfW + skew},${yTop - 14} ${cx - halfW + skew},${yTop - 14}`} fill="#fbf8f1" stroke={NAVY} strokeWidth="1.2" />
+          <line x1={cx + halfW} y1={baseY} x2={cx + halfW + skew} y2={baseY - 14} stroke={NAVY} strokeWidth="1.2" />
+          <line x1={cx + halfW + skew} y1={baseY - 14} x2={cx + halfW + skew} y2={yTop - 14} stroke={NAVY} strokeWidth="1.2" />
+          <line x1={cx - rx - 6} y1={yWater} x2={cx + halfW + skew + 6} y2={yWater} stroke={DCL_WATER} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={cx + halfW + skew + 9} y={yWater + 3} fontSize="8" fill={DCL_WATER}>N.A.</text>
+        </g>
+      );
+    }
+  } else {
+    const Htorre = nv(values, "Htorre", 14);
+    const hcgCuba = nv(values, "hcgCuba", 2);
+    const Dcuba = nv(values, "D", 8);
+    const scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
+    const torrePx = Htorre * scale;
+    const cubaHalfW = Math.min(85, Math.max(40, (Dcuba / 2) * scale * 0.5));
+    yTop = baseY - torrePx;
+    const cubaTopY = yTop - cubaHalfW * 0.9;
+    halfW = 22;
+    hSismoY = cubaTopY + (yTop - cubaTopY) * 0.5;
+    structure = (
+      <g>
+        <line x1={cx - halfW * 0.6} y1={yTop} x2={cx - halfW} y2={baseY} stroke={NAVY} strokeWidth="2.6" />
+        <line x1={cx + halfW * 0.6} y1={yTop} x2={cx + halfW} y2={baseY} stroke={NAVY} strokeWidth="2.6" />
+        <path d={`M ${cx - halfW * 0.85} ${yTop - 4} Q ${cx} ${cubaTopY} ${cx + halfW * 0.85} ${yTop - 4} L ${cx + halfW * 1.15} ${yTop + 18} Q ${cx} ${yTop + 34} ${cx - halfW * 1.15} ${yTop + 18} Z`}
+          fill="url(#tq-water)" stroke={NAVY} strokeWidth="1.3" />
+        <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
+      </g>
+    );
+  }
+
+  const wArrowY0 = variant === "torre" ? yTop - 6 : (yTop + baseY) / 2 - 30;
+  const wArrowX = variant === "torre" ? cx + halfW + 30 : cx;
+
+  return (
+    <div className="croquis" data-fig-part="momento">
+      <div className="croquis-head">
+        <p>Diagrama de cuerpo libre — cargas y reacciones</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <TickMarkers />
+            <Defs />
+            <clipPath id="tq-dcl-clip"><rect x="0" y="0" width={W} height={H} /></clipPath>
+            <marker id="tq-load-arrow" markerWidth="9" markerHeight="9" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill={DCL_LOAD} />
+            </marker>
+            <marker id="tq-load-arrow-w" markerWidth="9" markerHeight="9" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill={DCL_WATER} />
+            </marker>
+            <marker id="tq-react-arrow" markerWidth="9" markerHeight="9" refX="6" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill={DCL_REACT} />
+            </marker>
+          </defs>
+          <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
+          <text x={W / 2} y={18} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
+            Diagrama de cuerpo libre (DCL)
+          </text>
+
+          <rect x={cx - 150} y={baseY} width="300" height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
+
+          {structure}
+
+          {(variant === "cilindro" || variant === "caja") && (
+            <DclPresionHidrostatica
+              xWall={cx - halfW - 4}
+              yTop={yWater}
+              yBase={baseY}
+              maxLenPx={46}
+              pBase={gammaW * nv(values, "HL", 3.5)}
+            />
+          )}
+
+          {/* Peso propio W */}
+          <DclArrow
+            x1={wArrowX} y1={wArrowY0} x2={wArrowX} y2={wArrowY0 + 46}
+            color={DCL_LOAD} width={2.6}
+            label={`W = ${Wtotal.toFixed(1)} t`}
+            labelDx={variant === "torre" ? 34 : 12} labelDy={variant === "torre" ? 4 : -18}
+            labelAnchor="start"
+          />
+
+          {/* Fuerza sísmica V */}
+          <DclArrow
+            x1={cx - halfW - (variant === "torre" ? 10 : 60)} y1={hSismoY}
+            x2={cx - halfW - 8} y2={hSismoY}
+            color={DCL_LOAD} width={2.6}
+            label={`V = ${Vbasal.toFixed(1)} t`}
+            labelAnchor="end" labelDx={-4} labelDy={-5}
+          />
+          <line x1={cx - halfW} y1={hSismoY} x2={cx + halfW * 0.3} y2={hSismoY} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.5" />
+
+          {/* Reacciones en la base: N, V, M */}
+          <DclArrow x1={cx} y1={baseY + 40} x2={cx} y2={baseY + 6} color={DCL_REACT} width={2.2} label={`N=${Wtotal.toFixed(1)} t`} labelDy={16} labelDx={0} />
+          <DclArrow x1={cx + halfW + 46} y1={baseY + 22} x2={cx + halfW + 4} y2={baseY + 22} color={DCL_REACT} width={2.2} label={`V=${Vbasal.toFixed(1)} t`} labelAnchor="end" labelDx={-2} labelDy={-6} />
+          <DclMoment cx={cx - halfW - 30} cy={baseY + 20} r={16} color={DCL_REACT} label={`M=${Mvolteo.toFixed(1)} t·m`} />
+
+          <rect x={W - 178} y={H - 40} width="168" height="30" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
+          <line x1={W - 172} y1={H - 30} x2={W - 158} y2={H - 30} stroke={DCL_LOAD} strokeWidth="2.4" markerEnd="url(#tq-load-arrow)" />
+          <text x={W - 153} y={H - 27} fontSize="7.5" fill={INK}>Carga aplicada</text>
+          <line x1={W - 172} y1={H - 15} x2={W - 158} y2={H - 15} stroke={DCL_REACT} strokeWidth="2.4" markerEnd="url(#tq-react-arrow)" />
+          <text x={W - 153} y={H - 12} fontSize="7.5" fill={INK}>Reacción en el apoyo</text>
+        </svg>
+      </div>
+      <p className="croquis-cap">
+        Cargas: peso propio W, presión hidrostática (triangular, γw·HL en la base) y fuerza sísmica resultante V. Reacciones en la base: N (axial), V (corte) y M (momento de volteo) — equilibrio global de la estructura, previo al análisis detallado por elemento.
+      </p>
+    </div>
+  );
+}
+
 export { CubaIntzePlanta };

@@ -430,10 +430,16 @@ export const reservorioApoyado: Engine = (raw) => {
       substitution: `V=${fmt(Vreq, 1)} m³ · r=${fmt(rHD, 2)}`,
       result: `D=${fmt(D, 2)} m · HL=${fmt(HL, 2)} m (V real=${fmt((Math.PI * D * D / 4) * HL, 1)} m³)`,
       note: "D es el diámetro interior del tanque y HL la altura de agua; r=HL/D es la relación de esbeltez en planta (r cercano a 0,85 da tanques ni muy achatados ni muy altos, con buen comportamiento sísmico)." },
-    { n: "02", title: "Borde libre y altura total", formula: "H = HL + b.l.",
-      formulaTex: String.raw`H=H_L+b.l.`,
-      result: `b.l.=${fmt(bl, 2)} m → H=${fmt(Htotal, 2)} m`,
-      note: "El borde libre (b.l.) es el espacio entre el nivel máximo de agua y la corona del muro: evita que el oleaje sísmico (componente convectiva) rebalse el tanque." },
+    { n: "02", title: "Borde libre y altura total", formula: "H = HL + b.l.   ·   Verificación: d_máx=0,5·D·Sa,conv ≤ b.l. (ACI 350.3-06 ec. 9-31)",
+      formulaTex: String.raw`H=H_L+b.l.\qquad d_{max}=0{,}5\,D\,S_{a,conv}\le b.l.`,
+      substitution: `D=${fmt(D, 2)} m · Sa,conv=${fmt(SaConv, 4)} g (elástica, sin dividir entre Rwc)`,
+      result: `b.l.=${fmt(bl, 2)} m → H=${fmt(Htotal, 2)} m   ·   d_máx=${fmt(0.5 * D * SaConv, 3)} m ${0.5 * D * SaConv <= bl ? "≤" : ">"} b.l.`,
+      note: "El borde libre (b.l.) es el espacio entre el nivel máximo de agua y la corona del muro: evita que el oleaje sísmico (componente convectiva) rebalse el tanque. d_máx es la altura máxima que puede levantarse el oleaje bajo el sismo de diseño (ACI 350.3-06 ec. 9-31): usa la aceleración convectiva ELÁSTICA, sin reducir por Rwc, porque es un desplazamiento físico real del agua, no una fuerza de diseño reducible por ductilidad.",
+      desarrollo: [
+        `d_máx=0,5·D·Sa,conv=0,5·${fmt(D, 2)}·${fmt(SaConv, 4)}=${fmt(0.5 * D * SaConv, 3)} m.`,
+        `${0.5 * D * SaConv <= bl ? "Cumple: no se espera rebalse bajo el sismo de diseño." : "NO cumple: el oleaje sísmico supera el borde libre disponible; se debe aumentar b.l. o revisar la relación D/HL."}`,
+      ],
+      ok: 0.5 * D * SaConv <= bl },
     { n: "03", title: "Predimensionamiento de espesores", formula: "e_muro ≈ HL/14 (redondeado a 2,5 cm, mínimo 20 cm) · e_losa ≈ e_muro − 2,5 cm · f_domo = D/6",
       formulaTex: String.raw`e_{muro}\approx\dfrac{H_L}{14}\ (\text{mín. }20\text{ cm})\qquad e_{losa}\approx e_{muro}-2{,}5\text{ cm}\qquad f_{domo}=\dfrac{D}{6}`,
       result: `e_muro=${fmt(tMuroRound * 100, 1)} cm · e_losa=${fmt(tLosa * 100, 1)} cm · e_domo=${fmt(tDomo * 100, 1)} cm · f=${fmt(fDomo, 2)} m`,
@@ -538,6 +544,7 @@ export const reservorioApoyado: Engine = (raw) => {
   const checks: CalcCheck[] = [
     ok("Volteo sísmico FS≥1,5", fmt(FSvolteo, 2), "≥ 1,5", FSvolteo >= 1.5),
     ok("Deslizamiento sísmico FS≥1,5", fmt(FSdeslizamiento, 2), "≥ 1,5", FSdeslizamiento >= 1.5),
+    ok("Borde libre ≥ oleaje sísmico", `${fmt(0.5 * D * SaConv, 3)} m`, `≤ ${fmt(bl, 2)} m`, 0.5 * D * SaConv <= bl),
     ok("Compresión de la cúpula", `${fmt(sigmaDomo, 1)} kg/cm²`, `≤ ${fmt(sigmaAdmDomo, 1)} kg/cm²`, sigmaDomo <= sigmaAdmDomo),
     ok("Capacidad portante de la losa", `${fmt(qServicio / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qServicio / 10 <= qadm),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
@@ -665,6 +672,11 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
     const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
     const SaConv = sismo.Z * sismo.U * sismo.S * Cc;
+    // Altura máxima de oleaje (ACI 350.3-06 ec. 9-31): con la aceleración CONVECTIVA elástica, es
+    // decir SIN dividir entre Rwc — el oleaje es un fenómeno de servicio/geométrico, no una fuerza
+    // de diseño que deba reducirse por ductilidad.
+    const dMaxOleaje = 0.5 * D * SaConv;
+    const okBordeLibre = dMaxOleaje <= bl;
     const Pi = (SaImp * hns.Wi) / sismo.Rwi;
     const Pc = (SaConv * hns.Wc) / sismo.Rwc;
     const presImp = (y: number) => presionDinamica(Pi, h1, hns.hiEBP, y);
@@ -706,6 +718,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
       lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, lamImp, lamConv, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
       dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, rhoHoriz, phiVcMuro, muroCortanteOk,
+      SaConv, dMaxOleaje, okBordeLibre,
     };
   }
 
@@ -722,8 +735,13 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
     lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
     barHoriz, barVert, rhoHoriz, dCmMuro, phiVcMuro, muroCortanteOk,
+    SaConv, dMaxOleaje, okBordeLibre,
   } = pasada;
   void tCono; void HconoInward; void wInfDomo;
+
+  const Ci = e030C(per.Ti, sismo.Tp, sismo.Tl);
+  const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
+  const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
 
   const nn = (k: number) => String(nStart + k).padStart(2, "0");
   const steps: CalcStep[] = [
@@ -731,11 +749,24 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       formulaTex: String.raw`V=\pi R^2 h_1+\dfrac{\pi h_c}{3}\left(R^2+R\,r'+r'^2\right)-\dfrac{\pi f'}{6}\left(3r'^2+f'^2\right)`,
       substitution: `D=${fmt(D, 2)} m · r'=${fmt(rp, 2)} m · h_cono=${fmt(hCono, 2)} m · f'=${fmt(fInf, 2)} m`,
       result: `h1=${fmt(h1, 2)} m (pared cilíndrica) → V=${fmt(Vreal, 1)} m³ (requerido ${fmt(Vreq, 0)} m³)`,
-      note: "La cuba tipo INTZE combina un fondo en forma de cúpula esférica invertida (que reduce el volumen y el peso frente a un fondo plano) con un tronco de cono de transición: R es el radio de la cuba, r' el radio menor del fondo cónico, h_c la altura del tronco de cono y f' la flecha de la cúpula inferior." },
+      note: "La cuba tipo INTZE combina un fondo en forma de cúpula esférica invertida (que reduce el volumen y el peso frente a un fondo plano) con un tronco de cono de transición: R es el radio de la cuba, r' el radio menor del fondo cónico, h_c la altura del tronco de cono y f' la flecha de la cúpula inferior.",
+      desarrollo: [
+        `Diámetro preliminar: D=∛(4·Vreq/(π·0,55))/0,25 redondeado al cuarto de metro (0,55 = relación h1/D asumida para el prediseño) → D=${fmt(D, 2)} m; R=D/2=${fmt(R, 2)} m.`,
+        `Radio menor del fondo cónico r'=0,6·R=${fmt(rp, 2)} m (regla práctica INTZE). Altura del tronco de cono h_c=0,9(R−r')=${fmt(hCono, 2)} m. Flecha de la cúpula inferior f'=2r'/6=${fmt(fInf, 2)} m.`,
+        `Volumen del casquete inferior (cúpula esférica invertida): V_domo,inf=(π·f'/6)(3r'²+f'²)=${fmt(VdomoInfCap, 3)} m³.`,
+        `Volumen del tronco de cono: V_cono=(π·h_c/3)(R²+R·r'+r'²)=${fmt(VconoFrustum, 3)} m³.`,
+        `Altura de pared cilíndrica que completa el volumen requerido: h1=(Vreq+V_domo,inf−V_cono)/(πR²)=${fmt(h1, 3)} m (mín. 1,5 m).`,
+        `Altura de líquido equivalente para Housner: HL=h1+0,35·h_c=${fmt(HL, 3)} m (el factor 0,35 aproxima el agua contenida en el tronco de cono como una porción de columna cilíndrica equivalente para el modelo sísmico simplificado).`,
+        `Volumen real construido: Vreal=πR²h1+V_cono−V_domo,inf=${fmt(Vreal, 2)} m³. Altura total del tanque: H_total=h1+h_c+f'+b.l.=${fmt(Htotal, 2)} m.`,
+      ] },
     { n: nn(1), title: "Predimensionamiento de espesores", formula: "e_muro≈h1/14 (mín. 20 cm) · e_cono=e_muro · e_domo,sup=D/220 · e_domo,inf=D/160",
       formulaTex: String.raw`e_{muro}\approx\dfrac{h_1}{14}\ (\text{mín. }20\text{ cm})\qquad e_{cono}=e_{muro}\qquad e_{domo,sup}=\dfrac{D}{220}\qquad e_{domo,inf}=\dfrac{D}{160}`,
       result: `e_muro=${fmt(tMuro * 100, 1)} cm · e_domo,sup=${fmt(tDomoSup * 100, 1)} cm · e_domo,inf=${fmt(tDomoInf * 100, 1)} cm`,
-      note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor." },
+      note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor.",
+      desarrollo: [
+        `e_muro=h1/14=${fmt((h1 / 14) * 100, 1)} cm, redondeado hacia arriba al 1/4 de cm y con mínimo constructivo de 20 cm → e_muro=${fmt(tMuro * 100, 1)} cm. El cono usa el mismo espesor (e_cono=e_muro).`,
+        `e_domo,sup=D/220=${fmt((D / 220) * 100, 1)} cm (mín. 8 cm) → ${fmt(tDomoSup * 100, 1)} cm. e_domo,inf=D/160=${fmt((D / 160) * 100, 1)} cm (mín. 12 cm, más grueso porque además de membrana resiste el empuje horizontal del fondo cónico) → ${fmt(tDomoInf * 100, 1)} cm.`,
+      ] },
     { n: nn(2), title: "Metrado de pesos de la cuba", formula: "Ww + Wcono + Wdomo,sup + Wdomo,inf + Wanillos",
       formulaTex: String.raw`W_{cuba}=W_w+W_{cono}+W_{domo,sup}+W_{domo,inf}+W_{anillos}`,
       table: { headers: ["Elemento", "Peso (t)"], rows: [
@@ -747,50 +778,112 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
         ["Total cuba (sin agua)", fmt(Wcuba, 2)],
         ["Agua almacenada", fmt(Vreal, 2)],
       ] },
-      result: `W cuba=${fmt(Wcuba, 2)} t · W agua=${fmt(Vreal, 2)} t` },
+      result: `W cuba=${fmt(Wcuba, 2)} t · W agua=${fmt(Vreal, 2)} t`,
+      desarrollo: [
+        `Pared: W=γc·π[(R+e)²−R²]·h1=${fmt(gammaC, 2)}·π[(${fmt(R + tMuro, 2)})²−${fmt(R, 2)}²]·${fmt(h1, 2)}=${fmt(pesoMuro, 2)} t.`,
+        `Cono: W=γc·e·π(R+r')·Ls, con Ls=√(h_c²+(R−r')²)=${fmt(LsCono, 2)} m (longitud de la generatriz) → ${fmt(pesoCono, 2)} t.`,
+        `Cúpulas superior e inferior: W=γc·e·2π·Rs·(Rs−√(Rs²−a²)) — área exacta de casquete esférico, no aproximada como plana → domo sup=${fmt(pesoDomoSup, 2)} t, domo inf=${fmt(pesoDomoInf, 2)} t.`,
+        `Anillos (vigas collarín superior e inferior, sección estimada 0,30×0,40 m): ${fmt(pesoAnillos, 2)} t.`,
+        `Peso total de la cuba (sin agua): ${fmt(Wcuba, 2)} t. Peso del agua almacenada (γw=1,0 t/m³): ${fmt(Vreal, 2)} t.`,
+      ] },
     { n: nn(3), title: "Análisis de la pared cilíndrica (lámina sobre base empotrada)",
       formula: "D_p·w''''+(Ec·e/R²)w=p(y) — hidrostática, solución numérica",
       formulaTex: String.raw`D_p\,w''''+\dfrac{E_c\,e}{R^2}\,w=p(y)`,
       result: `N_θ,máx=${fmt(NhsMax, 2)} t/m · M_y,máx=${fmt(MhsMax, 2)} t·m/m`,
-      note: "N_θ (tensión de anillo, resistida por el acero horizontal) y M_y (momento vertical, resistido por el acero vertical) son las mismas magnitudes explicadas en el reservorio apoyado: el muro se modela como viga sobre fundación elástica bajo la presión hidrostática." },
+      note: "N_θ (tensión de anillo, resistida por el acero horizontal) y M_y (momento vertical, resistido por el acero vertical) son las mismas magnitudes explicadas en el reservorio apoyado: el muro se modela como viga sobre fundación elástica bajo la presión hidrostática.",
+      desarrollo: [
+        "El muro se modela igual que en el reservorio apoyado: viga sobre fundación elástica (rigidez de resorte del anillo k=Ec·e/R²) resuelta por integración numérica RK4 (método de disparo) de la ecuación diferencial de la lámina cilíndrica, no por fórmulas cerradas de tabla.",
+        `Presión hidrostática triangular: p(y)=γw·(HL−y), máxima en la base p(0)=${fmt(1.0 * HL, 2)} t/m² y nula en la superficie libre (y=HL=${fmt(HL, 2)} m).`,
+        `De la solución completa w(y), M(y), N(y) a lo largo de toda la altura, se extraen los máximos: N_θ,máx=${fmt(NhsMax, 2)} t/m (tracción de anillo hidrostática) y M_y,máx=${fmt(MhsMax, 2)} t·m/m (flexión vertical), típicamente cerca de la base empotrada.`,
+      ] },
     { n: nn(4), title: "Análisis sísmico — Housner", formula: "Wi, Wc, hi, hc (ACI 350.3-06 §9.2), Ti, Tc",
       formulaTex: String.raw`\dfrac{W_i}{W_a}=\dfrac{\tanh(0{,}866\,D/H_L)}{0{,}866\,D/H_L}\qquad \dfrac{W_c}{W_a}=0{,}230\left(\dfrac{D}{H_L}\right)\tanh\!\left(3{,}68\,\dfrac{H_L}{D}\right)`,
       substitution: `D/HL=${fmt(hns.DH, 3)}`,
       result: `Wi=${fmt(hns.Wi, 2)} t · Wc=${fmt(hns.Wc, 2)} t · Ti=${fmt(per.Ti, 4)} s · Tc=${fmt(hns.Tc, 3)} s`,
-      note: "Wi (masa impulsiva) se mueve pegada al tanque; Wc (masa convectiva) es el oleaje de la superficie. Ti es el periodo impulsivo (muy corto) y Tc el convectivo (varios segundos) — cada uno recibe una aceleración de diseño distinta del espectro E.030 en el paso siguiente." },
+      note: "Wi (masa impulsiva) se mueve pegada al tanque; Wc (masa convectiva) es el oleaje de la superficie. Ti es el periodo impulsivo (muy corto) y Tc el convectivo (varios segundos) — cada uno recibe una aceleración de diseño distinta del espectro E.030 en el paso siguiente.",
+      desarrollo: [
+        `D/HL=${fmt(hns.DH, 3)}. Masa impulsiva: Wi/Wa=tanh(0,866·D/HL)/(0,866·D/HL) → Wi=${fmt(hns.Wi, 2)} t (se mueve solidaria con el tanque, como si el líquido fuera rígido).`,
+        `Masa convectiva: Wc/Wa=0,230·(D/HL)·tanh(3,68·HL/D) → Wc=${fmt(hns.Wc, 2)} t (oleaje de la superficie libre). Nótese que Wi+Wc<Wa: parte de la masa de agua no participa dinámicamente en ninguno de los dos modos.`,
+        `Periodo impulsivo Ti (ACI 350.3-06 fig. 9.2.1, aproximada por el polinomio Cw(HL/D) en función de HL/D y del espesor de pared t_muro=${fmt(tMuro * 100, 1)} cm): Ti=${fmt(per.Ti, 4)} s — muy corto porque el muro de concreto es rígido.`,
+        `Periodo convectivo Tc=2π/λ, con λ=√(3,68·g·tanh(3,68/(D/HL))/D): Tc=${fmt(hns.Tc, 3)} s — mucho más largo que Ti, típico del oleaje (varios segundos).`,
+      ] },
     { n: nn(5), title: "Espectro de diseño E.030 y presión hidrodinámica",
       formula: "C(T) por tramos (E.030 art. 14) · Sa=Z·U·C(T)·S  ·  p_i(y), p_c(y) — ACI 350.3 ec. 9-23/9-24",
       formulaTex: String.raw`S_a=Z\,U\,C(T)\,S\qquad p_i(y)=\dfrac{P_i}{2}\cdot\dfrac{4H_L-6h_i-(6H_L-12h_i)\dfrac{y}{H_L}}{H_L^{2}}\quad(p_c\ \text{análoga})`,
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s · Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
       result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t`,
-      table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
-    { n: nn(6), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env y V_env análogos",
+      table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
+      desarrollo: [
+        `C(Ti)=${fmt(Ci, 4)} y C(Tc)=${fmt(Cc, 4)} por las reglas de E.030 art. 14 (tramos según Ti y Tc frente a Tp=${fmt(sismo.Tp, 2)} s y TL=${fmt(sismo.Tl, 2)} s de la zona/suelo). Tc suele caer en la rama descendente de periodo largo, dando una aceleración convectiva mucho menor que la impulsiva.`,
+        `Sa,imp=Z·U·C(Ti)·S=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Ci, 4)}·${fmt(sismo.S, 2)}=${fmt(SaImp, 4)} g. Sa,conv=Z·U·C(Tc)·S=${fmt(SaConv, 4)} g.`,
+        `Fuerza impulsiva de diseño (reducida por ductilidad limitada, Rwi=${fmt(sismo.Rwi, 2)}): Pi=Sa,imp·Wi/Rwi=${fmt(SaImp, 4)}·${fmt(hns.Wi, 2)}/${fmt(sismo.Rwi, 2)}=${fmt(Pi, 2)} t.`,
+        `Fuerza convectiva de diseño (Rwc=${fmt(sismo.Rwc, 2)}, cercano a 1 porque el oleaje no disipa energía por ductilidad estructural): Pc=Sa,conv·Wc/Rwc=${fmt(Pc, 2)} t.`,
+        "Ambas fuerzas se reparten en altura con la distribución de presión ACI 350.3-06 ec. 9-23/9-24 (trapezoidal, centrada en hiEBP y hcEBP respectivamente) y se aplican como una presión adicional sobre la misma lámina cilíndrica del análisis hidrostático (independientemente para el modo impulsivo y el convectivo, y luego combinadas por SRSS en la envolvente de diseño).",
+      ] },
+    { n: nn(6), title: "Borde libre — altura máxima de oleaje sísmico", formula: "d_máx = 0,5·D·Sa,conv (ACI 350.3-06 ec. 9-31, aceleración convectiva ELÁSTICA, sin dividir entre Rwc)",
+      formulaTex: String.raw`d_{max}=0{,}5\,D\,S_{a,conv}\qquad S_{a,conv}=Z\,U\,C_c(T_c)\,S`,
+      substitution: `D=${fmt(D, 2)} m · Sa,conv=${fmt(SaConv, 3)} g (elástica, sin reducir por Rwc)`,
+      result: `d_máx=${fmt(dMaxOleaje, 3)} m ${okBordeLibre ? "≤" : ">"} b.l.=${fmt(bl, 2)} m`,
+      note: "El oleaje (componente convectiva) puede levantarse por encima del nivel de agua en servicio hasta d_máx; el borde libre (b.l., espacio entre el agua y la corona del muro o el arranque de la cúpula) debe alcanzar para contenerlo sin rebalse. A diferencia de las fuerzas de diseño Pi y Pc, esta altura NO se reduce por R: es un desplazamiento físico real del agua, no una fuerza que la ductilidad de la estructura pueda limitar.",
+      ok: okBordeLibre,
+      desarrollo: [
+        `Sa,conv usado aquí es el valor ELÁSTICO (Z·U·C(Tc)·S=${fmt(SaConv, 4)} g), sin dividir entre Rwc: la altura de oleaje es un desplazamiento físico del agua, no una fuerza que la ductilidad estructural pueda reducir.`,
+        `d_máx=0,5·D·Sa,conv=0,5·${fmt(D, 2)}·${fmt(SaConv, 4)}=${fmt(dMaxOleaje, 3)} m.`,
+        `Se compara contra el borde libre disponible b.l.=${fmt(bl, 2)} m: ${okBordeLibre ? "cumple, no se espera rebalse bajo el sismo de diseño." : "NO cumple — el oleaje sísmico supera el borde libre disponible y se produciría rebalse sobre la cúpula; se debe aumentar b.l. o revisar la relación D/HL."}`,
+      ] },
+    { n: nn(7), title: "Envolvente de diseño de la pared", formula: "N_env=N_hs+√(N_i²+N_c²)  ·  M_env y V_env análogos",
       formulaTex: String.raw`N_{env}=N_{hs}+\sqrt{N_i^2+N_c^2}\qquad M_{env},\,V_{env}\ \text{análogos}`,
       result: `N_env,máx=${fmt(NenvMax, 2)} t/m · M_env,máx=${fmt(MenvMax, 2)} t·m/m · V_env,máx=${fmt(VenvMax, 2)} t/m`,
-      note: `Referencia informativa de cortante (idealización tipo viga, conservadora para una lámina axisimétrica): V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm). El diseño de la pared se gobierna por tracción de anillo y flexión (Sn, paso siguiente); esta referencia no es una verificación normativa independiente.` },
-    { n: nn(7), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
+      note: `Referencia informativa de cortante (idealización tipo viga, conservadora para una lámina axisimétrica): V_env,máx=${fmt(VenvMax, 2)} t/m ${muroCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcMuro, 2)} t/m (franja de 1,00 m, d=${fmt(dCmMuro, 1)} cm). El diseño de la pared se gobierna por tracción de anillo y flexión (Sn, paso siguiente); esta referencia no es una verificación normativa independiente.`,
+      desarrollo: [
+        "En cada punto de la altura se combinan tres orígenes de esfuerzo: hidrostático (permanente, N_hs/M_hs del análisis de servicio), impulsivo sísmico (N_i/M_i) y convectivo sísmico (N_c/M_c).",
+        "Impulsivo y convectivo están fuera de fase entre sí (Ti≪Tc, sus máximos no ocurren al mismo tiempo) y se combinan por raíz-cuadrada-de-la-suma-de-cuadrados (SRSS): N_sismo=√(Ni²+Nc²). El hidrostático SÍ actúa simultáneamente con el sismo (es la carga permanente de servicio) y se suma directamente, sin SRSS: N_env=N_hs+N_sismo.",
+        `N_env,máx=${fmt(NenvMax, 2)} t/m, M_env,máx=${fmt(MenvMax, 2)} t·m/m y V_env,máx=${fmt(VenvMax, 2)} t/m son los valores envolventes: el máximo de la combinación punto a punto a lo largo de toda la altura, no necesariamente en la misma cota para N, M y V.`,
+      ] },
+    { n: nn(8), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
       formulaTex: String.raw`\text{Horizontal: }A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\qquad\text{Vertical: }M_u=S_n\,M_{env}=\phi f'_c\,b\,d^2\,\omega(1-0{,}59\,\omega)\qquad S_n=1{,}3`,
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
-      note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
-    { n: nn(8), title: "Cúpula superior (techo) — teoría de membrana", formula: "N_φ, N_θ, empuje H=N_φcos φf",
+      note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.`,
+      desarrollo: [
+        `Acero horizontal (resiste la tracción de anillo N_env, amplificada por Sn=1,3 para control de fisuración sanitaria): As=Sn·N_env,máx/(φ·fy)=1,3·${fmt(NenvMax, 2)}·1000/(0,9·${fmt(fy, 0)})=${fmt((1.3 * NenvMax * 1000) / (0.9 * fy), 2)} cm²/m → ${barHoriz.texto}${barHoriz.capas === 2 ? " (repartido en 2 capas por congestión de acero, ver nota de espesor)" : ""}.`,
+        `Cuantía resultante ρ_horizontal=As/(100·d)=${fmt(rhoHoriz * 100, 3)} % (mínimo normativo 0,18 % por temperatura y retracción, ACI 350/E.060 art. 9.7).`,
+        `Acero vertical (flexión, también amplificada por Sn): Mu=Sn·M_env,máx=1,3·${fmt(MenvMax, 2)}=${fmt(1.3 * MenvMax, 3)} t·m/m, resuelto por el bloque rectangular equivalente (Rn=Mu/(φ·b·d²), ρ=(0,85f'c/fy)·(1−√(1−2Rn/0,85f'c))) → ${barVert.texto}.`,
+      ] },
+    { n: nn(9), title: "Cúpula superior (techo) — teoría de membrana", formula: "N_φ, N_θ, empuje H=N_φcos φf",
       formulaTex: String.raw`N_\varphi,\,N_\theta\ (\text{membrana})\qquad H=N_\varphi(\varphi_f)\cos\varphi_f`,
       result: `N_φ=${fmt(memSup.Nfi, 3)} t/m · Anillo superior: T=${fmt(TringSup, 3)} t → ${ringSup.barra} (n≈${Math.max(4, Math.ceil(AsRingSup / barByName(ringSup.barra).as))})`,
-      note: "La cúpula trabaja principalmente a compresión (como un cascarón), pero empuja hacia afuera en su borde; ese empuje H se ancla en el anillo superior (viga collarín) como tracción de anillo T=H·R." },
-    { n: nn(9), title: "Fondo cónico (tronco de cono)", formula: "N_φ,cono(r') = W_sobre / (2π·r'·sen α)",
+      note: "La cúpula trabaja principalmente a compresión (como un cascarón), pero empuja hacia afuera en su borde; ese empuje H se ancla en el anillo superior (viga collarín) como tracción de anillo T=H·R.",
+      desarrollo: [
+        `Radio de curvatura de la cúpula: Rs=(a²+f²)/(2f), con a=${fmt(domoSup.a, 2)} m (semi-diámetro en el arranque, incluye holgura para el acceso) y f=fSup=${fmt(fSup, 2)} m → Rs=${fmt(domoSup.Rs, 2)} m. Ángulo en el arranque φf=asin(a/Rs)=${fmt((domoSup.phiF * 180) / Math.PI, 1)}°.`,
+        `Bajo peso propio amplificado (1,4·γc·e_domo,sup) y sobrecarga de techo amplificada (1,7·s/c=${fmt(1.7 * scDomo, 3)} t/m²), la teoría de membrana esférica da el esfuerzo meridional N_φ=${fmt(memSup.Nfi, 3)} t/m (compresión: la cúpula "abovedea" la carga hacia el arranque).`,
+        `Empuje horizontal en el arranque: H=N_φ·cos(φf)=${fmt(TringSup / R, 3)} t/m. Multiplicado por el radio de la cuba, este empuje es la tracción que debe resistir el anillo superior: T=H·R=${fmt(TringSup, 3)} t → As=Sn·T/(φ·fy)=${fmt(AsRingSup, 2)} cm² → ${ringSup.barra}.`,
+      ] },
+    { n: nn(10), title: "Fondo cónico (tronco de cono)", formula: "N_φ,cono(r') = W_sobre / (2π·r'·sen α)",
       formulaTex: String.raw`N_{\varphi,cono}(r')=\dfrac{W_{sobre}}{2\pi\,r'\sin\alpha}`,
       substitution: `α=${fmt((alpha * 180) / Math.PI, 1)}° · W_sobre=${fmt(WsobreCono, 2)} t`,
       result: `N_φ,cono=${fmt(NfiConoBase, 3)} t/m (compresión) en r'=${fmt(rp, 2)} m`,
-      note: "El tronco de cono transmite hacia abajo, por compresión meridional N_φ, todo el peso que está por encima de él (pared, cúpula superior y agua); α es el ángulo de inclinación del cono respecto a la vertical." },
-    { n: nn(10), title: "Cúpula inferior (fondo) y anillo inferior",
+      note: "El tronco de cono transmite hacia abajo, por compresión meridional N_φ, todo el peso que está por encima de él (pared, cúpula superior y agua); α es el ángulo de inclinación del cono respecto a la vertical.",
+      desarrollo: [
+        `Peso que carga sobre el cono (pared + cúpula superior + agua de la columna cilíndrica de altura h1 + mitad de los anillos): W_sobre=${fmt(WsobreCono, 2)} t.`,
+        `Ángulo de inclinación del cono respecto a la vertical: α=atan2(h_c, R−r')=${fmt((alpha * 180) / Math.PI, 1)}°.`,
+        `El cono transmite esta carga por compresión meridional pura, como una funda cónica que reparte el peso a lo largo de su circunferencia: N_φ,cono=W_sobre/(2π·r'·sen α)=${fmt(NfiConoBase, 3)} t/m, evaluado en el radio menor r'=${fmt(rp, 2)} m (donde la compresión por unidad de longitud de circunferencia es máxima, al ser el radio más pequeño).`,
+      ] },
+    { n: nn(11), title: "Cúpula inferior (fondo) y anillo inferior",
       formula: "Cúpula de fondo: N_φ, N_θ bajo peso propio + agua sobre su huella. Anillo inferior: T = T_domo − T_cono",
       formulaTex: String.raw`N_\varphi,\,N_\theta\ (\text{cúpula de fondo})\qquad T_{anillo,inf}=T_{domo}-T_{cono}`,
       substitution: `T_domo=${fmt(TringInfDomo, 3)} t (tracción) · T_cono=${fmt(TconoInward, 3)} t (compresión, del tronco de cono)`,
       result: `T_anillo,inf=${fmt(TringInf, 3)} t (${TringInf >= 0 ? "tracción" : "compresión neta"}) → ${ringInf.barra}${TringInf >= 0 ? ` (As=${fmt(AsRingInf, 2)} cm²)` : " (acero mínimo)"}`,
-      note: "El anillo inferior recibe dos efectos que se contrarrestan: la cúpula de fondo lo empuja hacia afuera (tracción T_domo) y el tronco de cono lo empuja hacia adentro (compresión T_cono); el diseño usa la diferencia neta." },
+      note: "El anillo inferior recibe dos efectos que se contrarrestan: la cúpula de fondo lo empuja hacia afuera (tracción T_domo) y el tronco de cono lo empuja hacia adentro (compresión T_cono); el diseño usa la diferencia neta.",
+      desarrollo: [
+        `La cúpula de fondo soporta su peso propio más el agua que queda por encima de su huella (altura equivalente de columna h1+h_c−f'≈${fmt(Htotal - fInf - hCono, 2)} m): w=γc·e_domo,inf+1,0·(esa altura)=${fmt(wInfDomo, 3)} t/m². Por membrana esférica, el empuje en el arranque produce tracción de anillo T_domo=${fmt(TringInfDomo, 3)} t.`,
+        `El tronco de cono, en su extremo inferior (r'), empuja hacia ADENTRO (a diferencia del empuje hacia afuera de una cúpula): componente horizontal H_cono,inward=N_φ,cono·cos α=${fmt(HconoInward, 3)} t/m → T_cono=H_cono,inward·r'=${fmt(TconoInward, 3)} t (compresión de anillo).`,
+        `El anillo inferior resiste la diferencia neta: T_anillo,inf=T_domo−T_cono=${fmt(TringInfDomo, 3)}−${fmt(TconoInward, 3)}=${fmt(TringInf, 3)} t. ${TringInf >= 0 ? `Como el resultado es positivo (tracción neta), se arma con As=Sn·T/(φ·fy)=${fmt(AsRingInf, 2)} cm² → ${ringInf.barra}.` : "Como el resultado es negativo (compresión neta), no se requiere tracción de anillo y se coloca el acero mínimo constructivo."}`,
+      ] },
   ];
 
   const checks: CalcCheck[] = [
     ok("Volumen de cuba ≥ requerido", `${fmt(Vreal, 1)} m³`, `≥ ${fmt(Vreq, 0)} m³`, Vreal >= Vreq * 0.98),
+    ok("Borde libre ≥ oleaje sísmico", `${fmt(dMaxOleaje, 3)} m`, `≤ ${fmt(bl, 2)} m`, okBordeLibre),
     ok("Cuantía horizontal de control de fisuración", `${fmt(rhoHoriz * 100, 3)} %`, "≥ 0,18 %", rhoHoriz >= 0.0018),
   ];
   void muroCortanteOk;
@@ -1060,7 +1153,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   }
 
   const {
-    modelo: modeloFinal,
+    modelo: modeloFinal, kEff,
     WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre,
     PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
@@ -1098,36 +1191,69 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,75 m en el perímetro · Ø columna crece hasta cumplir esbeltez, interacción P–M y deriva, evaluados con el pórtico espacial completo",
       substitution: `Rcol=${fmt(Rcol, 2)} m · nArr por tramos de ≈4,5 m`,
       result: `nCol=${nCol} columnas Ø${fmt(dCol * 100, 0)} cm · H torre=${fmt(Htorre, 2)} m · ${nArr} nivel(es) de arriostre`,
-      note: "Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando nCol, Ø de columna o niveles de arriostre en los datos de entrada." },
+      note: "Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando nCol, Ø de columna o niveles de arriostre en los datos de entrada.",
+      desarrollo: [
+        `Número de columnas: se busca una separación perimetral de ≈3,75 m en el círculo de radio Rcol=0,82·R_cuba=${fmt(Rcol, 2)} m → nCol=redondear(2π·Rcol/3,75/2)×2=${nCol} (forzado a número par, por simetría del pórtico circular).`,
+        `Niveles de arriostre: nArr=redondear(Htorre/4,5)=${nArr}, con separación entre niveles h_entre=Htorre/nArr=${fmt(hEntre, 2)} m (tramos de columna de esbeltez moderada entre vigas de anillo).`,
+        "El diámetro de columna Ø_col se predimensiona iterativamente (ver paso de fuerzas en columnas): arranca en 0,35 m y crece en pasos de 0,05 m hasta que, evaluado con el pórtico espacial completo, se cumplan a la vez la interacción P-M ≤ 1, la esbeltez kL/r ≤ 22 y la deriva de la torre ≤ 0,007 — las tres verificaciones dependen unas de otras (un Ø mayor rigidiza la torre, baja el periodo, cambia la fuerza sísmica y la esbeltez), por eso se resuelven juntas en un bucle, no en pasos independientes.",
+      ] },
     { n: nn(1), title: "Modelo matricial del pórtico espacial (método de la rigidez directa)",
       formula: "Elemento viga-columna 3D de 12 GDL por nudo (axial, flexión biaxial, torsión) · K = ΣTᵀkₗT · Ku=F",
       formulaTex: String.raw`K=\sum T^{\mathsf T} k_\ell\, T\qquad K\,u=F`,
       substitution: `Nudos=${nCol}×(${nArr}+1)+1 · Elementos: ${nCol}×${nArr} columnas + ${nCol}×${nArr} vigas de anillo + ${2 * nCol * nArr} diagonales en X`,
       result: "La cuba se representa como un nudo maestro al nivel de su centro de gravedad, unido a las columnas superiores mediante enlaces rígidos: el reparto de carga entre columnas surge del equilibrio de la matriz, no de una fórmula supuesta.",
-      note: "K es la matriz de rigidez global (ensamblada a partir de la matriz de cada elemento k_ℓ rotada al sistema global con T), u el vector de desplazamientos nodales desconocidos y F el vector de cargas aplicadas. Motor propio verificado contra la solución exacta de un voladizo (0 % de error en desplazamiento y momento de empotramiento) antes de integrarlo a esta memoria." },
+      note: "K es la matriz de rigidez global (ensamblada a partir de la matriz de cada elemento k_ℓ rotada al sistema global con T), u el vector de desplazamientos nodales desconocidos y F el vector de cargas aplicadas. Motor propio verificado contra la solución exacta de un voladizo (0 % de error en desplazamiento y momento de empotramiento) antes de integrarlo a esta memoria.",
+      desarrollo: [
+        `El modelo tiene ${nCol}×(${nArr}+1)+1 nudos: ${nCol} columnas repetidas en ${nArr + 1} niveles (incluida la base empotrada), más 1 nudo maestro ubicado en el eje del tanque, a la altura del centro de gravedad de la cuba (z=Htorre+hcgCuba).`,
+        "Cada elemento (columna, viga de anillo o diagonal) aporta su matriz de rigidez local de 12×12 (6 grados de libertad por nudo: 3 traslaciones + 3 rotaciones — incluye axial, flexión en dos ejes, corte en dos direcciones y torsión), rotada al sistema global con la matriz de transformación T, y se suma en la matriz global K.",
+        "El nudo maestro se une a las columnas del nivel superior con enlaces de rigidez muy alta (multiplicador ×300), que fuerzan a la cuba a moverse como un cuerpo rígido solidario con la corona de columnas: así, el reparto real de fuerza entre columnas (que no es uniforme, depende de la posición de cada una respecto a la dirección del sismo) surge del equilibrio de la matriz, no de una fórmula de reparto supuesta.",
+        "Se resuelve K·u=F dos veces con casos de carga unitarios: (a) F=1 t horizontal en el nudo maestro, para obtener la rigidez lateral exacta de toda la torre; (b) el peso total W vertical en el nudo maestro, para las fuerzas de gravedad (axiales) en cada columna. Las fuerzas sísmicas finales se obtienen escalando lo(s) resultado(s) del caso (a) por el cortante basal V calculado en el paso siguiente (superposición, válida porque el sistema es lineal).",
+      ] },
     { n: nn(2), title: "Periodo, rigidez lateral y fuerza sísmica sobre la torre (péndulo invertido, E.030 estático)",
       formula: "k = 1/δ(F=1)  (rigidez lateral exacta del pórtico, por análisis matricial)   ·   T=2π√(W/(g·k))   ·   V=Z·U·C·S·W/R",
       formulaTex: String.raw`k=\dfrac{1}{\delta(F=1)}\qquad T=2\pi\sqrt{\dfrac{W}{g\,k}}\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}`,
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Sistema: péndulo invertido, R=${fmt(Rtorre, 2)} · T=${fmt(Ttorre, 3)} s · C=${fmt(Ct, 3)}`,
       result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre, por equilibrio global)`,
       note: "δ(F=1) es el desplazamiento del nudo maestro (cuba) ante una fuerza unitaria, obtenido resolviendo la matriz una sola vez; k=1/δ es la rigidez lateral exacta de toda la torre, usada para el periodo T y la fuerza sísmica V.",
-      table: { caption: "Espectro de diseño E.030 de la torre — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
+      table: { caption: "Espectro de diseño E.030 de la torre — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
+      desarrollo: [
+        `Rigidez lateral exacta: k=1/δ(F=1)=${fmt(kEff, 1)} t/m, obtenida de una sola resolución de la matriz con una fuerza horizontal unitaria en el nudo maestro — incluye el aporte conjunto de las ${nCol} columnas, las vigas de anillo y las diagonales en X, no solo la rigidez individual de una columna aislada.`,
+        `Peso sísmico total (cuba + agua + torre de columnas): W=${fmt(Wtotal, 2)} t. Periodo, modelado como péndulo invertido (masa concentrada arriba, columna con masa despreciable): T=2π√(W/(g·k))=2π√(${fmt(Wtotal, 2)}/(${fmt(G, 2)}·${fmt(kEff, 1)}))=${fmt(Ttorre, 3)} s.`,
+        `C(T) por E.030 art. 14 evaluado en T=${fmt(Ttorre, 3)} s: C=${fmt(Ct, 3)}.`,
+        `Cortante basal: V=Z·U·C·S·W/R=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Ct, 3)}·${fmt(sismo.S, 2)}·${fmt(Wtotal, 2)}/${fmt(Rtorre, 2)}=${fmt(Vtorre, 2)} t. R=${fmt(Rtorre, 2)} corresponde al sistema "péndulo invertido" de E.030 (más conservador que un pórtico ordinario, por su baja redundancia estructural: toda la masa está en un solo nivel).`,
+        `Momento de volteo en la base: M=V·hcg=${fmt(Vtorre, 2)}·${fmt(hcg, 2)}=${fmt(Mtorre, 2)} t·m, con hcg=Htorre+hcgCuba=${fmt(Htorre, 2)}+${fmt(hcgCuba, 2)}=${fmt(hcg, 2)} m la altura desde la base hasta el centro de gravedad de la cuba llena (se toma como si toda la fuerza V actuara concentrada a esa altura, por equilibrio global de la torre completa).`,
+      ] },
     { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (resultado directo de la matriz)",
       formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²) por columna   ·   P/φPn + M/φMn ≤ 1",
       formulaTex: String.raw`N=N_{grav}\pm N_{sismo}\qquad M=\sqrt{M_y^2+M_z^2}\qquad \dfrac{P}{\phi P_n}+\dfrac{M}{\phi M_n}\le 1`,
       substitution: `ρ=${fmt(rhoProp * 100, 1)}% · columna más solicitada de las ${nCol} del modelo`,
       result: `Pu=${fmt(PuCol, 2)} t · Mu=${fmt(MuCol, 2)} t·m · φPn=${fmt(PhiPnRho, 1)} t · φMn≈${fmt(PhiMnAprox, 2)} t·m`,
       note: `La interacción P/φPn+M/φMn ≤ 1 es el criterio de falla combinada carga axial + flexión de una columna de concreto armado (diagrama de interacción). P/φPn+M/φMn=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤" : ">"} 1. Verificar con el diagrama de interacción P–M–M del módulo "Diagramas de interacción" para el detallado final del acero.`,
-      ok: interaccion <= 1 },
+      ok: interaccion <= 1,
+      desarrollo: [
+        `Para cada columna se combina la carga axial gravitacional (caso b del paso anterior, N_grav) con el efecto sísmico escalado por V (caso a): N=N_grav±N_sismo. La flexión sísmica se obtiene como resultante biaxial: M=√(My²+Mz²)·V, y se identifica la columna con mayor demanda combinada de las ${nCol} del modelo: Pu=${fmt(PuCol, 2)} t, Mu=${fmt(MuCol, 2)} t·m.`,
+        `Capacidad axial pura aproximada (cuantía de ensayo ρ=${fmt(rhoProp * 100, 1)}%): φPn=0,8·0,7·[0,85f'c(Ag−As)+fy·As]=${fmt(PhiPnRho, 1)} t. Capacidad a flexión aproximada: φMn=0,65·As·fy·(0,8h)≈${fmt(PhiMnAprox, 2)} t·m (estimación rápida de brazo interno, no un diagrama de interacción completo).`,
+        `Interacción: Pu/φPn+Mu/φMn=${fmt(PuCol, 2)}/${fmt(PhiPnRho, 1)}+${fmt(MuCol, 2)}/${fmt(PhiMnAprox, 2)}=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤ 1, cumple." : "> 1, no cumple: se incrementa Ø_col y se repite todo el análisis matricial."}`,
+      ] },
     { n: nn(4), title: "Vigas de arriostre — momento y cortante de la matriz", formula: "M_viga, V_viga = resultado directo del elemento más solicitado bajo sismo",
       substitution: `Sección de prueba ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm · h entre niveles=${fmt(hEntre, 2)} m`,
       result: `Mu=${fmt(MvigaArr, 2)} t·m · Vu=${fmt(VvigaArr, 2)} t → As=${fmt(asArr, 2)} cm²`,
       note: `Cortante: Vu=${fmt(VvigaArr, 2)} t ${vigaCortanteOk ? "≤" : ">"} φVc=${fmt(phiVcArr, 2)} t.`,
-      ok: vigaCortanteOk },
+      ok: vigaCortanteOk,
+      desarrollo: [
+        "Las vigas de anillo (arriostres horizontales entre columnas, en cada nivel) reciben flexión y corte por el mismo análisis matricial: se toma el elemento viga más solicitado bajo la fuerza sísmica de diseño V, ya escalado desde el caso unitario.",
+        `Mu=${fmt(MvigaArr, 2)} t·m se resuelve por flexión simple (bloque rectangular equivalente) en la sección de prueba ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm → As=${fmt(asArr, 2)} cm²/m (mayor entre el acero requerido por flexión y el mínimo por temperatura).`,
+        `Verificación de corte: φVc=0,85·0,53√f'c·b·d/1000=${fmt(phiVcArr, 2)} t. Vu=${fmt(VvigaArr, 2)} t ${vigaCortanteOk ? "≤" : ">"} φVc: ${vigaCortanteOk ? "el concreto solo resiste el corte, sin estribos adicionales por cálculo (se colocan los mínimos constructivos)." : "se requiere refuerzo por corte adicional (estribos) o aumentar la sección de la viga."}`,
+      ] },
     { n: nn(5), title: "Verificación de deriva — E.030 art. 5.2 y ACI 371", formula: "δ = δ(F=1)·V  (desplazamiento exacto del nudo maestro)   ·   Δinelástica = 0,75R·δ   ·   deriva = Δ/H ≤ 0,007",
       result: `deriva=${fmt(derivaRatio, 4)}`,
       note: "ACI 371R recomienda además verificar el desplazamiento de servicio para no dañar tuberías/accesorios de la cuba; se adopta el límite de E.030 Tabla N° 11 (concreto armado) como criterio cuantitativo de referencia.",
-      ok: derivaRatio <= LIMITE_DERIVA_CONCRETO },
+      ok: derivaRatio <= LIMITE_DERIVA_CONCRETO,
+      desarrollo: [
+        `Desplazamiento elástico exacto del nudo maestro bajo la fuerza sísmica real: δ=δ(F=1)·V=(1/${fmt(kEff, 1)})·${fmt(Vtorre, 2)}=${fmt((1 / kEff) * Vtorre, 4)} m — no es una fórmula de viga simplificada, sino el resultado directo de la matriz ya calculada.`,
+        `Desplazamiento inelástico amplificado: Δ=0,75·R·δ=0,75·${fmt(Rtorre, 2)}·${fmt((1 / kEff) * Vtorre, 4)}=${fmt(0.75 * Rtorre * ((1 / kEff) * Vtorre), 4)} m (E.030 usa 0,75R en vez de R completo para estimar el desplazamiento inelástico real a partir del elástico).`,
+        `Deriva=Δ/(Htorre+hcgCuba)=${fmt(0.75 * Rtorre * ((1 / kEff) * Vtorre), 4)}/${fmt(hcg, 2)}=${fmt(derivaRatio, 4)} ${derivaRatio <= LIMITE_DERIVA_CONCRETO ? "≤" : ">"} 0,007 (límite E.030 para concreto armado).`,
+      ] },
     { n: nn(6), title: "Cimentación — platea circular", formula: "q = W/A ± M·c/I  (c=Dcim/2)",
       formulaTex: String.raw`q=\dfrac{W}{A}\pm\dfrac{M\,c}{I}\qquad c=\dfrac{D_{cim}}{2}`,
       substitution: `Dcim=${fmt(Dcim, 2)} m`,
@@ -1135,7 +1261,12 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       note: qmin < 0
         ? "El momento de volteo sísmico genera una pequeña tracción neta en el borde de la platea que un diámetro práctico no elimina por completo. Alternativas: platea con pilotes o anclajes a tracción en el borde de volteo, análisis de contacto parcial (platea rígida sobre suelo, sin tracción), o aumentar la rigidez de la torre (más columnas, mayor diámetro o arriostres adicionales) para reducir el momento en la base."
         : undefined,
-      ok: qmax / 10 <= qadm && qmin >= 0 },
+      ok: qmax / 10 <= qadm && qmin >= 0,
+      desarrollo: [
+        `La platea circular se modela como una sección sometida a carga axial excéntrica: área A=πDcim²/4=${fmt(areaCim, 2)} m², inercia I=πDcim⁴/64=${fmt(Icim, 2)} m⁴, con Dcim=${fmt(Dcim, 2)} m (obtenido iterando en pasos de 0,25 m hasta cumplir q_máx≤q_adm y q_mín≥0).`,
+        `q_máx=W/A+M·c/I=${fmt(Wtotal, 2)}/${fmt(areaCim, 2)}+${fmt(Mtorre, 2)}·${fmt(Dcim / 2, 2)}/${fmt(Icim, 2)}=${fmt(qmax, 2)} t/m² (${fmt(qmax / 10, 3)} kg/cm²), comparado contra la presión admisible del suelo q_adm=${fmt(qadm, 2)} kg/cm².`,
+        `q_mín=W/A−M·c/I=${fmt(qmin, 2)} t/m². ${qmin >= 0 ? "Al ser ≥0, toda la platea permanece en contacto con el suelo (sin tracción neta)." : "Al ser negativo, indicaría tracción neta en el borde de volteo — el suelo no puede tomar tracción, por lo que en la realidad ese borde se despega y la presión se redistribuye sobre un área de contacto menor (análisis de contacto parcial), aumentando la presión real de compresión en el borde opuesto."}`,
+      ] },
   ];
 
   const checks: CalcCheck[] = [
@@ -1157,6 +1288,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     vPtsColumna: packPts(perfilColumnaV), vPtsViga: packPts(perfilVigaV),
     nodes3D: packNodes3D(modeloFinal.nodes), elems3D: packElemStress(elemStress),
     hcgCuba: (cuba.Htotal / 2).toFixed(2),
+    Wtotal: Wtotal.toFixed(2), Vbasal: Vtorre.toFixed(2), Mvolteo: Mtorre.toFixed(2),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -1283,33 +1415,66 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       formulaTex: String.raw`A_{fuste}=\dfrac{\pi}{4}\left(D_{ext}^2-D_{int}^2\right)`,
       substitution: `Ø ext=${fmt(Dext, 2)} m · Ø int=${fmt(Dint, 2)} m · e=${fmt(eFuste * 100, 0)} cm · H=${fmt(Htorre, 2)} m`,
       result: `Peso del fuste=${fmt(pesoFuste, 2)} t · W total (cuba+agua+fuste)=${fmt(Wtotal, 2)} t`,
-      note: "El fuste es un tubo cilíndrico hueco de concreto armado (sección anular) que soporta la cuba en voladizo. Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando el diámetro o el espesor del fuste en los datos de entrada." },
+      note: "El fuste es un tubo cilíndrico hueco de concreto armado (sección anular) que soporta la cuba en voladizo. Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando el diámetro o el espesor del fuste en los datos de entrada.",
+      desarrollo: [
+        "El fuste se predimensiona iterando: primero crece el diámetro exterior (más eficiente en material — la circunferencia, y con ella el módulo de sección y la capacidad a corte, aumentan sin engrosar la pared) hasta un tope práctico (0,92 veces el diámetro de la cuba); solo si con ese tope aún no alcanza, se engruesa la pared.",
+        "En cada iteración se recalculan el área anular A=(π/4)(Dext²−Dint²), la inercia I=(π/64)(Dext⁴−Dint⁴), el peso, la fuerza sísmica V, el momento M, el esfuerzo σ=P/A±M·c/I, la deriva y el corte — y se detiene apenas σ≤0,45f'c, deriva≤0,007 y Vu≤φVc se cumplen a la vez.",
+        `Resultado: Ø ext=${fmt(Dext, 2)} m, Ø int=${fmt(Dint, 2)} m, e=${fmt(eFuste * 100, 0)} cm. Peso del fuste=γc·A·Htorre=${fmt(gammaC, 2)}·${fmt(Afuste, 3)}·${fmt(Htorre, 2)}=${fmt(pesoFuste, 2)} t. Peso total (cuba+agua+fuste)=${fmt(Wtotal, 2)} t.`,
+      ] },
     { n: nn(1), title: "Periodo y fuerza sísmica (E.030, sistema de muros estructurales)",
       formula: "T=H/Ct (Ct=60, E.030 art. 28)   ·   V=Z·U·C·S·W/R",
       formulaTex: String.raw`T=\dfrac{H}{C_t}\ (C_t=60)\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}`,
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · T=${fmt(T1, 3)} s · C=${fmt(Csis, 3)} · R=${fmt(Rfuste, 1)} (muros estructurales)`,
       result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)`,
       note: "El fuste continuo se clasifica como sistema de muros estructurales (R=6): al ser un tubo macizo y rígido, se analiza con el método estático simplificado de E.030 en vez del modelo de Housner completo, apropiado para un elemento tan rígido frente al agua que soporta.",
-      table: { caption: "Espectro de diseño E.030 del fuste — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) } },
+      table: { caption: "Espectro de diseño E.030 del fuste — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
+      desarrollo: [
+        `Periodo por la fórmula estática de E.030 art. 28 para sistemas de muros estructurales: T=Htorre/Ct=${fmt(Htorre, 2)}/60=${fmt(T1, 3)} s. A diferencia de la torre de columnas, aquí NO se usa análisis matricial: el fuste es una sección continua (un solo tubo), no un ensamble de barras discretas, por lo que su rigidez lateral se estima por la fórmula normativa en vez de resolverse elemento por elemento.`,
+        `C(T) por E.030 art. 14, evaluado en T=${fmt(T1, 3)} s: C=${fmt(Csis, 3)}.`,
+        `Cortante basal: V=Z·U·C·S·W/R=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Csis, 3)}·${fmt(sismo.S, 2)}·${fmt(Wtotal, 2)}/${fmt(Rfuste, 1)}=${fmt(Vfuste, 2)} t. R=${fmt(Rfuste, 1)} corresponde al sistema de muros estructurales de concreto armado (más ductilidad que el péndulo invertido de la torre de columnas, porque el fuste es una sección continua y más redundante).`,
+        `Momento en la base: M=V·hcg=${fmt(Vfuste, 2)}·${fmt(hcg, 2)}=${fmt(Mfuste, 2)} t·m, con hcg=Htorre+Htotal,cuba/2=${fmt(Htorre, 2)}+${fmt(cuba.Htotal / 2, 2)}=${fmt(hcg, 2)} m la altura al centro de gravedad de la cuba llena.`,
+      ] },
     { n: nn(2), title: "Esfuerzos en la sección anular del fuste", formula: "σ = P/A ± M·c/I",
       formulaTex: String.raw`\sigma=\dfrac{P}{A}\pm\dfrac{M\,c}{I}`,
       result: `σ_máx=${fmt(sigmaMax, 1)} kg/cm² (compresión) ${sigmaMax <= sigmaAdmConc ? "≤" : ">"} 0,45f'c=${fmt(sigmaAdmConc, 1)} kg/cm²   ·   σ_mín=${fmt(sigmaMin, 1)} kg/cm²`,
       note: sigmaMin < 0 ? "La sección presenta tracción neta en la fibra extrema: se arma la pared para esa tracción." : "Toda la sección permanece en compresión.",
-      ok: sigmaMax <= sigmaAdmConc },
+      ok: sigmaMax <= sigmaAdmConc,
+      desarrollo: [
+        `El fuste se modela como un voladizo de sección anular: σ_axial=P/A=${fmt(Wtotal * 1000, 0)}/${fmt(AfusteCm2, 0)}=${fmt(sigmaAxial, 2)} kg/cm² (P en kg, A en cm²) y σ_flexión=M·c/I=${fmt(sigmaFlexion, 2)} kg/cm², con c=Dext/2=${fmt(cBase, 2)} m (fibra extrema, la más alejada del eje neutro).`,
+        `σ_máx=σ_axial+σ_flexión=${fmt(sigmaMax, 1)} kg/cm² (fibra a favor de la dirección sísmica) ${sigmaMax <= sigmaAdmConc ? "≤" : ">"} 0,45f'c=${fmt(sigmaAdmConc, 1)} kg/cm² (límite usual de compresión admisible en servicio para no fisurar ni sobre-esforzar el concreto).`,
+        `σ_mín=σ_axial−σ_flexión=${fmt(sigmaMin, 1)} kg/cm² (fibra opuesta). ${sigmaMin < 0 ? "Al ser negativo, esa fibra queda en tracción neta bajo el sismo de diseño: la pared debe armarse para tomar esa tracción (paso siguiente)." : "No hay tracción neta; el acero vertical se coloca por cuantía mínima de muro."}`,
+      ] },
     { n: nn(3), title: "Acero vertical del fuste", formula: "Asmín=0,25%Ag (E.060 muros) · As,tracción=N_t/(φfy)",
       formulaTex: String.raw`A_{s,min}=0{,}0025\,A_g\ (\text{E.060 muros})\qquad A_{s,tracción}=\dfrac{N_t}{\phi f_y}`,
-      result: `As=${fmt(AsFusteFinal, 1)} cm² repartido en dos capas (ρ=${fmt(cuantiaFuste * 100, 2)}%)` },
+      result: `As=${fmt(AsFusteFinal, 1)} cm² repartido en dos capas (ρ=${fmt(cuantiaFuste * 100, 2)}%)`,
+      desarrollo: [
+        `Acero mínimo por cuantía de muro (E.060): As,mín=0,0025·Ag=0,0025·${fmt(AfusteCm2, 0)}=${fmt(AsMinFuste, 1)} cm².`,
+        sigmaMin < 0
+          ? `Como hay tracción neta (paso anterior), se estima la fuerza de tracción resultante integrando el esfuerzo en la mitad traccionada de la sección: Nt≈|σ_mín|·Ag/2=${fmt(NtParedFuste, 2)} t → As,tracción=Nt/(φ·fy)=${fmt(AsTraccionFuste, 2)} cm².`
+          : "No hay tracción neta (σ_mín≥0): gobierna directamente el acero mínimo por cuantía, sin necesidad de calcular acero adicional por tracción axial.",
+        `As final=máx(As,mín, As,tracción)=${fmt(AsFusteFinal, 1)} cm², repartido en dos capas (cara interior y exterior de la pared, práctica estándar para muros de espesor moderado). Cuantía resultante ρ=As/Ag=${fmt(cuantiaFuste * 100, 2)} %.`,
+      ] },
     { n: nn(4), title: "Verificación por cortante", formula: "Vu ≤ φVc = 0,85·0,53√f'c·Av   ·   Av≈0,5·Ag (sección anular, tubo de pared delgada)",
       formulaTex: String.raw`V_u\le \phi V_c=0{,}85\cdot0{,}53\sqrt{f'_c}\,A_v\qquad A_v\approx0{,}5\,A_g`,
       substitution: `Ag=${fmt(AfusteCm2, 0)} cm² · Av=${fmt(Av, 0)} cm²`,
       result: `Vu=${fmt(VuFuste, 2)} t ${cortanteOk ? "≤" : ">"} φVc=${fmt(phiVc, 2)} t`,
-      ok: cortanteOk },
+      ok: cortanteOk,
+      desarrollo: [
+        `Área de corte efectiva de una sección anular de pared delgada: Av≈0,5·Ag=0,5·${fmt(AfusteCm2, 0)}=${fmt(Av, 0)} cm² (aproximadamente la mitad del área total resiste corte en la dirección del sismo; la porción cercana al eje neutro perpendicular a esa dirección aporta poco).`,
+        `φVc=0,85·0,53√f'c·Av/1000=0,85·0,53·√${fmt(fc, 0)}·${fmt(Av, 0)}/1000=${fmt(phiVc, 2)} t.`,
+        `Vu=${fmt(VuFuste, 2)} t ${cortanteOk ? "≤" : ">"} φVc: ${cortanteOk ? "el concreto solo resiste el corte sísmico sin refuerzo adicional por cálculo (se coloca el mínimo constructivo)." : "se requiere aumentar el espesor del fuste o el refuerzo horizontal por corte."}`,
+      ] },
     { n: nn(5), title: "Verificación de deriva — E.030 art. 5.2 y ACI 371",
       formula: "Δ=V·H³/(3EI) (voladizo)   ·   Δinelástica=0,75R·Δe   ·   deriva=Δ/H ≤ 0,007",
       formulaTex: String.raw`\Delta=\dfrac{V\,H^3}{3EI}\qquad \Delta_{inel}=0{,}75\,R\,\Delta_e\qquad \text{deriva}=\dfrac{\Delta}{H}\le 0{,}007`,
       result: `Δelástica=${fmt(derivaTubo.deltaElastica * 1000, 2)} mm · Δinelástica=${fmt(derivaTubo.deltaInelastica * 1000, 2)} mm → deriva=${fmt(derivaTubo.derivaRatio, 4)}`,
       note: "El fuste continuo, al comportarse como tubo en voladizo, es muy rígido: la deriva suele ser gobernada por el límite normativo con amplio margen respecto a la torre de columnas.",
-      ok: derivaTubo.derivaRatio <= LIMITE_DERIVA_CONCRETO },
+      ok: derivaTubo.derivaRatio <= LIMITE_DERIVA_CONCRETO,
+      desarrollo: [
+        `Desplazamiento elástico de un voladizo bajo carga puntual en la punta (fórmula clásica de resistencia de materiales): Δe=V·H³/(3·E·I)=${fmt(Vfuste, 2)}·${fmt(Htorre, 2)}³/(3·${fmt(EcTm2, 0)}·${fmt(Ifuste, 3)})=${fmt(derivaTubo.deltaElastica * 1000, 2)} mm.`,
+        `Desplazamiento inelástico: Δinel=0,75·R·Δe=0,75·${fmt(Rfuste, 1)}·${fmt(derivaTubo.deltaElastica * 1000, 2)}=${fmt(derivaTubo.deltaInelastica * 1000, 2)} mm.`,
+        `Deriva=Δinel/Htorre=${fmt(derivaTubo.deltaInelastica * 1000, 2)}/${fmt(Htorre * 1000, 0)}=${fmt(derivaTubo.derivaRatio, 4)} ${derivaTubo.derivaRatio <= LIMITE_DERIVA_CONCRETO ? "≤" : ">"} 0,007 (límite E.030 para concreto armado).`,
+      ] },
     { n: nn(6), title: "Cimentación — platea circular", formula: "q = W/A ± M·c/I",
       formulaTex: String.raw`q=\dfrac{W}{A}\pm\dfrac{M\,c}{I}`,
       substitution: `Dcim=${fmt(Dcim, 2)} m`,
@@ -1317,7 +1482,12 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       note: qmin < 0
         ? "El momento de volteo sísmico genera una pequeña tracción neta en el borde de la platea que un diámetro práctico no elimina por completo. Alternativas: platea con pilotes o anclajes a tracción en el borde de volteo, o análisis de contacto parcial (platea rígida sobre suelo, sin tracción)."
         : undefined,
-      ok: qmax / 10 <= qadm && qmin >= 0 },
+      ok: qmax / 10 <= qadm && qmin >= 0,
+      desarrollo: [
+        `Platea circular: A=πDcim²/4=${fmt(areaCim, 2)} m², I=πDcim⁴/64=${fmt(Icim, 2)} m⁴, con Dcim=${fmt(Dcim, 2)} m (iterado en pasos de 0,25 m partiendo de 1,5·Ø_fuste hasta cumplir q_máx≤q_adm y q_mín≥0).`,
+        `q_máx=W/A+M·c/I=${fmt(Wtotal, 2)}/${fmt(areaCim, 2)}+${fmt(Mfuste, 2)}·${fmt(Dcim / 2, 2)}/${fmt(Icim, 2)}=${fmt(qmax, 2)} t/m² (${fmt(qmax / 10, 3)} kg/cm²) frente a q_adm=${fmt(qadm, 2)} kg/cm².`,
+        `q_mín=W/A−M·c/I=${fmt(qmin, 2)} t/m². ${qmin >= 0 ? "Al ser ≥0, toda la platea permanece en contacto con el suelo, sin tracción neta." : "Al ser negativo, el borde de volteo tendería a despegarse del suelo (contacto parcial); se recomienda aumentar Dcim o evaluar cimentación profunda (pilotes) o anclajes a tracción."}`,
+      ] },
   ];
 
   const checks: CalcCheck[] = [
@@ -1334,6 +1504,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     Dfuste: Dfuste.toFixed(2), eFuste: eFuste.toFixed(3), Htorre: Htorre.toFixed(2), Dcim: Dcim.toFixed(2),
     AsFuste: fmt(AsFusteFinal, 1), derivaRatio: derivaTubo.derivaRatio.toFixed(4),
     mPtsFuste: packPts(perfilFusteM), vPtsFuste: packPts(perfilFusteV),
+    Wtotal: Wtotal.toFixed(2), Vbasal: Vfuste.toFixed(2), Mvolteo: Mfuste.toFixed(2),
   };
 
   const recomendacion = cuba.Wagua < 500
@@ -1634,6 +1805,7 @@ export const reservorioCuadrado: Engine = (raw) => {
     asVert: barVert.texto, asHorEsq: barHorEsq.texto, asHorVano: barHorVano.texto, asLosa: barLosa.texto,
     asTechoEsq: barTechoEsq.texto, asTechoVano: barTechoVano.texto,
     Wtotal: Wtotal.toFixed(2), FSvolteo: FSvolteo.toFixed(2), FSdeslizamiento: FSdeslizamiento.toFixed(2),
+    Vbasal: VbasalGob.toFixed(2), Mvolteo: Math.max(MvolteoDirX, MvolteoDirY).toFixed(2),
   };
 
   return out(
