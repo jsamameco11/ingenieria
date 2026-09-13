@@ -1,4 +1,5 @@
 import { type CalcCheck, type CalcOutput, type Engine, fmt, num, str } from "../types";
+import { solveCross, type CrossSpan } from "../crossMethod";
 
 function out(
   headline: string,
@@ -1122,46 +1123,120 @@ export const vigaDiagramas: Engine = (raw) => {
   );
 };
 
+/** Etiqueta del extremo izquierdo del tramo s (en el nudo s, mirando hacia s+1). */
+function crossLabelL(s: number) {
+  return `M${s}${s + 1}`;
+}
+/** Etiqueta del extremo derecho del tramo s (en el nudo s+1, mirando hacia s). */
+function crossLabelR(s: number) {
+  return `M${s + 1}${s}`;
+}
+
 export const metodoCross: Engine = (raw) => {
-  const L1 = num(raw, "L1", 5);
-  const L2 = num(raw, "L2", 6);
-  const I1 = num(raw, "I1", 1);
-  const I2 = num(raw, "I2", 1);
-  const FEM1 = num(raw, "FEM1", -12);
-  const FEM2 = num(raw, "FEM2", 10);
-  const k1 = I1 / L1;
-  const k2 = I2 / L2;
-  const DF1 = k1 / (k1 + k2);
-  const DF2 = k2 / (k1 + k2);
-  const COC = -(FEM1 + FEM2);
-  const M21 = FEM1 + DF1 * COC;
-  const M23 = FEM2 + DF2 * COC;
+  const nSpans = Math.max(2, Math.min(4, Math.round(num(raw, "crN", 3))));
+  const spans: CrossSpan[] = [];
+  for (let i = 1; i <= nSpans; i++) {
+    spans.push({
+      L: num(raw, `crL${i}`, 5),
+      I: num(raw, `crI${i}`, 1),
+      femL: num(raw, `crFEM${i}L`, 0),
+      femR: num(raw, `crFEM${i}R`, 0),
+    });
+  }
+  const res = solveCross(spans);
+  const nJoints = res.joints.length;
+  const lastCycle = res.cycles[res.cycles.length - 1];
+
+  const jointMomentsTxt = (sep: string) =>
+    res.joints
+      .map((jt) =>
+        jt.members
+          .map((m) => `${m.end === "L" ? crossLabelL(m.span) : crossLabelR(m.span)} = ${fmt(res.final[m.span - 1][m.end], 2)}`)
+          .join("  ")
+      )
+      .join(sep);
+
+  const dfRows: string[][] = [];
+  res.joints.forEach((jt) => {
+    jt.members.forEach((m) => {
+      dfRows.push([`Nudo ${jt.joint}`, m.end === "L" ? crossLabelL(m.span) : crossLabelR(m.span), fmt(m.k, 3), fmt(m.df, 3)]);
+    });
+  });
+
+  const femRows = spans.map((s, idx) => [
+    `Tramo ${idx + 1} (L=${fmt(s.L, 2)} m, I=${fmt(s.I, 2)})`,
+    `${crossLabelL(idx + 1)} = ${fmt(s.femL, 2)} t·m`,
+    `${crossLabelR(idx + 1)} = ${fmt(s.femR, 2)} t·m`,
+  ]);
+
+  const cols = spans.flatMap((_, idx) => [
+    { span: idx + 1, end: "L" as const, label: crossLabelL(idx + 1) },
+    { span: idx + 1, end: "R" as const, label: crossLabelR(idx + 1) },
+  ]);
+  const crossRows: string[][] = [];
+  crossRows.push(["FEM (dato)", ...cols.map((c) => fmt(c.end === "L" ? spans[c.span - 1].femL : spans[c.span - 1].femR, 2))]);
+  res.cycles.forEach((cy) => {
+    crossRows.push([
+      `Reparto — ciclo ${cy.n}`,
+      ...cols.map((c) => {
+        const v = cy.distribute[`${c.span}${c.end}`];
+        return v !== undefined ? fmt(v, 2) : "—";
+      }),
+    ]);
+    crossRows.push([
+      `Transporte — ciclo ${cy.n}`,
+      ...cols.map((c) => {
+        const v = cy.carry[`${c.span}${c.end}`];
+        return v !== undefined ? fmt(v, 2) : "—";
+      }),
+    ]);
+  });
+  crossRows.push(["Momento final", ...cols.map((c) => fmt(res.final[c.span - 1][c.end], 2))]);
+
+  const checks = res.jointCheck.map((jc) => ok(`Equilibrio nudo ${jc.joint} — ΣM ≈ 0`, fmt(jc.sum, 3), "≈ 0", Math.abs(jc.sum) < 0.05));
+
   return out(
-    `M₂₁ = ${fmt(M21, 2)} t·m    M₂₃ = ${fmt(M23, 2)} t·m`,
-    `Nudo 2 — distribución Cross (un ciclo, empotramientos lejanos)`,
+    jointMomentsTxt("    ·    "),
+    `Viga continua de ${nSpans} tramos — ${nJoints} nudo${nJoints > 1 ? "s" : ""} interior${nJoints > 1 ? "es" : ""} equilibrado${nJoints > 1 ? "s" : ""} por Cross en ${res.cycles.length} ciclo${res.cycles.length > 1 ? "s" : ""} (extremos lejanos empotrados)`,
     [
       {
         n: "01",
-        title: "Rigideces relativas",
-        formula: "K = I/L    ·    DF = Ki / ΣK",
-        substitution: `K1=${fmt(k1, 3)}  K2=${fmt(k2, 3)}`,
-        result: `DF1 = ${fmt(DF1, 3)}   DF2 = ${fmt(DF2, 3)}`,
+        title: "Rigideces relativas y factores de distribución",
+        formula: "k = I/L    ·    DF_i = k_i / Σk (tramos que concurren al nudo)",
+        formulaTex: String.raw`k=\dfrac{I}{L}\qquad DF_i=\dfrac{k_i}{\Sigma k\ (\text{tramos en el nudo})}`,
+        note: "k mide qué tan rígido gira cada tramo en el nudo: a mayor k, mayor porción del momento desequilibrado absorbe ese tramo. En cada nudo interior los DF de los tramos que concurren suman 1.",
+        result: `${nJoints} nudo${nJoints > 1 ? "s" : ""} interior${nJoints > 1 ? "es" : ""} — ver DF por tramo`,
+        table: { headers: ["Nudo", "Extremo", "k = I/L", "DF"], rows: dfRows },
       },
       {
         n: "02",
-        title: "Momentos de empotramiento y desequilibrio",
-        formula: "COC = − Σ FEM",
-        substitution: `FEM1=${fmt(FEM1, 2)}  FEM2=${fmt(FEM2, 2)}  COC=${fmt(COC, 2)}`,
-        result: `${fmt(COC, 2)} t·m`,
+        title: "Momentos de empotramiento (FEM) — datos de entrada",
+        note: "FEM_ij es el momento que aparecería en el extremo i del tramo i-j si los dos nudos del tramo estuvieran totalmente empotrados (giro cero) bajo la carga real; el Cross parte de aquí y libera el giro en los nudos interiores.",
+        result: "Ver tabla por tramo",
+        table: { headers: ["Tramo", "Extremo izquierdo", "Extremo derecho"], rows: femRows },
       },
       {
         n: "03",
-        title: "Momentos finales en el nudo",
-        formula: "M = FEM + DF · COC",
-        result: `M21 = ${fmt(M21, 2)}   M23 = ${fmt(M23, 2)}   Σ = ${fmt(M21 + M23, 3)}`,
+        title: "Tabla de distribución de Cross — reparto y transporte por ciclo",
+        formula: "U = −Σ M (extremos en el nudo)    ·    ΔM_i = DF_i · U    ·    M(extremo lejano) += ½ ΔM_i",
+        formulaTex: String.raw`U_j=-\!\!\sum_{\text{extremos en }j}\!\!M \qquad \Delta M_i=DF_i\cdot U_j \qquad M_{\text{extremo lejano}}\mathrel{+}=\tfrac12\Delta M_i`,
+        note: "En cada ciclo se halla el momento desequilibrado U de cada nudo interior (suma algebraica de los momentos que llegan a él), se reparte proporcional al DF de cada tramo y se transporta la mitad de ese reparto al extremo lejano del mismo tramo. Los nudos extremos están empotrados: reciben transporte pero no reparten. Se repite hasta que el reparto de cada ciclo es despreciable.",
+        result: `Converge en ${res.cycles.length} ciclo${res.cycles.length > 1 ? "s" : ""} (máx. reparto del último ciclo = ${fmt(lastCycle?.maxDelta ?? 0, 3)} t·m)`,
+        table: {
+          caption: `Momentos de extremo M_ij (t·m) por columna — extremos lejanos (${crossLabelL(1)}${nSpans > 1 ? `, ${crossLabelR(nSpans)}` : ""}) empotrados`,
+          headers: ["Fila", ...cols.map((c) => c.label)],
+          rows: crossRows,
+        },
+      },
+      {
+        n: "04",
+        title: "Momentos finales en cada nudo",
+        formula: "M_final = FEM + Σ repartos + Σ transportes",
+        formulaTex: String.raw`M_{\text{final}}=FEM+\sum\text{repartos}+\sum\text{transportes}`,
+        result: jointMomentsTxt("   ·   "),
       },
     ],
-    [ok("Equilibrio del nudo ΣM ≈ 0", fmt(M21 + M23, 3), "≈ 0", Math.abs(M21 + M23) < 0.05)]
+    checks
   );
 };
 

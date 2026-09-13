@@ -6,6 +6,7 @@ import { decodeDemands, decodePts } from "../lib/colpro";
 import { barByName } from "../lib/types";
 import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, parseHolesText, parsePolyText, resolvePmForma, steelZonesFor } from "../lib/pmSections";
 import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
+import { CrossCroquis } from "./DiagramCross";
 
 const DimLive = createContext<{
   values: Record<string, string>;
@@ -315,6 +316,8 @@ export function Diagram({
       return <Pavimento values={values} {...p} />;
     case "diagramasMV":
       return <MV values={values} {...p} />;
+    case "cross":
+      return <CrossCroquis values={values} />;
     case "apoyo":
       return <Apoyo values={values} {...p} />;
     case "placaAcero":
