@@ -1,5 +1,5 @@
 import { type CalcCheck, type CalcOutput, type Engine, fmt, num, str } from "../types";
-import { solveCross, type CrossSpan } from "../crossMethod";
+import { solveCross, solveCrossFrame, type CrossSpan, type FrameMember, type FrameJointDef } from "../crossMethod";
 
 function out(
   headline: string,
@@ -1132,7 +1132,150 @@ function crossLabelR(s: number) {
   return `M${s + 1}${s}`;
 }
 
+/** Id de nudo de la grilla del pórtico: nivel 0 = base (apoyos), col 1..(nBays+1). */
+function jointId(level: number, col: number) {
+  return level * 10 + col;
+}
+/** Etiqueta de extremo de barra en notación M(nudo propio)(nudo lejano), generalizada a cualquier grafo. */
+function frameLabel(ownJoint: number, otherJoint: number) {
+  return `M${ownJoint}-${otherJoint}`;
+}
+
+const metodoCrossPortico: Engine = (raw) => {
+  const nLevels = Math.max(1, Math.min(3, Math.round(num(raw, "crNL", 2))));
+  const nBays = Math.max(1, Math.min(3, Math.round(num(raw, "crNB", 2))));
+
+  const members: FrameMember[] = [];
+  for (let lvl = 1; lvl <= nLevels; lvl++) {
+    for (let b = 1; b <= nBays; b++) {
+      members.push({
+        id: `B${lvl}_${b}`,
+        jointA: jointId(lvl, b),
+        jointB: jointId(lvl, b + 1),
+        L: num(raw, `crBL${lvl}${b}`, 5),
+        I: num(raw, `crBI${lvl}${b}`, 1),
+        femA: num(raw, `crBFL${lvl}${b}`, 0),
+        femB: num(raw, `crBFR${lvl}${b}`, 0),
+      });
+    }
+    for (let c = 1; c <= nBays + 1; c++) {
+      members.push({
+        id: `C${lvl}_${c}`,
+        jointA: jointId(lvl - 1, c),
+        jointB: jointId(lvl, c),
+        L: num(raw, `crCH${lvl}${c}`, 3),
+        I: num(raw, `crCI${lvl}${c}`, 1),
+        femA: 0,
+        femB: 0,
+      });
+    }
+  }
+  const joints: FrameJointDef[] = [];
+  for (let lvl = 0; lvl <= nLevels; lvl++) {
+    for (let c = 1; c <= nBays + 1; c++) joints.push({ id: jointId(lvl, c), fixed: lvl === 0 });
+  }
+
+  const res = solveCrossFrame(members, joints);
+  const freeJoints = joints.filter((j) => !j.fixed).map((j) => j.id);
+
+  const dfRows: string[][] = [];
+  res.jointDF.forEach((jt) => {
+    jt.members.forEach((m) => {
+      const mem = members.find((mm) => mm.id === m.memberId)!;
+      const otherJoint = m.end === "A" ? mem.jointB : mem.jointA;
+      dfRows.push([`Nudo ${jt.joint}`, frameLabel(jt.joint, otherJoint), fmt(m.k, 3), fmt(m.df, 3)]);
+    });
+  });
+
+  const femRows = members.map((mem) => [
+    mem.id.startsWith("B") ? `Viga ${mem.id} (L=${fmt(mem.L, 2)} m, I=${fmt(mem.I, 2)})` : `Columna ${mem.id} (H=${fmt(mem.L, 2)} m, I=${fmt(mem.I, 2)})`,
+    `${frameLabel(mem.jointA, mem.jointB)} = ${fmt(mem.femA, 2)} t·m`,
+    `${frameLabel(mem.jointB, mem.jointA)} = ${fmt(mem.femB, 2)} t·m`,
+  ]);
+
+  const cols = members.flatMap((mem) => [
+    { memberId: mem.id, end: "A" as const, label: frameLabel(mem.jointA, mem.jointB) },
+    { memberId: mem.id, end: "B" as const, label: frameLabel(mem.jointB, mem.jointA) },
+  ]);
+  const crossRows: string[][] = [];
+  crossRows.push(["FEM (dato)", ...cols.map((c) => fmt(c.end === "A" ? members.find((m) => m.id === c.memberId)!.femA : members.find((m) => m.id === c.memberId)!.femB, 2))]);
+  res.cycles.forEach((cy) => {
+    crossRows.push([
+      `Reparto — ciclo ${cy.n}`,
+      ...cols.map((c) => {
+        const v = cy.distribute[`${c.memberId}#${c.end}`];
+        return v !== undefined ? fmt(v, 2) : "—";
+      }),
+    ]);
+    crossRows.push([
+      `Transporte — ciclo ${cy.n}`,
+      ...cols.map((c) => {
+        const v = cy.carry[`${c.memberId}#${c.end}`];
+        return v !== undefined ? fmt(v, 2) : "—";
+      }),
+    ]);
+  });
+  crossRows.push(["Momento final", ...cols.map((c) => fmt(res.final[c.memberId][c.end], 2))]);
+
+  const lastCycle = res.cycles[res.cycles.length - 1];
+  const checks = res.jointCheck.map((jc) => ok(`Equilibrio nudo ${jc.joint} — ΣM ≈ 0`, fmt(jc.sum, 3), "≈ 0", Math.abs(jc.sum) < 0.05));
+
+  const jointMomentsTxt = (sep: string) =>
+    res.jointDF
+      .map((jt) => jt.members.map((m) => {
+        const mem = members.find((mm) => mm.id === m.memberId)!;
+        const otherJoint = m.end === "A" ? mem.jointB : mem.jointA;
+        return `${frameLabel(jt.joint, otherJoint)} = ${fmt(res.final[m.memberId][m.end], 2)}`;
+      }).join("  "))
+      .join(sep);
+
+  return out(
+    jointMomentsTxt("    ·    "),
+    `Pórtico de ${nLevels} nivel${nLevels > 1 ? "es" : ""} × ${nBays} vano${nBays > 1 ? "s" : ""} — ${freeJoints.length} nudo${freeJoints.length > 1 ? "s" : ""} libre${freeJoints.length > 1 ? "s" : ""} equilibrado${freeJoints.length > 1 ? "s" : ""} por Cross en ${res.cycles.length} ciclo${res.cycles.length > 1 ? "s" : ""} (bases empotradas, sin corrección por desplazamiento lateral)`,
+    [
+      {
+        n: "01",
+        title: "Rigideces relativas y factores de distribución",
+        formula: "k = I/L    ·    DF_i = k_i / Σk (barras que concurren al nudo)",
+        formulaTex: String.raw`k=\dfrac{I}{L}\qquad DF_i=\dfrac{k_i}{\Sigma k\ (\text{barras en el nudo})}`,
+        note: "En un pórtico cada nudo libre puede tener hasta 4 barras concurrentes (viga izq., viga der., columna inferior, columna superior); el DF reparte el 100% entre todas las que realmente concurren a ese nudo, sean vigas o columnas.",
+        result: `${freeJoints.length} nudo${freeJoints.length > 1 ? "s" : ""} libre${freeJoints.length > 1 ? "s" : ""} — ver DF por barra`,
+        table: { headers: ["Nudo", "Extremo", "k = I/L", "DF"], rows: dfRows },
+      },
+      {
+        n: "02",
+        title: "Momentos de empotramiento (FEM) — datos de entrada",
+        note: "Las columnas se ingresan sin FEM propio (sin carga transversal aplicada directamente sobre ellas): en un pórtico bajo cargas de gravedad sobre las vigas, las columnas solo reciben momento por compatibilidad de giro en los nudos, vía el reparto y el transporte.",
+        result: "Ver tabla por barra",
+        table: { headers: ["Barra", "Extremo A", "Extremo B"], rows: femRows },
+      },
+      {
+        n: "03",
+        title: "Tabla de distribución de Cross — reparto y transporte por ciclo",
+        formula: "U = −Σ M (extremos en el nudo)    ·    ΔM_i = DF_i · U    ·    M(extremo lejano) += ½ ΔM_i",
+        formulaTex: String.raw`U_j=-\!\!\sum_{\text{extremos en }j}\!\!M \qquad \Delta M_i=DF_i\cdot U_j \qquad M_{\text{extremo lejano}}\mathrel{+}=\tfrac12\Delta M_i`,
+        note: "Igual que en la viga continua, pero ahora cada nudo libre puede repartir entre vigas Y columnas a la vez. Las bases de las columnas (nudos de apoyo) están empotradas: reciben transporte pero no reparten. No se modela el desplazamiento lateral (sway) del pórtico — válido para cargas de gravedad sobre las vigas con pórtico razonablemente simétrico.",
+        result: `Converge en ${res.cycles.length} ciclo${res.cycles.length > 1 ? "s" : ""} (máx. reparto del último ciclo = ${fmt(lastCycle?.maxDelta ?? 0, 3)} t·m)`,
+        table: {
+          caption: "Momentos de extremo M_ij (t·m) por columna — extremos en la base de columnas empotrados",
+          headers: ["Fila", ...cols.map((c) => c.label)],
+          rows: crossRows,
+        },
+      },
+      {
+        n: "04",
+        title: "Momentos finales en cada nudo",
+        formula: "M_final = FEM + Σ repartos + Σ transportes",
+        formulaTex: String.raw`M_{\text{final}}=FEM+\sum\text{repartos}+\sum\text{transportes}`,
+        result: jointMomentsTxt("   ·   "),
+      },
+    ],
+    checks
+  );
+};
+
 export const metodoCross: Engine = (raw) => {
+  if (str(raw, "crMode", "viga") === "portico") return metodoCrossPortico(raw);
   const nSpans = Math.max(2, Math.min(4, Math.round(num(raw, "crN", 3))));
   const spans: CrossSpan[] = [];
   for (let i = 1; i <= nSpans; i++) {

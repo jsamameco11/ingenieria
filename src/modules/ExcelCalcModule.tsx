@@ -416,10 +416,31 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
     if (geomM === "zapata" && ["vol", "bcim", "hcim"].includes(f.key)) return false;
   }
   if (values.tipo === "muro" && ["t1", "t2", "sCol", "nTramos"].includes(f.key)) return false;
-  if (values.crN != null) {
-    const crN = Number(values.crN) || 3;
-    if (["crL3", "crI3", "crFEM3L", "crFEM3R"].includes(f.key) && crN < 3) return false;
-    if (["crL4", "crI4", "crFEM4L", "crFEM4R"].includes(f.key) && crN < 4) return false;
+  if (values.crN != null || values.crMode != null) {
+    const crMode = values.crMode || "viga";
+    const isVigaField = f.key === "crN" || /^cr(L|I|FEM)\d/.test(f.key);
+    const isPorticoField = f.key === "crNL" || f.key === "crNB" || /^cr[BC](L|I|FL|FR|H)\d\d$/.test(f.key);
+    if (crMode === "portico" && isVigaField) return false;
+    if (crMode !== "portico" && isPorticoField) return false;
+    if (crMode === "viga") {
+      const crN = Number(values.crN) || 3;
+      if (["crL3", "crI3", "crFEM3L", "crFEM3R"].includes(f.key) && crN < 3) return false;
+      if (["crL4", "crI4", "crFEM4L", "crFEM4R"].includes(f.key) && crN < 4) return false;
+    }
+    if (crMode === "portico") {
+      const crNL = Number(values.crNL) || 2;
+      const crNB = Number(values.crNB) || 2;
+      const mBeam = /^crB(L|I|FL|FR)(\d)(\d)$/.exec(f.key);
+      if (mBeam) {
+        const lvl = Number(mBeam[2]), b = Number(mBeam[3]);
+        if (lvl > crNL || b > crNB) return false;
+      }
+      const mCol = /^crC(H|I)(\d)(\d)$/.exec(f.key);
+      if (mCol) {
+        const lvl = Number(mCol[2]), c = Number(mCol[3]);
+        if (lvl > crNL || c > crNB + 1) return false;
+      }
+    }
   }
   if (values.tipo === "columnas" && ["tw", "eMuro"].includes(f.key)) return false;
   if (values.sistema === "elevado" && ["Lc", "Bc", "dias"].includes(f.key)) return false;

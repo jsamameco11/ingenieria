@@ -1015,6 +1015,17 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const Gc = EcTm2 / (2 * (1 + nuConc));
   const rhoProp = 0.02;
 
+  // Modelo de Housner (masa impulsiva Wi + convectiva Wc), igual que en el reservorio apoyado y en
+  // el fuste: la masa impulsiva vibra solidaria con el pórtico (su periodo es el del pórtico), pero
+  // el oleaje (Wc) tiene su propio periodo largo Tc, independiente de la rigidez de la torre, y se
+  // combina por SRSS en vez de sumarse a una sola masa sísmica.
+  const hns = cuba.hns;
+  const hIabsAgua = Htorre + hns.hiIBP;
+  const hCabs = Htorre + hns.hcIBP;
+  const Cconv = e030C(hns.Tc, sismo.Tp, sismo.Tl);
+  const SaConv = sismo.Z * sismo.U * sismo.S * Cconv;
+  const Pc = (SaConv * hns.Wc) / sismo.Rwc;
+
   /** Un análisis matricial completo (rigidez directa 3D) del pórtico espacial para un Ø de columna de prueba. */
   function analizarTorreMatricial(dColT: number) {
     const bArrT = Math.max(0.25, dColT * 0.65);
@@ -1024,20 +1035,29 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc, RcolBase);
     const pesoTorreT = gammaC * modelo.Acol * Htorre * nCol;
     const WtotalT = cuba.pesoTotalCuba + pesoTorreT;
-    // Centro de masa combinado: la cuba (agua+estructura) actúa a hcg, pero las columnas tienen su
-    // propio peso repartido a lo largo de su altura (centroide en Htorre/2, no en hcg) — promediarlo
-    // por masa evita sobreestimar el momento de volteo al asumir que TODO el peso sísmico actúa
-    // concentrado arriba, en la cuba.
+    // Centro de masa combinado (solo referencia): la cuba (agua+estructura) actúa a hcg, pero las
+    // columnas tienen su propio peso repartido a lo largo de su altura (centroide en Htorre/2, no en
+    // hcg). La fuerza sísmica de diseño ya NO usa esta masa combinada (ver Housner abajo); se deja
+    // hcgComb solo como dato informativo del centro de gravedad estático de la torre.
     const hColCG = Htorre / 2;
     const hcgComb = (cuba.pesoTotalCuba * hcg + pesoTorreT * hColCG) / WtotalT;
+
+    // Masa impulsiva: agua que se mueve rígida con la cuba + estructura de la cuba + columnas —
+    // todo esto vibra solidario con el pórtico, así que su periodo es el periodo modal del pórtico.
+    // La masa convectiva (oleaje, Pc) NO participa de este modo: tiene su propio periodo largo Tc,
+    // ya calculado fuera de este bucle porque no depende del Ø de columna de prueba.
+    const WiTotalT = hns.Wi + cuba.Wcuba + pesoTorreT;
+    const hIabsT = (hns.Wi * hIabsAgua + cuba.Wcuba * hcg + pesoTorreT * hColCG) / WiTotalT;
 
     const unit = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fx: 1 }]);
     const dxUnit = unit.disp.get(modelo.masterNodeId)![0];
     const kEff = 1 / Math.max(Math.abs(dxUnit), 1e-12);
-    const Ttorre = 2 * Math.PI * Math.sqrt(WtotalT / G / Math.max(kEff, 1e-6));
+    const Ttorre = 2 * Math.PI * Math.sqrt(WiTotalT / G / Math.max(kEff, 1e-6));
     const Ct = e030C(Ttorre, sismo.Tp, sismo.Tl);
-    const VtorreT = (sismo.Z * sismo.U * sismo.S * Ct * WtotalT) / Rtorre;
-    const MtorreT = VtorreT * hcgComb;
+    const SaImpT = sismo.Z * sismo.U * sismo.S * Ct;
+    const PiT = (SaImpT * WiTotalT) / Rtorre;
+    const VtorreT = Math.sqrt(PiT * PiT + Pc * Pc);
+    const MtorreT = Math.sqrt((PiT * hIabsT) ** 2 + (Pc * hCabs) ** 2);
 
     const grav = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fz: -WtotalT }]);
 
@@ -1143,6 +1163,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
 
     return {
       modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff, hColCG, hcgComb,
+      WiTotalT, hIabsT, PiT,
       PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
       bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
     };
@@ -1162,6 +1183,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const {
     modelo: modeloFinal, kEff,
     WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre, hColCG, hcgComb, pesoTorreT,
+    WiTotalT: WiTotal, hIabsT: hIabs, PiT: Pi,
     PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
     bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
@@ -1216,19 +1238,20 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         "El nudo maestro se une a las columnas del nivel superior con enlaces de rigidez muy alta (multiplicador ×300), que fuerzan a la cuba a moverse como un cuerpo rígido solidario con la corona de columnas: así, el reparto real de fuerza entre columnas (que no es uniforme, depende de la posición de cada una respecto a la dirección del sismo) surge del equilibrio de la matriz, no de una fórmula de reparto supuesta.",
         "Se resuelve K·u=F dos veces con casos de carga unitarios: (a) F=1 t horizontal en el nudo maestro, para obtener la rigidez lateral exacta de toda la torre; (b) el peso total W vertical en el nudo maestro, para las fuerzas de gravedad (axiales) en cada columna. Las fuerzas sísmicas finales se obtienen escalando lo(s) resultado(s) del caso (a) por el cortante basal V calculado en el paso siguiente (superposición, válida porque el sistema es lineal).",
       ] },
-    { n: nn(2), title: "Periodo, rigidez lateral y fuerza sísmica sobre la torre (péndulo invertido, E.030 estático)",
-      formula: "k = 1/δ(F=1)  (rigidez lateral exacta del pórtico, por análisis matricial)   ·   T=2π√(W/(g·k))   ·   V=Z·U·C·S·W/R",
-      formulaTex: String.raw`k=\dfrac{1}{\delta(F=1)}\qquad T=2\pi\sqrt{\dfrac{W}{g\,k}}\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}`,
-      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Sistema: péndulo invertido, R=${fmt(Rtorre, 2)} · T=${fmt(Ttorre, 3)} s · C=${fmt(Ct, 3)}`,
-      result: `V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m (en la base de la torre, por equilibrio global)`,
-      note: "δ(F=1) es el desplazamiento del nudo maestro (cuba) ante una fuerza unitaria, obtenido resolviendo la matriz una sola vez; k=1/δ es la rigidez lateral exacta de toda la torre, usada para el periodo T y la fuerza sísmica V.",
+    { n: nn(2), title: "Periodo, rigidez lateral y fuerza sísmica — Housner (impulsiva + convectiva)",
+      formula: "k = 1/δ(F=1)  ·  Ti=2π√(Wi,total/(g·k))  ·  Pi=Sa(Ti)·Wi,total/Rtorre  ·  Pc=Sa(Tc)·Wc/Rwc  ·  V=√(Pi²+Pc²)",
+      formulaTex: String.raw`k=\dfrac{1}{\delta(F=1)}\qquad T_i=2\pi\sqrt{\dfrac{W_{i,total}}{g\,k}}\qquad P_i=\dfrac{S_a(T_i)\,W_{i,total}}{R_{torre}}\qquad P_c=\dfrac{S_a(T_c)\,W_c}{R_{wc}}\qquad V=\sqrt{P_i^2+P_c^2}`,
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Sistema: péndulo invertido, Rtorre=${fmt(Rtorre, 2)} · Ti=${fmt(Ttorre, 3)} s (C=${fmt(Ct, 3)}) · Tc=${fmt(hns.Tc, 3)} s (C=${fmt(Cconv, 3)}) · Rwc=${fmt(sismo.Rwc, 2)}`,
+      result: `Pi=${fmt(Pi, 2)} t (hi=${fmt(hIabs, 2)} m) · Pc=${fmt(Pc, 2)} t (hc=${fmt(hCabs, 2)} m) · V=${fmt(Vtorre, 2)} t · M=${fmt(Mtorre, 2)} t·m`,
+      note: "δ(F=1) es el desplazamiento del nudo maestro ante una fuerza unitaria, obtenido resolviendo la matriz una sola vez; k=1/δ es la rigidez lateral exacta de toda la torre. Con ella se calcula Ti, el periodo del MODO IMPULSIVO: la masa que vibra solidaria con el pórtico (agua que se mueve rígida + estructura de la cuba + columnas). El oleaje (masa convectiva Wc) no participa de este modo — tiene su propio periodo largo Tc, independiente de la rigidez de la torre — y se combina por SRSS, igual que en el reservorio apoyado.",
       table: { caption: "Espectro de diseño E.030 de la torre — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
       desarrollo: [
         `Rigidez lateral exacta: k=1/δ(F=1)=${fmt(kEff, 1)} t/m, obtenida de una sola resolución de la matriz con una fuerza horizontal unitaria en el nudo maestro — incluye el aporte conjunto de las ${nCol} columnas, las vigas de anillo y las diagonales en X, no solo la rigidez individual de una columna aislada.`,
-        `Peso sísmico total (cuba + agua + torre de columnas): W=${fmt(Wtotal, 2)} t. Periodo, modelado como péndulo invertido (masa concentrada arriba, columna con masa despreciable): T=2π√(W/(g·k))=2π√(${fmt(Wtotal, 2)}/(${fmt(G, 2)}·${fmt(kEff, 1)}))=${fmt(Ttorre, 3)} s.`,
-        `C(T) por E.030 art. 14 evaluado en T=${fmt(Ttorre, 3)} s: C=${fmt(Ct, 3)}.`,
-        `Cortante basal: V=Z·U·C·S·W/R=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Ct, 3)}·${fmt(sismo.S, 2)}·${fmt(Wtotal, 2)}/${fmt(Rtorre, 2)}=${fmt(Vtorre, 2)} t. R=${fmt(Rtorre, 2)} corresponde al sistema "péndulo invertido" de E.030 (más conservador que un pórtico ordinario, por su baja redundancia estructural: toda la masa está en un solo nivel).`,
-        `Momento de volteo en la base: M=V·hcg=${fmt(Vtorre, 2)}·${fmt(hcg, 2)}=${fmt(Mtorre, 2)} t·m, con hcg=Htorre+hcgCuba=${fmt(Htorre, 2)}+${fmt(hcgCuba, 2)}=${fmt(hcg, 2)} m la altura desde la base hasta el centro de gravedad de la cuba llena (se toma como si toda la fuerza V actuara concentrada a esa altura, por equilibrio global de la torre completa).`,
+        `Masa impulsiva (agua que se mueve rígida con la cuba + estructura de la cuba + columnas): Wi,total=Wi+Wcuba+Wtorre=${fmt(hns.Wi, 2)}+${fmt(cuba.Wcuba, 2)}+${fmt(pesoTorreT, 2)}=${fmt(WiTotal, 2)} t, actuando en hi=${fmt(hIabs, 2)} m. Periodo, modelado como péndulo invertido de esa masa: Ti=2π√(Wi,total/(g·k))=2π√(${fmt(WiTotal, 2)}/(${fmt(G, 2)}·${fmt(kEff, 1)}))=${fmt(Ttorre, 3)} s.`,
+        `Masa convectiva (oleaje, modelo de Housner — no vibra con el pórtico): Wc=${fmt(hns.Wc, 2)} t, con periodo propio Tc=${fmt(hns.Tc, 3)} s, actuando en hc=Htorre+hcIBP=${fmt(Htorre, 2)}+${fmt(hns.hcIBP, 3)}=${fmt(hCabs, 2)} m.`,
+        `C(Ti)=${fmt(Ct, 3)} y C(Tc)=${fmt(Cconv, 3)} por E.030 art. 14, evaluados cada uno en su propio periodo.`,
+        `Pi=Sa(Ti)·Wi,total/Rtorre=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Ct, 3)}·${fmt(sismo.S, 2)}·${fmt(WiTotal, 2)}/${fmt(Rtorre, 2)}=${fmt(Pi, 2)} t. R=${fmt(Rtorre, 2)} corresponde al sistema "péndulo invertido" de E.030 (más conservador que un pórtico ordinario, por su baja redundancia estructural: toda la masa impulsiva está en un solo nivel). Pc=Sa(Tc)·Wc/Rwc=${fmt(SaConv, 4)}·${fmt(hns.Wc, 2)}/${fmt(sismo.Rwc, 2)}=${fmt(Pc, 2)} t (Rwc≈1: el oleaje no disipa energía por ductilidad estructural).`,
+        `Cortante basal (SRSS, fuera de fase): V=√(Pi²+Pc²)=${fmt(Vtorre, 2)} t. Momento de volteo en la base: M=√((Pi·hi)²+(Pc·hc)²)=√((${fmt(Pi, 2)}·${fmt(hIabs, 2)})²+(${fmt(Pc, 2)}·${fmt(hCabs, 2)})²)=${fmt(Mtorre, 2)} t·m.`,
       ] },
     { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (resultado directo de la matriz)",
       formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²) por columna   ·   P/φPn + M/φMn ≤ 1",
@@ -1297,6 +1320,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     hcgCuba: (cuba.Htotal / 2).toFixed(2), hcgAbs: hcg.toFixed(2), hFusteCG: hColCG.toFixed(2), hcgComb: hcgComb.toFixed(2),
     Wtotal: Wtotal.toFixed(2), Vbasal: Vtorre.toFixed(2), Mvolteo: Mtorre.toFixed(2),
     Wfuste: pesoTorreT.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
+    Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hIabs.toFixed(3), hcIBP: hCabs.toFixed(3),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -1339,6 +1363,18 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const EcTm2 = EcConcreto(fc) * 10;
   const sigmaAdmConcAuto = 0.45 * fc;
 
+  // Modelo de Housner (masa impulsiva Wi + convectiva Wc), igual que en el reservorio apoyado: el
+  // fuste es rígido frente al agua, pero eso solo justifica usar el periodo estructural (T1) para la
+  // masa impulsiva — el oleaje (Wc) sigue teniendo su propio periodo largo, independiente de la
+  // rigidez del fuste, y se combina por SRSS igual que en cualquier tanque.
+  const hns = cuba.hns;
+  const SaImp = sismo.Z * sismo.U * sismo.S * Csis;
+  const Cconv = e030C(hns.Tc, sismo.Tp, sismo.Tl);
+  const SaConv = sismo.Z * sismo.U * sismo.S * Cconv;
+  const Pc = (SaConv * hns.Wc) / sismo.Rwc;
+  const hCabs = Htorre + hns.hcIBP;
+  const hIabsAgua = Htorre + hns.hiIBP;
+
   const DfusteManual = numOrAuto(raw, "Dfuste", 0);
   const eFusteManual = numOrAuto(raw, "eFuste", 0);
   const autoFuste = DfusteManual <= 0;
@@ -1356,12 +1392,13 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       const AfusteT = (Math.PI / 4) * (DextT * DextT - DintT * DintT);
       const IfusteT = (Math.PI / 64) * (DextT ** 4 - DintT ** 4);
       const pesoFusteT = gammaC * AfusteT * Htorre;
-      const WtotalT = cuba.pesoTotalCuba + pesoFusteT;
-      const hcgCombT = (cuba.pesoTotalCuba * hcg + pesoFusteT * hFusteCG) / WtotalT;
-      const VfusteT = (sismo.Z * sismo.U * sismo.S * Csis * WtotalT) / Rfuste;
-      const MfusteT = VfusteT * hcgCombT;
+      const WiTotalT = hns.Wi + cuba.Wcuba + pesoFusteT;
+      const hIabsT = (hns.Wi * hIabsAgua + cuba.Wcuba * hcg + pesoFusteT * hFusteCG) / WiTotalT;
+      const PiT = (SaImp * WiTotalT) / Rfuste;
+      const VfusteT = Math.sqrt(PiT * PiT + Pc * Pc);
+      const MfusteT = Math.sqrt((PiT * hIabsT) ** 2 + (Pc * hCabs) ** 2);
       const AfusteCm2T = AfusteT * 1e4;
-      const sigmaT = (WtotalT * 1000) / AfusteCm2T + (MfusteT * 1000 * 100 * (DextT / 2)) / (IfusteT * 1e8);
+      const sigmaT = ((hns.Wi + hns.Wc + cuba.Wcuba + pesoFusteT) * 1000) / AfusteCm2T + (MfusteT * 1000 * 100 * (DextT / 2)) / (IfusteT * 1e8);
       const derivaT = derivaFuste(VfusteT, Htorre, EcTm2, IfusteT, Rfuste, false).derivaRatio;
       const AvT = 0.5 * AfusteCm2T;
       const phiVcT = (0.85 * 0.53 * Math.sqrt(fc) * AvT) / 1000;
@@ -1377,9 +1414,12 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const Ifuste = (Math.PI / 64) * (Dext ** 4 - Dint ** 4);
   const pesoFuste = gammaC * Afuste * Htorre;
   const Wtotal = cuba.pesoTotalCuba + pesoFuste;
+  const WiTotal = hns.Wi + cuba.Wcuba + pesoFuste;
+  const hIabs = (hns.Wi * hIabsAgua + cuba.Wcuba * hcg + pesoFuste * hFusteCG) / WiTotal;
   const hcgComb = (cuba.pesoTotalCuba * hcg + pesoFuste * hFusteCG) / Wtotal;
-  const Vfuste = (sismo.Z * sismo.U * sismo.S * Csis * Wtotal) / Rfuste;
-  const Mfuste = Vfuste * hcgComb;
+  const Pi = (SaImp * WiTotal) / Rfuste;
+  const Vfuste = Math.sqrt(Pi * Pi + Pc * Pc);
+  const Mfuste = Math.sqrt((Pi * hIabs) ** 2 + (Pc * hCabs) ** 2);
   const perfilFusteM = [{ x: 0, M: Mfuste }, { x: Htorre, M: Mfuste - Vfuste * Htorre }];
   const perfilFusteV = [{ x: 0, M: Vfuste }, { x: Htorre, M: Vfuste }];
 
@@ -1437,19 +1477,20 @@ export const tanqueElevadoFuste: Engine = (raw) => {
         "En cada iteración se recalculan el área anular A=(π/4)(Dext²−Dint²), la inercia I=(π/64)(Dext⁴−Dint⁴), el peso, la fuerza sísmica V, el momento M, el esfuerzo σ=P/A±M·c/I, la deriva y el corte — y se detiene apenas σ≤0,45f'c, deriva≤0,007 y Vu≤φVc se cumplen a la vez.",
         `Resultado: Ø ext=${fmt(Dext, 2)} m, Ø int=${fmt(Dint, 2)} m, e=${fmt(eFuste * 100, 0)} cm. Peso del fuste=γc·A·Htorre=${fmt(gammaC, 2)}·${fmt(Afuste, 3)}·${fmt(Htorre, 2)}=${fmt(pesoFuste, 2)} t. Peso total (cuba+agua+fuste)=${fmt(Wtotal, 2)} t.`,
       ] },
-    { n: nn(1), title: "Periodo y fuerza sísmica (E.030, sistema de muros estructurales)",
-      formula: "T=H/Ct (Ct=60, E.030 art. 28)   ·   V=Z·U·C·S·W/R",
-      formulaTex: String.raw`T=\dfrac{H}{C_t}\ (C_t=60)\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}\qquad h_{cg}=\dfrac{W_{cuba}\,h_{cg,cuba}+W_{fuste}\,h_{fuste}}{W_{total}}`,
-      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · T=${fmt(T1, 3)} s · C=${fmt(Csis, 3)} · R=${fmt(Rfuste, 1)} (muros estructurales)`,
-      result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)`,
-      note: "El fuste continuo se clasifica como sistema de muros estructurales (R=6): al ser un tubo macizo y rígido, se analiza con el método estático simplificado de E.030 en vez del modelo de Housner completo, apropiado para un elemento tan rígido frente al agua que soporta.",
+    { n: nn(1), title: "Periodo y fuerza sísmica — Housner (impulsiva + convectiva), soporte tipo fuste",
+      formula: "Ti=H/Ct (periodo del fuste, E.030 art. 28)  ·  Tc=Housner (oleaje)  ·  Pi=Sa(Ti)·Wi,total/Rfuste  ·  Pc=Sa(Tc)·Wc/Rwc  ·  V=√(Pi²+Pc²)",
+      formulaTex: String.raw`T_i=\dfrac{H}{C_t}\ (C_t=60)\qquad P_i=\dfrac{S_a(T_i)\,W_{i,total}}{R_{fuste}}\qquad P_c=\dfrac{S_a(T_c)\,W_c}{R_{wc}}\qquad V=\sqrt{P_i^2+P_c^2}`,
+      substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Ti=${fmt(T1, 3)} s (C=${fmt(Csis, 3)}) · Tc=${fmt(hns.Tc, 3)} s (C=${fmt(Cconv, 3)}) · Rfuste=${fmt(Rfuste, 1)} · Rwc=${fmt(sismo.Rwc, 2)}`,
+      result: `Pi=${fmt(Pi, 2)} t (hi=${fmt(hIabs, 2)} m) · Pc=${fmt(Pc, 2)} t (hc=${fmt(hCabs, 2)} m) · V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)`,
+      note: "El fuste es rígido frente al agua, pero eso solo justifica usar el periodo del propio fuste (Ti=H/Ct) para la masa impulsiva Wi (agua+estructura de la cuba+fuste, que se mueve solidaria con la torre); el oleaje (Wc) sigue teniendo su propio periodo largo Tc, prácticamente independiente de la rigidez del fuste, y se combina por SRSS igual que en el reservorio apoyado — no se simplifica a una sola masa.",
       table: { caption: "Espectro de diseño E.030 del fuste — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
       desarrollo: [
-        `Periodo por la fórmula estática de E.030 art. 28 para sistemas de muros estructurales: T=Htorre/Ct=${fmt(Htorre, 2)}/60=${fmt(T1, 3)} s. A diferencia de la torre de columnas, aquí NO se usa análisis matricial: el fuste es una sección continua (un solo tubo), no un ensamble de barras discretas, por lo que su rigidez lateral se estima por la fórmula normativa en vez de resolverse elemento por elemento.`,
-        `C(T) por E.030 art. 14, evaluado en T=${fmt(T1, 3)} s: C=${fmt(Csis, 3)}.`,
-        `Cortante basal: V=Z·U·C·S·W/R=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Csis, 3)}·${fmt(sismo.S, 2)}·${fmt(Wtotal, 2)}/${fmt(Rfuste, 1)}=${fmt(Vfuste, 2)} t. R=${fmt(Rfuste, 1)} corresponde al sistema de muros estructurales de concreto armado (más ductilidad que el péndulo invertido de la torre de columnas, porque el fuste es una sección continua y más redundante).`,
-        `Centro de masa combinado: el peso sísmico W no actúa todo a la altura de la cuba — el fuste (peso=${fmt(pesoFuste, 2)} t) tiene su propio centroide a media altura h_fuste=Htorre/2=${fmt(hFusteCG, 2)} m, mientras que la cuba llena (peso=${fmt(cuba.pesoTotalCuba, 2)} t) actúa en hcg,cuba=Htorre+Htotal,cuba/2=${fmt(hcg, 2)} m. El centroide combinado, ponderado por peso, es hcg=(${fmt(cuba.pesoTotalCuba, 2)}·${fmt(hcg, 2)}+${fmt(pesoFuste, 2)}·${fmt(hFusteCG, 2)})/${fmt(Wtotal, 2)}=${fmt(hcgComb, 2)} m — más bajo que hcg,cuba, porque reconoce que una parte del peso (el propio fuste) está más cerca de la base.`,
-        `Momento en la base: M=V·hcg=${fmt(Vfuste, 2)}·${fmt(hcgComb, 2)}=${fmt(Mfuste, 2)} t·m.`,
+        `Periodo impulsivo, por la fórmula estática de E.030 art. 28 para sistemas de muros estructurales: Ti=Htorre/Ct=${fmt(Htorre, 2)}/60=${fmt(T1, 3)} s (el agua+cuba se mueven solidarias con el fuste, así que vibran con el periodo del fuste). A diferencia de la torre de columnas, aquí NO se usa análisis matricial: el fuste es una sección continua, por lo que su rigidez lateral se estima por la fórmula normativa.`,
+        `Periodo convectivo (oleaje), independiente de la rigidez del fuste — modelo de Housner: Tc=${fmt(hns.Tc, 3)} s.`,
+        `C(Ti)=${fmt(Csis, 3)} y C(Tc)=${fmt(Cconv, 3)} por E.030 art. 14, evaluados cada uno en su propio periodo.`,
+        `Masa impulsiva total (agua que se mueve rígida + estructura de la cuba + fuste): Wi,total=Wi+Wcuba+Wfuste=${fmt(hns.Wi, 2)}+${fmt(cuba.Wcuba, 2)}+${fmt(pesoFuste, 2)}=${fmt(WiTotal, 2)} t, actuando en hi=${fmt(hIabs, 2)} m (promedio ponderado por peso de las alturas de cada componente, medidas desde la base del fuste). Masa convectiva (oleaje): Wc=${fmt(hns.Wc, 2)} t, actuando en hc=Htorre+hcIBP=${fmt(Htorre, 2)}+${fmt(hns.hcIBP, 3)}=${fmt(hCabs, 2)} m.`,
+        `Pi=Sa(Ti)·Wi,total/Rfuste=${fmt(SaImp, 4)}·${fmt(WiTotal, 2)}/${fmt(Rfuste, 1)}=${fmt(Pi, 2)} t. Pc=Sa(Tc)·Wc/Rwc=${fmt(SaConv, 4)}·${fmt(hns.Wc, 2)}/${fmt(sismo.Rwc, 2)}=${fmt(Pc, 2)} t (Rwc≈1: el oleaje no disipa energía por ductilidad estructural).`,
+        `Cortante basal (SRSS, fuera de fase): V=√(Pi²+Pc²)=√(${fmt(Pi, 2)}²+${fmt(Pc, 2)}²)=${fmt(Vfuste, 2)} t. Momento de volteo: M=√((Pi·hi)²+(Pc·hc)²)=√((${fmt(Pi, 2)}·${fmt(hIabs, 2)})²+(${fmt(Pc, 2)}·${fmt(hCabs, 2)})²)=${fmt(Mfuste, 2)} t·m.`,
       ] },
     { n: nn(2), title: "Esfuerzos en la sección anular del fuste", formula: "σ = P/A ± M·c/I",
       formulaTex: String.raw`\sigma=\dfrac{P}{A}\pm\dfrac{M\,c}{I}`,
@@ -1524,6 +1565,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     Wtotal: Wtotal.toFixed(2), Vbasal: Vfuste.toFixed(2), Mvolteo: Mfuste.toFixed(2),
     hcgCuba: (cuba.Htotal / 2).toFixed(2), hcgAbs: hcg.toFixed(2), hFusteCG: hFusteCG.toFixed(2), hcgComb: hcgComb.toFixed(2),
     Wfuste: pesoFuste.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
+    Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hIabs.toFixed(3), hcIBP: hCabs.toFixed(3),
   };
 
   const recomendacion = cuba.Wagua < 500

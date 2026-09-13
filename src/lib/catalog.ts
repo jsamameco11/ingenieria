@@ -142,6 +142,81 @@ const DEF_REGULACION: Record<string, string> = {
   Ps: "2",
 };
 
+/** Máximos admitidos por el modo "pórtico" del método de Cross: hasta 3 niveles y 3 vanos por nivel. */
+const CROSS_MAX_NL = 3;
+const CROSS_MAX_NB = 3;
+
+/** Campos del modo pórtico (varios niveles y nudos): vigas y columnas de la grilla, agrupadas por nivel. */
+function crossPorticoFields(): FieldDef[] {
+  const fields: FieldDef[] = [
+    {
+      key: "crNL",
+      label: "N° de niveles",
+      group: "Grilla del pórtico",
+      kind: "select",
+      options: [
+        { value: "1", label: "1 nivel" },
+        { value: "2", label: "2 niveles" },
+        { value: "3", label: "3 niveles" },
+      ],
+    },
+    {
+      key: "crNB",
+      label: "N° de vanos por nivel",
+      group: "Grilla del pórtico",
+      kind: "select",
+      options: [
+        { value: "1", label: "1 vano (2 columnas)" },
+        { value: "2", label: "2 vanos (3 columnas)" },
+        { value: "3", label: "3 vanos (4 columnas)" },
+      ],
+    },
+  ];
+  for (let lvl = 1; lvl <= CROSS_MAX_NL; lvl++) {
+    for (let b = 1; b <= CROSS_MAX_NB; b++) {
+      const g = `Nivel ${lvl} · Vigas`;
+      fields.push(
+        { key: `crBL${lvl}${b}`, label: `Nivel ${lvl} · Vano ${b} · L`, unit: "m", group: g, step: 0.1 },
+        { key: `crBI${lvl}${b}`, label: `Nivel ${lvl} · Vano ${b} · I relativa`, group: g, step: 0.1 },
+        { key: `crBFL${lvl}${b}`, label: `Nivel ${lvl} · Vano ${b} · FEM extremo izq.`, unit: "t·m", group: g, step: 0.1 },
+        { key: `crBFR${lvl}${b}`, label: `Nivel ${lvl} · Vano ${b} · FEM extremo der.`, unit: "t·m", group: g, step: 0.1 }
+      );
+    }
+    for (let c = 1; c <= CROSS_MAX_NB + 1; c++) {
+      const g = `Nivel ${lvl} · Columnas`;
+      fields.push(
+        { key: `crCH${lvl}${c}`, label: `Nivel ${lvl} · Columna ${c} · H`, unit: "m", group: g, step: 0.1 },
+        { key: `crCI${lvl}${c}`, label: `Nivel ${lvl} · Columna ${c} · I relativa`, group: g, step: 0.1 }
+      );
+    }
+  }
+  return fields;
+}
+
+/** Ejemplo ilustrativo: pórtico de 2 niveles × 2 vanos, con FEM de vigas por carga uniforme. */
+function crossPorticoDefaults(): Record<string, string> {
+  const d: Record<string, string> = { crNL: "2", crNB: "2" };
+  const beamL: Record<number, number[]> = { 1: [5, 6, 5], 2: [5, 6, 5] };
+  const beamW: Record<number, number> = { 1: 3, 2: 2.5 };
+  const colH: Record<number, number> = { 1: 3.5, 2: 3 };
+  for (let lvl = 1; lvl <= CROSS_MAX_NL; lvl++) {
+    for (let b = 1; b <= CROSS_MAX_NB; b++) {
+      const L = beamL[lvl]?.[b - 1] ?? 5;
+      const w = beamW[lvl] ?? 3;
+      const fem = lvl <= 2 ? (w * L * L) / 12 : 0;
+      d[`crBL${lvl}${b}`] = L.toFixed(2);
+      d[`crBI${lvl}${b}`] = "1";
+      d[`crBFL${lvl}${b}`] = (-fem).toFixed(2);
+      d[`crBFR${lvl}${b}`] = fem.toFixed(2);
+    }
+    for (let c = 1; c <= CROSS_MAX_NB + 1; c++) {
+      d[`crCH${lvl}${c}`] = (colH[lvl] ?? 3).toFixed(2);
+      d[`crCI${lvl}${c}`] = "1";
+    }
+  }
+  return d;
+}
+
 export const MODULES: ModuleDef[] = [
   {
     slug: "pred-columnas",
@@ -4149,7 +4224,7 @@ export const MODULES: ModuleDef[] = [
   {
     slug: "metodo-cross",
     title: "Distribución de momentos (Cross)",
-    short: "Viga continua de 2 a 4 tramos: rigideces, factores de distribución, tabla de Cross ciclo a ciclo y momentos finales en cada nudo.",
+    short: "Viga continua o pórtico de varios niveles y nudos: rigideces, factores de distribución, tabla de Cross ciclo a ciclo y momentos finales en cada nudo.",
     specialty: "analisis",
     norma: "Cross",
     source: "MET CROSS.xls",
@@ -4157,13 +4232,25 @@ export const MODULES: ModuleDef[] = [
     engine: "metodoCross",
     diagram: "cross",
     defaults: {
+      crMode: "viga",
       crN: "3",
       crL1: "5", crI1: "1", crFEM1L: "-8.33", crFEM1R: "8.33",
       crL2: "6", crI2: "1.2", crFEM2L: "-12", crFEM2R: "12",
       crL3: "4", crI3: "1", crFEM3L: "-5.33", crFEM3R: "5.33",
       crL4: "5", crI4: "1", crFEM4L: "-8.33", crFEM4R: "8.33",
+      ...crossPorticoDefaults(),
     },
     fields: [
+      {
+        key: "crMode",
+        label: "Tipo de estructura",
+        group: "Tramos",
+        kind: "select",
+        options: [
+          { value: "viga", label: "Viga continua (1 nivel, en línea)" },
+          { value: "portico", label: "Pórtico de varios niveles y nudos" },
+        ],
+      },
       {
         key: "crN",
         label: "N° de tramos",
@@ -4191,6 +4278,7 @@ export const MODULES: ModuleDef[] = [
       { key: "crI4", label: "I4 relativa", group: "Tramo 4", step: 0.1 },
       { key: "crFEM4L", label: "FEM 4-5 (extremo en nudo 4)", unit: "t·m", group: "Tramo 4", step: 0.1 },
       { key: "crFEM4R", label: "FEM 5-4 (extremo en nudo 5)", unit: "t·m", group: "Tramo 4", step: 0.1 },
+      ...crossPorticoFields(),
     ],
   },
   {

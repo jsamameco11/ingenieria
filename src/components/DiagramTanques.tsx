@@ -1205,7 +1205,7 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
   const hcIBP = nv(values, "hcIBP", 0);
   const Pi = nv(values, "Pi", 0);
   const Pc = nv(values, "Pc", 0);
-  const hasImpConv = !isTorre && hiIBP > 0 && hcIBP > 0;
+  const hasImpConv = hiIBP > 0 && hcIBP > 0;
   const yPi = baseY - hiIBP * scale;
   const yPc = baseY - hcIBP * scale;
 
@@ -1269,7 +1269,7 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
               <Cota x1={cx + halfW + 150} y1={baseY} x2={cx + halfW + 150} y2={yFusteCG} text={`h=${hFusteCG.toFixed(2)} m`} side={14} vertical />
               <DclArrow x1={wArrowX} y1={yCubaCG - 20} x2={wArrowX} y2={yCubaCG + 20} color={DCL_LOAD} width={2.4}
                 label={`Wcuba = ${WcubaTotal.toFixed(1)} t`} labelAnchor="start" labelDx={10} labelDy={4} />
-              <Cota x1={cx + halfW + 180} y1={baseY} x2={cx + halfW + 180} y2={yCubaCG} text={`h=${hcgAbs.toFixed(2)} m`} side={14} vertical />
+              <Cota x1={cx + halfW + 220} y1={baseY} x2={cx + halfW + 220} y2={yCubaCG} text={`h=${hcgAbs.toFixed(2)} m`} side={14} vertical />
             </>
           ) : (
             <DclArrow
@@ -1286,14 +1286,33 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
               Housner (hi, hc); en torres, la resultante V se ubica en el centro de masa combinado */}
           {hasImpConv ? (
             <>
-              <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-              <DclArrow x1={cx + halfW + 70} y1={yPi} x2={cx + halfW + 8} y2={yPi} color={DCL_LOAD} width={2.4}
-                label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
-              <Cota x1={cx + halfW + 155} y1={baseY} x2={cx + halfW + 155} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={14} vertical />
-              <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-              <DclArrow x1={cx + halfW + 70} y1={yPc} x2={cx + halfW + 8} y2={yPc} color={DCL_WATER} width={2.4}
-                label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
-              <Cota x1={cx + halfW + 185} y1={baseY} x2={cx + halfW + 185} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={14} vertical />
+              {hasFusteSplit ? (
+                // En torres, Wfuste/Wcuba ya ocupan el lado derecho: Pi/Pc (fuerzas LATERALES, no
+                // verticales) se ubican a la izquierda, como flechas horizontales que empujan hacia
+                // la torre — igual convención que el resto de fuerzas sísmicas del diagrama — para
+                // que nunca se crucen ni se superpongan las etiquetas con las de Wfuste/Wcuba.
+                <>
+                  <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx - halfW - 65} y1={yPi} x2={cx - halfW - 8} y2={yPi} color={DCL_LOAD} width={2.4}
+                    label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="end" labelDx={-4} labelDy={-5} />
+                  <Cota x1={cx - halfW - 100} y1={baseY} x2={cx - halfW - 100} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={-14} vertical />
+                  <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx - halfW - 65} y1={yPc} x2={cx - halfW - 8} y2={yPc} color={DCL_WATER} width={2.4}
+                    label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="end" labelDx={-4} labelDy={-5} />
+                  <Cota x1={cx - halfW - 130} y1={baseY} x2={cx - halfW - 130} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={-14} vertical />
+                </>
+              ) : (
+                <>
+                  <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx + halfW + 70} y1={yPi} x2={cx + halfW + 8} y2={yPi} color={DCL_LOAD} width={2.4}
+                    label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
+                  <Cota x1={cx + halfW + 155} y1={baseY} x2={cx + halfW + 155} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={14} vertical />
+                  <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx + halfW + 70} y1={yPc} x2={cx + halfW + 8} y2={yPc} color={DCL_WATER} width={2.4}
+                    label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
+                  <Cota x1={cx + halfW + 185} y1={baseY} x2={cx + halfW + 185} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={14} vertical />
+                </>
+              )}
             </>
           ) : (
             <>
@@ -1325,7 +1344,9 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
         </svg>
       </div>
       <p className="croquis-cap">
-        Cargas: peso propio W, presión hidrostática (triangular, γw·HL en la base) y fuerza sísmica resultante V. Reacciones en la base: N (axial), V (corte) y M (momento de volteo) — equilibrio global de la estructura, previo al análisis detallado por elemento.
+        {hasImpConv
+          ? `Cargas: peso propio W, presión hidrostática (triangular, γw·HL en la base) y sismo por Housner — impulsiva Pi (a hi, se mueve solidaria con la estructura) y convectiva Pc (a hc, oleaje), combinadas por SRSS en V. Reacciones en la base: N (axial), V (corte) y M (momento de volteo) — equilibrio global de la estructura, previo al análisis detallado por elemento.`
+          : `Cargas: peso propio W, presión hidrostática (triangular, γw·HL en la base) y fuerza sísmica resultante V. Reacciones en la base: N (axial), V (corte) y M (momento de volteo) — equilibrio global de la estructura, previo al análisis detallado por elemento.`}
       </p>
     </div>
   );
