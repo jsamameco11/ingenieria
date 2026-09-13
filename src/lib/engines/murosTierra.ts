@@ -280,6 +280,64 @@ export const muroContencionSismo: Engine = (raw) => {
   const barH = barByName('3/8"');
   const sTemp = snapSpacing(spacingFor(AsTemp, barH.as, 100));
 
+  /* ── Deflexión de servicio del alma (voladizo empotrado en la zapata) ──
+     E.060 no fija un límite de deflexión para muros en voladizo (su Art. 9.6 solo regula vigas y
+     losas); se calcula igual, con inercia efectiva agrietada (Branson) y se contrasta contra un
+     criterio de servicio usual en la práctica (Hs/150), a validar según el proyecto. */
+  const Ec_kgcm2 = 15000 * Math.sqrt(Math.max(fc, 1));
+  const Ec = Ec_kgcm2 * 10; // t/m²
+  const nModular = (2_000_000 * 10) / Math.max(Ec, 1e-9); // Es/Ec, Es = 2 000 000 kg/cm²
+  const fr = 2.01 * Math.sqrt(Math.max(fc, 1)) * 10; // t/m² (fr = 2.01√f'c kg/cm²)
+
+  const Ig0 = (1.0 * F ** 3) / 12; // m⁴/ml, sección bruta en la base (espesor F)
+  const Mcr0 = (fr * Ig0) / Math.max(F / 2, 1e-9); // t·m/ml
+
+  const dAlma_m = alma.d / 100;
+  const AsAlma_m2 = alma.AsProv / 10000;
+  const rhoN = (AsAlma_m2 / Math.max(dAlma_m, 1e-9)) * nModular;
+  const cNA = Math.max(0.005, (Math.sqrt(rhoN * rhoN + 2 * rhoN) - rhoN) * dAlma_m); // m
+  const Icr0 = (1.0 * cNA ** 3) / 3 + nModular * AsAlma_m2 * (dAlma_m - cNA) ** 2; // m⁴/ml
+
+  const MaServ = MsStemSt; // momento de servicio (no factorado) en la base, ya calculado arriba
+  const raMcr = MaServ > 1e-9 ? Math.min(1, Mcr0 / MaServ) : 1;
+  const IeRatio = raMcr ** 3 + (1 - raMcr ** 3) * (Icr0 / Math.max(Ig0, 1e-9));
+  const Ie0 = Math.min(Ig0, Math.max(Icr0, IeRatio * Ig0));
+
+  const wAlma = (x: number) => {
+    // x: distancia desde la base (x=0, empotramiento) hacia la coronación (x=Hs, extremo libre)
+    const depth = Hs - x;
+    const wEarth = Ka * gammaRelleno * depth - 2 * c * Math.sqrt(Math.max(Ka, 0));
+    const wWater = x <= hwStem ? gammaW * (hwStem - x) : 0;
+    const wSur = Hs > 1e-9 ? PqStem / Hs : 0;
+    return wEarth + wWater + wSur;
+  };
+  const tAlma = (x: number) => Math.max(0.05, F - (F - Bp) * (x / Math.max(Hs, 1e-9)));
+  const IeAlma = (x: number) => IeRatio * ((1.0 * tAlma(x) ** 3) / 12);
+  function momentoEnAlma(xi: number): number {
+    const nSub = 24;
+    const subDx = (Hs - xi) / nSub;
+    let acc = 0;
+    let prevVal = 0;
+    for (let j = 1; j <= nSub; j++) {
+      const xj = xi + j * subDx;
+      const val = wAlma(xj) * (xj - xi);
+      acc += ((prevVal + val) / 2) * subDx;
+      prevVal = val;
+    }
+    return acc;
+  }
+  const N_DEF = 60;
+  const xsAlma: number[] = [];
+  for (let i = 0; i <= N_DEF; i++) xsAlma.push((i * Hs) / N_DEF);
+  const integrandoDelta = xsAlma.map((xi) => (momentoEnAlma(xi) * (Hs - xi)) / (Ec * Math.max(IeAlma(xi), 1e-9)));
+  let deltaAlma = 0;
+  for (let i = 1; i < xsAlma.length; i++) {
+    deltaAlma += ((integrandoDelta[i] + integrandoDelta[i - 1]) / 2) * (xsAlma[i] - xsAlma[i - 1]);
+  }
+  const deltaAlma_cm = deltaAlma * 100;
+  const deltaAdmAlma_cm = (Hs / 150) * 100;
+  const okDeflexionAlma = deltaAlma_cm <= deltaAdmAlma_cm + 1e-9;
+
   const MupToe = qToe * (C ** 2) / 3 + qStemF * (C ** 2) / 6;
   const VupToe = ((qToe + qStemF) / 2) * C;
   const WslabToe = C * esp * gammaConc;
@@ -551,6 +609,23 @@ export const muroContencionSismo: Engine = (raw) => {
     },
     {
       n: "16",
+      title: "Deflexión de servicio del alma (voladizo)",
+      formula: "Ie = (Mcr/Ma)³Ig + [1−(Mcr/Ma)³]Icr ≤ Ig    ·    δ = ∫₀^Hs M(x)(Hs−x)/(Ec·Ie(x)) dx",
+      substitution: `Ec=${fmt(Ec_kgcm2, 0)} kg/cm² · Mcr=${fmt(Mcr0, 3)} t·m · Ma=${fmt(MaServ, 3)} t·m · Icr=${fmt(Icr0 * 1e8, 0)} cm⁴ · Ig=${fmt(Ig0 * 1e8, 0)} cm⁴`,
+      result: `Ie/Ig = ${fmt(IeRatio, 3)}    ·    δmáx = ${fmt(deltaAlma_cm, 3)} cm    ·    δadm (Hs/150) = ${fmt(deltaAdmAlma_cm, 3)} cm`,
+      ok: okDeflexionAlma,
+      desarrollo: [
+        "E.060 (Art. 9.6) fija límites de deflexión para vigas y losas, no para muros de contención en voladizo; se calcula igual, como verificación adicional de servicio, con la inercia agrietada equivalente (Branson) de la sección de la base.",
+        `Mcr = fr·Ig/(F/2), con fr = 2,01√f'c = ${fmt(2.01 * Math.sqrt(Math.max(fc, 1)), 1)} kg/cm². Mcr = ${fmt(Mcr0, 3)} t·m/ml.`,
+        `Ma (momento de servicio, sin factorar) en la base = Ms = ${fmt(MaServ, 3)} t·m/ml ${MaServ > Mcr0 ? "> Mcr: la sección se agrieta." : "≤ Mcr: sección no agrietada, Ie = Ig."}`,
+        `Sección fisurada: c = ${fmt(cNA * 100, 2)} cm (n=Es/Ec=${fmt(nModular, 1)}, ρ=${fmt(AsAlma_m2 / dAlma_m, 5)}). Icr = ${fmt(Icr0 * 1e8, 0)} cm⁴/ml. Ie = ${fmt(Ie0 * 1e8, 0)} cm⁴/ml (Ie/Ig = ${fmt(IeRatio, 3)}).`,
+        `Se integra numéricamente la curvatura M(x)/(Ec·Ie) a lo largo de Hs, con el empuje real del paso 13 (activo + agua + sobrecarga, sin sismo) y el espesor variable de la pantalla (F en la base, Bp en la corona).`,
+        `δmáx en la coronación = ${fmt(deltaAlma_cm, 3)} cm ${okDeflexionAlma ? "≤" : ">"} δadm = Hs/150 = ${fmt(deltaAdmAlma_cm, 3)} cm.`,
+      ],
+      note: "δadm = Hs/150 es un criterio de servicio usual para muros en voladizo (no un límite normado por E.060 para este elemento); valídelo con los criterios de su proyecto (acabados, ductos o instalaciones adosadas al trasdós).",
+    },
+    {
+      n: "17",
       title: "Diseño de la punta (pata) de la zapata",
       formula: "M↑ = qpata C²/3 + qalma C²/6    ·    M↓ = (Wlos+Wsuelo)·C/2    ·    Mu = 1,4 (M↑−M↓)",
       substitution: `C=${fmt(C, 2)} m · qpata=${fmt(qToe, 2)} · q@alma=${fmt(qStemF, 2)} t/m² · e=${fmt(esp, 2)} m`,
@@ -568,7 +643,7 @@ export const muroContencionSismo: Engine = (raw) => {
       note: "Si φMn o φVc no alcanzan, aumente el peralte e de la zapata o acorte C redistribuyendo B.",
     },
     {
-      n: "17",
+      n: "18",
       title: "Diseño del talón de la zapata",
       formula: "M↓ = (γ Hs,eq + γc e) A²/2    ·    M↑ = qtalón A²/3 + qalma A²/6    ·    Mu = 1,4 (M↓−M↑)",
       substitution: `A=${fmt(A, 2)} m · Hs,eq=${fmt(hFillHeel, 2)} m · qtalón=${fmt(qHeel, 2)} · q@alma=${fmt(qStemB, 2)} t/m²`,
@@ -586,7 +661,7 @@ export const muroContencionSismo: Engine = (raw) => {
       ],
     },
     {
-      n: "18",
+      n: "19",
       title: "Peralte y cortante de la losa de cimentación",
       formula: "d ≥ recZap + Ø/2 + holgura    ·    Vu se toma a una distancia d de la cara del alma",
       result: `e = ${fmt(esp, 2)} m    ·    d = ${fmt(Math.min(pata.d, talon.d), 1)} cm    ·    φVc,pata = ${fmt(pata.phiVc, 2)} t    ·    φVc,talón = ${fmt(talon.phiVc, 2)} t`,
@@ -603,7 +678,7 @@ export const muroContencionSismo: Engine = (raw) => {
       note: "Un dentellón bajo la pata aumenta el pasivo y la cuña de deslizamiento; no se ha modelado. Si lo dispone, súmelo a D y a Pp.",
     },
     {
-      n: "19",
+      n: "20",
       title: "Cuadro de aceros por metro lineal",
       formula: "s = (as / As) · 100 cm    ·    s ≤ 3h y ≤ 25 cm (distribución de muro)",
       result: `Pantalla ${alma.text}    ·    Pata ${pata.text} inf.    ·    Talón ${talon.text} sup.    ·    Temp. Ø ${barH.name} @ ${sTemp} cm`,
@@ -635,6 +710,7 @@ export const muroContencionSismo: Engine = (raw) => {
       ok("Volteo sísmico", fmt(FSvEq, 2), `≥ ${fmt(FS_voltSis, 2)}`, FSvEq >= FS_voltSis),
       ok("Flexión del alma φMn ≥ Mu", fmt(alma.phiMn, 2), `≥ ${fmt(MuStem, 2)} t·m`, alma.okM),
       ok("Corte del alma φVc ≥ Vu", fmt(alma.phiVc, 2), `≥ ${fmt(VuStem, 2)} t`, alma.okV),
+      ok("Deflexión de servicio del alma", `${fmt(deltaAlma_cm, 3)} cm`, `≤ ${fmt(deltaAdmAlma_cm, 3)} cm (Hs/150)`, okDeflexionAlma),
       ok("Flexión de la pata", fmt(pata.phiMn, 2), `≥ ${fmt(MuToe, 2)} t·m`, pata.okM),
       ok("Corte de la pata (a d)", fmt(pata.phiVc, 2), `≥ ${fmt(VuToe_d, 2)} t`, pata.okV),
       ok("Flexión del talón", fmt(talon.phiMn, 2), `≥ ${fmt(MuHeel, 2)} t·m`, talon.okM),

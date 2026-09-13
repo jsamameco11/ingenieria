@@ -74,6 +74,7 @@ function fechaCorta(iso: string) {
 export function ValorizacionesModule() {
   const { state, setState, undo, redo, canUndo, canRedo } = useUndoableState(() => loadValorizaciones());
   const [vista, setVista] = useState<Vista>("tabla");
+  const [scrolled, setScrolled] = useState(false);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [frecSel, setFrecSel] = useState<FrecuenciaValorizacion>("mensual");
   const [desdeManual, setDesdeManual] = useState("");
@@ -104,6 +105,14 @@ export function ValorizacionesModule() {
     const t = setTimeout(() => setMsg(""), 5000);
     return () => clearTimeout(t);
   }, [msg]);
+
+  useEffect(() => {
+    setScrolled(false);
+  }, [vista]);
+
+  function onCuerpoScroll(e: React.UIEvent<HTMLDivElement>) {
+    setScrolled(e.currentTarget.scrollTop > 12);
+  }
 
   const pre = loadPresupuesto();
   const periodo = state.periodos.find((p) => p.id === state.selPeriodoId) || state.periodos[state.periodos.length - 1];
@@ -424,7 +433,7 @@ export function ValorizacionesModule() {
 
   return (
     <section className="msp-shell valz-shell">
-      <header className="msp-top">
+      <header className={`msp-top ${scrolled ? "is-collapsed" : ""}`}>
         <div className="pre-brand">
           <span className="pre-mark">VAL</span>
           <div>
@@ -498,7 +507,7 @@ export function ValorizacionesModule() {
         </div>
       ) : (
         <>
-          <div className="msp-ribbon" role="toolbar">
+          <div className={`msp-ribbon ${scrolled ? "is-collapsed" : ""}`} role="toolbar">
             <fieldset>
               <legend>Periodo N.° {periodo.numero}</legend>
               <label>
@@ -606,7 +615,7 @@ export function ValorizacionesModule() {
           </div>
 
           {vista === "tabla" ? (
-            <div className="msp-body valz-body">
+            <div className="msp-body valz-body" onScroll={onCuerpoScroll}>
               <div className="valz-dg-card" aria-label="Datos generales de la valorización">
                 <div className="valz-dg-row">
                   <span>Obra</span>
@@ -897,7 +906,7 @@ export function ValorizacionesModule() {
           ) : null}
 
           {vista === "materiales" ? (
-            <div className="msp-body valz-body">
+            <div className="msp-body valz-body" onScroll={onCuerpoScroll}>
               <p className="valz-hint">
                 Calendario de adquisición de materiales y utilización de equipos: cantidades derivadas del APU de cada
                 partida × metrado ejecutado en «{periodo.nombre}».
@@ -948,7 +957,7 @@ export function ValorizacionesModule() {
           ) : null}
 
           {vista === "adicionales" ? (
-            <div className="msp-body valz-body">
+            <div className="msp-body valz-body" onScroll={onCuerpoScroll}>
               <p className="valz-hint">
                 Prestaciones adicionales y presupuestos deductivos de este periodo, en tabla aparte del presupuesto
                 contractual (Ley N.° 32069, art. 64 y Reglamento D.S. N.° 009-2025-EF, arts. 194-196). El «monto
@@ -1036,7 +1045,7 @@ export function ValorizacionesModule() {
           ) : null}
 
           {vista === "reajuste" ? (
-            <div className="msp-body valz-body">
+            <div className="msp-body valz-body" onScroll={onCuerpoScroll}>
               <p className="valz-hint">
                 Reajuste de precios por fórmula polinómica (D.S. N.° 011-79-VC), con los índices unificados de precios de la
                 construcción (INEI) del mes de esta valorización. La fórmula (monomios y coeficientes) puede venir del
@@ -1288,7 +1297,7 @@ export function ValorizacionesModule() {
           ) : null}
 
           {vista === "adelantos" ? (
-            <div className="msp-body valz-body">
+            <div className="msp-body valz-body" onScroll={onCuerpoScroll}>
               <p className="valz-hint">
                 Amortización de adelantos y penalidad por mora (Ley N.° 32069, arts. 178-181 y 120). El adelanto
                 directo se amortiza en cuotas proporcionales sobre el monto bruto de cada valorización; el de
@@ -1479,7 +1488,7 @@ export function ValorizacionesModule() {
           ) : null}
 
           {vista === "curva" ? (
-            <div className="msp-body valz-body valz-curva-body">
+            <div className="msp-body valz-body valz-curva-body" onScroll={onCuerpoScroll}>
               <p className="valz-hint">
                 Calendario de avance de obra valorizado y curva «S»: programado según el cronograma (Gantt/CPM) frente a lo
                 ejecutado y pagado en cada valorización. Si no tiene un cronograma armado, o prefiere el programado que ya
