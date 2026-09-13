@@ -163,7 +163,8 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
   if (part === "mDCL") {
     if (kind === "reservorioApoyado") return <DiagramaCuerpoLibreFig values={values} variant="cilindro" />;
     if (kind === "reservorioCuadrado") return <DiagramaCuerpoLibreFig values={values} variant="caja" />;
-    if (kind === "tanqueElevadoColumnas" || kind === "tanqueElevadoFuste") return <DiagramaCuerpoLibreFig values={values} variant="torre" />;
+    if (kind === "tanqueElevadoColumnas") return <DiagramaCuerpoLibreFig values={values} variant="torreColumnas" />;
+    if (kind === "tanqueElevadoFuste") return <DiagramaCuerpoLibreFig values={values} variant="torre" />;
   }
   if (kind === "zapata") {
     if (part === "mDirL") {

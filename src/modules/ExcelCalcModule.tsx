@@ -416,6 +416,11 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
     if (geomM === "zapata" && ["vol", "bcim", "hcim"].includes(f.key)) return false;
   }
   if (values.tipo === "muro" && ["t1", "t2", "sCol", "nTramos"].includes(f.key)) return false;
+  if (values.crN != null) {
+    const crN = Number(values.crN) || 3;
+    if (["crL3", "crI3", "crFEM3L", "crFEM3R"].includes(f.key) && crN < 3) return false;
+    if (["crL4", "crI4", "crFEM4L", "crFEM4R"].includes(f.key) && crN < 4) return false;
+  }
   if (values.tipo === "columnas" && ["tw", "eMuro"].includes(f.key)) return false;
   if (values.sistema === "elevado" && ["Lc", "Bc", "dias"].includes(f.key)) return false;
   if ((values.sistema === "cisterna" || values.sistema === "hidro") && f.key === "He") return true;

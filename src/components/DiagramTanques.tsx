@@ -1024,7 +1024,7 @@ function DclPresionHidrostatica({ xWall, yTop, yBase, maxLenPx, pBase }: { xWall
   );
 }
 
-type DclVariant = "cilindro" | "caja" | "torre";
+type DclVariant = "cilindro" | "caja" | "torre" | "torreColumnas";
 
 /**
  * Diagrama de cuerpo libre en vista 3D (pseudo-isométrica): silueta del tanque, presión hidrostática
@@ -1037,19 +1037,20 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
   const Mvolteo = nv(values, "Mvolteo", 10);
   const gammaW = 1;
 
-  const W = 480, H = 420;
-  const cx = 190;
+  const W = 600, H = 420;
+  const cx = 220;
   const baseY = 336;
 
   let structure: ReactNode;
   let yTop = 60, yWater = 200, halfW = 70;
   let hSismoY = 220;
+  let scale = 40;
 
   if (variant === "cilindro" || variant === "caja") {
     const D = variant === "cilindro" ? nv(values, "D", 4.25) : nv(values, "Lx", 4);
     const HL = nv(values, "HL", 3.5);
     const bl = nv(values, "bl", 0.3);
-    const scale = 230 / Math.max(HL + bl, 1);
+    scale = 230 / Math.max(HL + bl, 1);
     const rx = Math.min(95, Math.max(46, (D / 2) * scale * 0.62));
     const ry = rx * 0.3;
     const HLpx = HL * scale, blPx = bl * scale;
@@ -1087,11 +1088,11 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
         </g>
       );
     }
-  } else {
+  } else if (variant === "torre") {
     const Htorre = nv(values, "Htorre", 14);
     const hcgCuba = nv(values, "hcgCuba", 2);
     const Dcuba = nv(values, "D", 8);
-    const scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
+    scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
     const torrePx = Htorre * scale;
     const cubaHalfW = Math.min(85, Math.max(40, (Dcuba / 2) * scale * 0.5));
     yTop = baseY - torrePx;
@@ -1107,10 +1108,117 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
         <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
       </g>
     );
+  } else {
+    // torreColumnas: pórtico espacial de columnas discretas, vigas de anillo y diagonales en X
+    // (silueta esquemática "abatida", simplificada para el tamaño de un DCL: solo se dibujan las
+    // columnas/niveles frontales, no las nCol reales completas).
+    const Htorre = nv(values, "Htorre", 14);
+    const hcgCuba = nv(values, "hcgCuba", 2);
+    const Dcuba = nv(values, "D", 8);
+    scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
+    const torrePx = Htorre * scale;
+    const cubaHalfW = Math.min(85, Math.max(40, (Dcuba / 2) * scale * 0.5));
+    yTop = baseY - torrePx;
+    const cubaTopY = yTop - cubaHalfW * 0.9;
+
+    const nCol = Math.max(4, Math.round(nv(values, "nCol", 6)));
+    const dCol = nv(values, "dCol", 0.5);
+    const nArrRaw = Math.max(1, Math.round(nv(values, "nArr", 2)));
+    const Rcol = nv(values, "Rcol", Dcuba * 0.41);
+    const RcolBase = nv(values, "RcolBase", Rcol * 1.35);
+
+    // Ancho visible (semiancho) en la corona (Rcol) y en la base (RcolBase, más ancho por el
+    // abocinado típico de las columnas hacia la cimentación).
+    const topHalfW = Math.min(50, Math.max(20, Rcol * scale * 0.9));
+    const baseHalfW = Math.min(90, Math.max(topHalfW + 14, RcolBase * scale * 0.9));
+    halfW = baseHalfW;
+
+    // Nº de columnas dibujadas (subconjunto frontal, no las nCol reales) y de niveles de
+    // arriostre (siempre base + corona, más hasta 2 niveles intermedios representativos).
+    const nVisible = nCol <= 4 ? 4 : nCol <= 6 ? 5 : 6;
+    const nMidLevels = Math.min(Math.max(nArrRaw - 1, 0), 2);
+    const levelFracs: number[] = [0];
+    for (let i = 1; i <= nMidLevels; i++) levelFracs.push(i / (nMidLevels + 1));
+    levelFracs.push(1);
+
+    const levels = levelFracs.map((f) => ({
+      y: baseY + (yTop - baseY) * f,
+      r: baseHalfW + (topHalfW - baseHalfW) * f,
+    }));
+    const colXAt = (r: number) =>
+      Array.from({ length: nVisible }, (_, i) => {
+        const t = i / (nVisible - 1);
+        const ang = Math.PI * (1 - t);
+        return cx + r * Math.cos(ang);
+      });
+    const levelCols = levels.map((lv) => colXAt(lv.r));
+    const colStroke = Math.min(7, Math.max(3, dCol * scale));
+
+    const diagonals: ReactNode[] = [];
+    const panelIdxs = nVisible >= 3 ? [0, nVisible - 2] : [0];
+    for (let lv = 0; lv < levels.length - 1; lv++) {
+      const yA = levels[lv].y, yB = levels[lv + 1].y;
+      const colsA = levelCols[lv], colsB = levelCols[lv + 1];
+      panelIdxs.forEach((c) => {
+        diagonals.push(
+          <line key={`dcl-d1-${lv}-${c}`} x1={colsA[c]} y1={yA} x2={colsB[c + 1]} y2={yB} stroke={NAVY} strokeWidth="0.9" strokeDasharray="4,2.5" opacity="0.75" />,
+          <line key={`dcl-d2-${lv}-${c}`} x1={colsA[c + 1]} y1={yA} x2={colsB[c]} y2={yB} stroke={NAVY} strokeWidth="0.9" strokeDasharray="4,2.5" opacity="0.75" />,
+        );
+      });
+    }
+    const beams = levels.map((lv, i) => (
+      <line key={`dcl-beam-${i}`} x1={levelCols[i][0]} y1={lv.y} x2={levelCols[i][nVisible - 1]} y2={lv.y} stroke={NAVY} strokeWidth={i === 0 || i === levels.length - 1 ? 2.4 : 2} />
+    ));
+    const columns = Array.from({ length: nVisible }, (_, i) => (
+      <polyline
+        key={`dcl-col-${i}`}
+        points={levels.map((lv, lvIdx) => `${levelCols[lvIdx][i]},${lv.y}`).join(" ")}
+        fill="none"
+        stroke={NAVY}
+        strokeWidth={colStroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ));
+
+    hSismoY = cubaTopY + (yTop - cubaTopY) * 0.5;
+    structure = (
+      <g>
+        {diagonals}
+        {beams}
+        {columns}
+        <path d={`M ${cx - cubaHalfW * 0.85} ${yTop - 4} Q ${cx} ${cubaTopY} ${cx + cubaHalfW * 0.85} ${yTop - 4} L ${cx + cubaHalfW * 1.15} ${yTop + 18} Q ${cx} ${yTop + 34} ${cx - cubaHalfW * 1.15} ${yTop + 18} Z`}
+          fill="url(#tq-water)" stroke={NAVY} strokeWidth="1.3" />
+        <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
+      </g>
+    );
   }
 
-  const wArrowY0 = variant === "torre" ? yTop - 6 : (yTop + baseY) / 2 - 30;
-  const wArrowX = variant === "torre" ? cx + halfW + 30 : cx;
+  const isTorre = variant === "torre" || variant === "torreColumnas";
+  const wArrowY0 = isTorre ? yTop - 6 : (yTop + baseY) / 2 - 30;
+  const wArrowX = isTorre ? cx + halfW + 30 : cx;
+  const baseSpread = Math.min(Math.max(halfW + 60, 100), 130);
+
+  // Alturas reales (m) de aplicación de cada carga (centro de masa), convertidas a píxeles con la
+  // escala del croquis — en vez de un único vector genérico, cada carga se ubica en su propia altura.
+  const hiIBP = nv(values, "hiIBP", 0);
+  const hcIBP = nv(values, "hcIBP", 0);
+  const Pi = nv(values, "Pi", 0);
+  const Pc = nv(values, "Pc", 0);
+  const hasImpConv = !isTorre && hiIBP > 0 && hcIBP > 0;
+  const yPi = baseY - hiIBP * scale;
+  const yPc = baseY - hcIBP * scale;
+
+  const hFusteCG = nv(values, "hFusteCG", 0);
+  const hcgAbs = nv(values, "hcgAbs", 0);
+  const hcgComb = nv(values, "hcgComb", 0);
+  const Wfuste = nv(values, "Wfuste", 0);
+  const WcubaTotal = nv(values, "WcubaTotal", 0);
+  const hasFusteSplit = isTorre && hFusteCG > 0 && hcgAbs > 0;
+  const yFusteCG = baseY - hFusteCG * scale;
+  const yCubaCG = baseY - hcgAbs * scale;
+  const yVcomb = baseY - hcgComb * scale;
+  const ySismo = hasFusteSplit ? yVcomb : hSismoY;
 
   return (
     <div className="croquis" data-fig-part="momento">
@@ -1152,29 +1260,62 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
             />
           )}
 
-          {/* Peso propio W */}
-          <DclArrow
-            x1={wArrowX} y1={wArrowY0} x2={wArrowX} y2={wArrowY0 + 46}
-            color={DCL_LOAD} width={2.6}
-            label={`W = ${Wtotal.toFixed(1)} t`}
-            labelDx={variant === "torre" ? 34 : 12} labelDy={variant === "torre" ? 4 : -18}
-            labelAnchor="start"
-          />
+          {/* Peso propio W: en torres, separado en fuste (a media altura) y cuba (en su propio
+              centroide) en vez de un único vector genérico concentrado arriba */}
+          {hasFusteSplit ? (
+            <>
+              <DclArrow x1={wArrowX} y1={yFusteCG - 20} x2={wArrowX} y2={yFusteCG + 20} color={DCL_LOAD} width={2.4}
+                label={`Wfuste = ${Wfuste.toFixed(1)} t`} labelAnchor="start" labelDx={10} labelDy={4} />
+              <Cota x1={cx + halfW + 150} y1={baseY} x2={cx + halfW + 150} y2={yFusteCG} text={`h=${hFusteCG.toFixed(2)} m`} side={14} vertical />
+              <DclArrow x1={wArrowX} y1={yCubaCG - 20} x2={wArrowX} y2={yCubaCG + 20} color={DCL_LOAD} width={2.4}
+                label={`Wcuba = ${WcubaTotal.toFixed(1)} t`} labelAnchor="start" labelDx={10} labelDy={4} />
+              <Cota x1={cx + halfW + 180} y1={baseY} x2={cx + halfW + 180} y2={yCubaCG} text={`h=${hcgAbs.toFixed(2)} m`} side={14} vertical />
+            </>
+          ) : (
+            <DclArrow
+              x1={wArrowX} y1={wArrowY0} x2={wArrowX} y2={wArrowY0 + 46}
+              color={DCL_LOAD} width={2.6}
+              label={`W = ${Wtotal.toFixed(1)} t`}
+              labelDx={12} labelDy={-18}
+              labelAnchor="start"
+            />
+          )}
 
-          {/* Fuerza sísmica V */}
-          <DclArrow
-            x1={cx - halfW - (variant === "torre" ? 10 : 60)} y1={hSismoY}
-            x2={cx - halfW - 8} y2={hSismoY}
-            color={DCL_LOAD} width={2.6}
-            label={`V = ${Vbasal.toFixed(1)} t`}
-            labelAnchor="end" labelDx={-4} labelDy={-5}
-          />
-          <line x1={cx - halfW} y1={hSismoY} x2={cx + halfW * 0.3} y2={hSismoY} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.5" />
+          {/* Fuerza sísmica: en tanques apoyados, separada en su componente impulsiva (Pi, se mueve
+              solidaria con la estructura) y convectiva (Pc, oleaje), cada una a su altura real de
+              Housner (hi, hc); en torres, la resultante V se ubica en el centro de masa combinado */}
+          {hasImpConv ? (
+            <>
+              <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+              <DclArrow x1={cx + halfW + 70} y1={yPi} x2={cx + halfW + 8} y2={yPi} color={DCL_LOAD} width={2.4}
+                label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
+              <Cota x1={cx + halfW + 155} y1={baseY} x2={cx + halfW + 155} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={14} vertical />
+              <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+              <DclArrow x1={cx + halfW + 70} y1={yPc} x2={cx + halfW + 8} y2={yPc} color={DCL_WATER} width={2.4}
+                label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
+              <Cota x1={cx + halfW + 185} y1={baseY} x2={cx + halfW + 185} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={14} vertical />
+            </>
+          ) : (
+            <>
+              <DclArrow
+                x1={cx - halfW - (isTorre ? 40 : 60)} y1={ySismo}
+                x2={cx - halfW - 8} y2={ySismo}
+                color={DCL_LOAD} width={2.6}
+                label={`V = ${Vbasal.toFixed(1)} t`}
+                labelAnchor="end" labelDx={-4} labelDy={-5}
+              />
+              {hasFusteSplit && (
+                <Cota x1={cx - halfW - 100} y1={baseY} x2={cx - halfW - 100} y2={yVcomb} text={`h=${hcgComb.toFixed(2)} m`} side={-14} vertical />
+              )}
+              <line x1={cx - halfW} y1={ySismo} x2={cx + halfW * 0.3} y2={ySismo} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.5" />
+            </>
+          )}
 
-          {/* Reacciones en la base: N, V, M */}
-          <DclArrow x1={cx} y1={baseY + 40} x2={cx} y2={baseY + 6} color={DCL_REACT} width={2.2} label={`N=${Wtotal.toFixed(1)} t`} labelDy={16} labelDx={0} />
-          <DclArrow x1={cx + halfW + 46} y1={baseY + 22} x2={cx + halfW + 4} y2={baseY + 22} color={DCL_REACT} width={2.2} label={`V=${Vbasal.toFixed(1)} t`} labelAnchor="end" labelDx={-2} labelDy={-6} />
-          <DclMoment cx={cx - halfW - 30} cy={baseY + 20} r={16} color={DCL_REACT} label={`M=${Mvolteo.toFixed(1)} t·m`} />
+          {/* Reacciones en la base: N, V, M — separadas con suficiente espacio para que las
+              etiquetas (más largas que el ancho de la torre) nunca se superpongan */}
+          <DclArrow x1={cx} y1={baseY + 46} x2={cx} y2={baseY + 8} color={DCL_REACT} width={2.2} label={`N=${Wtotal.toFixed(1)} t`} labelAnchor="middle" labelDy={20} />
+          <DclArrow x1={cx + baseSpread} y1={baseY + 24} x2={cx + baseSpread - 40} y2={baseY + 24} color={DCL_REACT} width={2.2} label={`V=${Vbasal.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-6} />
+          <DclMoment cx={cx - baseSpread} cy={baseY + 20} r={16} color={DCL_REACT} label={`M=${Mvolteo.toFixed(1)} t·m`} />
 
           <rect x={W - 178} y={H - 40} width="168" height="30" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
           <line x1={W - 172} y1={H - 30} x2={W - 158} y2={H - 30} stroke={DCL_LOAD} strokeWidth="2.4" markerEnd="url(#tq-load-arrow)" />

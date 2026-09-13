@@ -445,7 +445,7 @@ export const reservorioApoyado: Engine = (raw) => {
       result: `e_muro=${fmt(tMuroRound * 100, 1)} cm · e_losa=${fmt(tLosa * 100, 1)} cm · e_domo=${fmt(tDomo * 100, 1)} cm · f=${fmt(fDomo, 2)} m`,
       note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor." },
     { n: "04", title: "Metrado de pesos propios", formula: "Ww=γc·π[(R+e)²−R²]·H  ·  Wr (domo)  ·  Wf (losa)  ·  Wa=γw·(πD²/4)·HL",
-      formulaTex: String.raw`W_w=\gamma_c\,\pi\!\left[(R+e)^2-R^2\right]H\qquad W_r\ (\text{domo})\qquad W_f\ (\text{losa})\qquad W_a=\gamma_w\,\dfrac{\pi D^2}{4}\,H_L`,
+      formulaTex: String.raw`\begin{gathered}W_w=\gamma_c\,\pi\!\left[(R+e)^2-R^2\right]H\\[4pt]W_r\ (\text{domo})\qquad W_f\ (\text{losa})\\[4pt]W_a=\gamma_w\,\dfrac{\pi D^2}{4}\,H_L\end{gathered}`,
       table: { headers: ["Elemento", "Peso (t)"], rows: [
         ["Muro cilíndrico", fmt(pesoMuro, 2)],
         ["Cúpula de techo", fmt(pesoDomo, 2)],
@@ -504,7 +504,7 @@ export const reservorioApoyado: Engine = (raw) => {
           .map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3), fmt(p.V, 3)]) } },
     { n: "13", title: "Acero horizontal (anillo) de la pared — tracción directa amplificada por durabilidad sanitaria",
       formula: "As = Sn·N_env / (φ·fy)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)   ·   φ=0,9   ·   Asmín=0,0018·d",
-      formulaTex: String.raw`A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\qquad S_n=1{,}3\ (\text{ACI 350-06 Tabla 4.1})\qquad \phi=0{,}9\qquad A_{s,min}=0{,}0018\,d`,
+      formulaTex: String.raw`\begin{gathered}A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\\[4pt]S_n=1{,}3\ (\text{ACI 350-06 Tabla 4.1})\\[4pt]\phi=0{,}9\qquad A_{s,min}=0{,}0018\,d\end{gathered}`,
       substitution: `Sn=${fmt(Sn, 2)} · φ=${fmt(PHI_T, 2)} · fy=${fmt(fy, 0)} kg/cm²`,
       result: `As=${fmt(asHorizFinal, 2)} cm²/m → ${barHoriz.texto} (As,prov=${fmt(barHoriz.AsProv, 2)} cm²/m)`,
       note: `El factor Sn amplifica la carga de servicio en vez de exigir sección no fisurada: controla el ancho de fisura sin sobredimensionar el espesor. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
@@ -514,7 +514,7 @@ export const reservorioApoyado: Engine = (raw) => {
       result: `As=${fmt(asVertFinal, 2)} cm²/m → ${barVert.texto}`,
       note: "ω es la cuantía mecánica de acero (ω=ρ·fy/f'c); la ecuación de Whitney despeja As a partir del momento último Mu y el peralte efectivo d." },
     { n: "15", title: "Diseño de la losa de fondo", formula: "M_borde=0,7·M_y,máx(base)  ·  Mu=φf'c·b·d²ω(1−0,59ω)  ·  Asmín=0,0018·d",
-      formulaTex: String.raw`M_{borde}=0{,}7\,M_{y,max}(\text{base})\qquad M_u=\phi f'_c\,b\,d^2\,\omega\,(1-0{,}59\,\omega)\qquad A_{s,min}=0{,}0018\,d`,
+      formulaTex: String.raw`\begin{gathered}M_{borde}=0{,}7\,M_{y,max}(\text{base})\\[4pt]M_u=\phi f'_c\,b\,d^2\,\omega\,(1-0{,}59\,\omega)\\[4pt]A_{s,min}=0{,}0018\,d\end{gathered}`,
       substitution: `M_borde=${fmt(Mborde, 2)} t·m/m · d=${fmt(dCmLosa, 1)} cm`,
       result: `As=${fmt(asLosaFinal, 2)} cm²/m → ${barLosa.texto} (ambos sentidos fuera de la franja de borde)`,
       note: "Solo la franja de borde (junto al muro) recibe el momento de empotramiento transmitido desde la pared; el resto de la losa lleva acero mínimo por apoyar directamente sobre el terreno mejorado." },
@@ -562,6 +562,7 @@ export const reservorioApoyado: Engine = (raw) => {
     MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3), VenvMax: VenvMax.toFixed(3),
     asHoriz: barHoriz.texto, asVert: barVert.texto, asLosa: barLosa.texto, asRing: `${ringPick.barra} · As=${fmt(AsRing, 2)} cm²`,
     Wtotal: Wtotal.toFixed(2), Vbasal: Vbasal.toFixed(2), Mvolteo: Mvolteo.toFixed(2),
+    Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hns.hiIBP.toFixed(3), hcIBP: hns.hcIBP.toFixed(3),
   };
 
   return out(
@@ -760,7 +761,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
         `Volumen real construido: Vreal=πR²h1+V_cono−V_domo,inf=${fmt(Vreal, 2)} m³. Altura total del tanque: H_total=h1+h_c+f'+b.l.=${fmt(Htotal, 2)} m.`,
       ] },
     { n: nn(1), title: "Predimensionamiento de espesores", formula: "e_muro≈h1/14 (mín. 20 cm) · e_cono=e_muro · e_domo,sup=D/220 · e_domo,inf=D/160",
-      formulaTex: String.raw`e_{muro}\approx\dfrac{h_1}{14}\ (\text{mín. }20\text{ cm})\qquad e_{cono}=e_{muro}\qquad e_{domo,sup}=\dfrac{D}{220}\qquad e_{domo,inf}=\dfrac{D}{160}`,
+      formulaTex: String.raw`\begin{gathered}e_{muro}\approx\dfrac{h_1}{14}\ (\text{mín. }20\text{ cm})\qquad e_{cono}=e_{muro}\\[4pt]e_{domo,sup}=\dfrac{D}{220}\qquad e_{domo,inf}=\dfrac{D}{160}\end{gathered}`,
       result: `e_muro=${fmt(tMuro * 100, 1)} cm · e_domo,sup=${fmt(tDomoSup * 100, 1)} cm · e_domo,inf=${fmt(tDomoInf * 100, 1)} cm`,
       note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor.",
       desarrollo: [
@@ -809,7 +810,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       ] },
     { n: nn(5), title: "Espectro de diseño E.030 y presión hidrodinámica",
       formula: "C(T) por tramos (E.030 art. 14) · Sa=Z·U·C(T)·S  ·  p_i(y), p_c(y) — ACI 350.3 ec. 9-23/9-24",
-      formulaTex: String.raw`S_a=Z\,U\,C(T)\,S\qquad p_i(y)=\dfrac{P_i}{2}\cdot\dfrac{4H_L-6h_i-(6H_L-12h_i)\dfrac{y}{H_L}}{H_L^{2}}\quad(p_c\ \text{análoga})`,
+      formulaTex: String.raw`\begin{gathered}S_a=Z\,U\,C(T)\,S\\[4pt]p_i(y)=\dfrac{P_i}{2}\cdot\dfrac{4H_L-6h_i-(6H_L-12h_i)\dfrac{y}{H_L}}{H_L^{2}}\quad(p_c\ \text{análoga})\end{gathered}`,
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · Tp=${fmt(sismo.Tp, 2)}s · TL=${fmt(sismo.Tl, 2)}s · Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
       result: `Pi=${fmt(Pi, 2)} t · Pc=${fmt(Pc, 2)} t`,
       table: { caption: "Espectro de diseño E.030 — C(T) y Sa=Z·U·C·S", headers: ["T", "C(T)", "Sa=ZUCS"], rows: tablaEspectroE030(sismo) },
@@ -841,7 +842,7 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
         `N_env,máx=${fmt(NenvMax, 2)} t/m, M_env,máx=${fmt(MenvMax, 2)} t·m/m y V_env,máx=${fmt(VenvMax, 2)} t/m son los valores envolventes: el máximo de la combinación punto a punto a lo largo de toda la altura, no necesariamente en la misma cota para N, M y V.`,
       ] },
     { n: nn(8), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
-      formulaTex: String.raw`\text{Horizontal: }A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\qquad\text{Vertical: }M_u=S_n\,M_{env}=\phi f'_c\,b\,d^2\,\omega(1-0{,}59\,\omega)\qquad S_n=1{,}3`,
+      formulaTex: String.raw`\begin{gathered}\text{Horizontal: }A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\\[4pt]\text{Vertical: }M_u=S_n\,M_{env}=\phi f'_c\,b\,d^2\,\omega(1-0{,}59\,\omega)\\[4pt]S_n=1{,}3\end{gathered}`,
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
       note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.`,
       desarrollo: [
@@ -1023,6 +1024,12 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc, RcolBase);
     const pesoTorreT = gammaC * modelo.Acol * Htorre * nCol;
     const WtotalT = cuba.pesoTotalCuba + pesoTorreT;
+    // Centro de masa combinado: la cuba (agua+estructura) actúa a hcg, pero las columnas tienen su
+    // propio peso repartido a lo largo de su altura (centroide en Htorre/2, no en hcg) — promediarlo
+    // por masa evita sobreestimar el momento de volteo al asumir que TODO el peso sísmico actúa
+    // concentrado arriba, en la cuba.
+    const hColCG = Htorre / 2;
+    const hcgComb = (cuba.pesoTotalCuba * hcg + pesoTorreT * hColCG) / WtotalT;
 
     const unit = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fx: 1 }]);
     const dxUnit = unit.disp.get(modelo.masterNodeId)![0];
@@ -1030,7 +1037,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     const Ttorre = 2 * Math.PI * Math.sqrt(WtotalT / G / Math.max(kEff, 1e-6));
     const Ct = e030C(Ttorre, sismo.Tp, sismo.Tl);
     const VtorreT = (sismo.Z * sismo.U * sismo.S * Ct * WtotalT) / Rtorre;
-    const MtorreT = VtorreT * hcg;
+    const MtorreT = VtorreT * hcgComb;
 
     const grav = solveFrame3D(modelo.nodes, modelo.elements, [{ node: modelo.masterNodeId, fz: -WtotalT }]);
 
@@ -1135,7 +1142,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     diagRaw.forEach((d) => elemStress.push({ n1: d.n1, n2: d.n2, tipo: "diag", val: d.val / maxDiagDemand }));
 
     return {
-      modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff,
+      modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff, hColCG, hcgComb,
       PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
       bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
     };
@@ -1154,7 +1161,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
 
   const {
     modelo: modeloFinal, kEff,
-    WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre,
+    WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre, hColCG, hcgComb, pesoTorreT,
     PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
     bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
@@ -1287,8 +1294,9 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     mPtsColumna: packPts(perfilColumna), mPtsViga: packPts(perfilViga),
     vPtsColumna: packPts(perfilColumnaV), vPtsViga: packPts(perfilVigaV),
     nodes3D: packNodes3D(modeloFinal.nodes), elems3D: packElemStress(elemStress),
-    hcgCuba: (cuba.Htotal / 2).toFixed(2),
+    hcgCuba: (cuba.Htotal / 2).toFixed(2), hcgAbs: hcg.toFixed(2), hFusteCG: hColCG.toFixed(2), hcgComb: hcgComb.toFixed(2),
     Wtotal: Wtotal.toFixed(2), Vbasal: Vtorre.toFixed(2), Mvolteo: Mtorre.toFixed(2),
+    Wfuste: pesoTorreT.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -1323,6 +1331,11 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const R0fuste = SISTEMAS.find((s) => s.value === "ca-muros")!.R0;
   const Rfuste = num(raw, "Rfuste", R0fuste);
   const hcg = Htorre + cuba.Htotal / 2;
+  // Centro de masa combinado: el fuste (tubo continuo) tiene su propio peso repartido a lo largo de
+  // su altura (centroide en Htorre/2), distinto del centroide de la cuba llena (en hcg); promediar
+  // por masa evita sobreestimar el momento de volteo al asumir que TODO el peso sísmico actúa
+  // concentrado arriba, en la cuba.
+  const hFusteCG = Htorre / 2;
   const EcTm2 = EcConcreto(fc) * 10;
   const sigmaAdmConcAuto = 0.45 * fc;
 
@@ -1342,9 +1355,11 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       const DextT = Dfuste, DintT = Dfuste - 2 * eFuste;
       const AfusteT = (Math.PI / 4) * (DextT * DextT - DintT * DintT);
       const IfusteT = (Math.PI / 64) * (DextT ** 4 - DintT ** 4);
-      const WtotalT = cuba.pesoTotalCuba + gammaC * AfusteT * Htorre;
+      const pesoFusteT = gammaC * AfusteT * Htorre;
+      const WtotalT = cuba.pesoTotalCuba + pesoFusteT;
+      const hcgCombT = (cuba.pesoTotalCuba * hcg + pesoFusteT * hFusteCG) / WtotalT;
       const VfusteT = (sismo.Z * sismo.U * sismo.S * Csis * WtotalT) / Rfuste;
-      const MfusteT = VfusteT * hcg;
+      const MfusteT = VfusteT * hcgCombT;
       const AfusteCm2T = AfusteT * 1e4;
       const sigmaT = (WtotalT * 1000) / AfusteCm2T + (MfusteT * 1000 * 100 * (DextT / 2)) / (IfusteT * 1e8);
       const derivaT = derivaFuste(VfusteT, Htorre, EcTm2, IfusteT, Rfuste, false).derivaRatio;
@@ -1362,8 +1377,9 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const Ifuste = (Math.PI / 64) * (Dext ** 4 - Dint ** 4);
   const pesoFuste = gammaC * Afuste * Htorre;
   const Wtotal = cuba.pesoTotalCuba + pesoFuste;
+  const hcgComb = (cuba.pesoTotalCuba * hcg + pesoFuste * hFusteCG) / Wtotal;
   const Vfuste = (sismo.Z * sismo.U * sismo.S * Csis * Wtotal) / Rfuste;
-  const Mfuste = Vfuste * hcg;
+  const Mfuste = Vfuste * hcgComb;
   const perfilFusteM = [{ x: 0, M: Mfuste }, { x: Htorre, M: Mfuste - Vfuste * Htorre }];
   const perfilFusteV = [{ x: 0, M: Vfuste }, { x: Htorre, M: Vfuste }];
 
@@ -1423,7 +1439,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       ] },
     { n: nn(1), title: "Periodo y fuerza sísmica (E.030, sistema de muros estructurales)",
       formula: "T=H/Ct (Ct=60, E.030 art. 28)   ·   V=Z·U·C·S·W/R",
-      formulaTex: String.raw`T=\dfrac{H}{C_t}\ (C_t=60)\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}`,
+      formulaTex: String.raw`T=\dfrac{H}{C_t}\ (C_t=60)\qquad V=\dfrac{Z\,U\,C\,S\,W}{R}\qquad h_{cg}=\dfrac{W_{cuba}\,h_{cg,cuba}+W_{fuste}\,h_{fuste}}{W_{total}}`,
       substitution: `Zona ${fmt(sismo.zona, 0)}: Z=${fmt(sismo.Z, 2)} · U=${fmt(sismo.U, 2)} · S=${fmt(sismo.S, 2)} · T=${fmt(T1, 3)} s · C=${fmt(Csis, 3)} · R=${fmt(Rfuste, 1)} (muros estructurales)`,
       result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m (base del fuste)`,
       note: "El fuste continuo se clasifica como sistema de muros estructurales (R=6): al ser un tubo macizo y rígido, se analiza con el método estático simplificado de E.030 en vez del modelo de Housner completo, apropiado para un elemento tan rígido frente al agua que soporta.",
@@ -1432,7 +1448,8 @@ export const tanqueElevadoFuste: Engine = (raw) => {
         `Periodo por la fórmula estática de E.030 art. 28 para sistemas de muros estructurales: T=Htorre/Ct=${fmt(Htorre, 2)}/60=${fmt(T1, 3)} s. A diferencia de la torre de columnas, aquí NO se usa análisis matricial: el fuste es una sección continua (un solo tubo), no un ensamble de barras discretas, por lo que su rigidez lateral se estima por la fórmula normativa en vez de resolverse elemento por elemento.`,
         `C(T) por E.030 art. 14, evaluado en T=${fmt(T1, 3)} s: C=${fmt(Csis, 3)}.`,
         `Cortante basal: V=Z·U·C·S·W/R=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Csis, 3)}·${fmt(sismo.S, 2)}·${fmt(Wtotal, 2)}/${fmt(Rfuste, 1)}=${fmt(Vfuste, 2)} t. R=${fmt(Rfuste, 1)} corresponde al sistema de muros estructurales de concreto armado (más ductilidad que el péndulo invertido de la torre de columnas, porque el fuste es una sección continua y más redundante).`,
-        `Momento en la base: M=V·hcg=${fmt(Vfuste, 2)}·${fmt(hcg, 2)}=${fmt(Mfuste, 2)} t·m, con hcg=Htorre+Htotal,cuba/2=${fmt(Htorre, 2)}+${fmt(cuba.Htotal / 2, 2)}=${fmt(hcg, 2)} m la altura al centro de gravedad de la cuba llena.`,
+        `Centro de masa combinado: el peso sísmico W no actúa todo a la altura de la cuba — el fuste (peso=${fmt(pesoFuste, 2)} t) tiene su propio centroide a media altura h_fuste=Htorre/2=${fmt(hFusteCG, 2)} m, mientras que la cuba llena (peso=${fmt(cuba.pesoTotalCuba, 2)} t) actúa en hcg,cuba=Htorre+Htotal,cuba/2=${fmt(hcg, 2)} m. El centroide combinado, ponderado por peso, es hcg=(${fmt(cuba.pesoTotalCuba, 2)}·${fmt(hcg, 2)}+${fmt(pesoFuste, 2)}·${fmt(hFusteCG, 2)})/${fmt(Wtotal, 2)}=${fmt(hcgComb, 2)} m — más bajo que hcg,cuba, porque reconoce que una parte del peso (el propio fuste) está más cerca de la base.`,
+        `Momento en la base: M=V·hcg=${fmt(Vfuste, 2)}·${fmt(hcgComb, 2)}=${fmt(Mfuste, 2)} t·m.`,
       ] },
     { n: nn(2), title: "Esfuerzos en la sección anular del fuste", formula: "σ = P/A ± M·c/I",
       formulaTex: String.raw`\sigma=\dfrac{P}{A}\pm\dfrac{M\,c}{I}`,
@@ -1505,6 +1522,8 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     AsFuste: fmt(AsFusteFinal, 1), derivaRatio: derivaTubo.derivaRatio.toFixed(4),
     mPtsFuste: packPts(perfilFusteM), vPtsFuste: packPts(perfilFusteV),
     Wtotal: Wtotal.toFixed(2), Vbasal: Vfuste.toFixed(2), Mvolteo: Mfuste.toFixed(2),
+    hcgCuba: (cuba.Htotal / 2).toFixed(2), hcgAbs: hcg.toFixed(2), hFusteCG: hFusteCG.toFixed(2), hcgComb: hcgComb.toFixed(2),
+    Wfuste: pesoFuste.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
   };
 
   const recomendacion = cuba.Wagua < 500
@@ -1713,7 +1732,7 @@ export const reservorioCuadrado: Engine = (raw) => {
       result: `e_muro=${fmt(tMuro * 100, 1)} cm (${tMuroCorte > tMuroFlex ? "gobierna el cortante" : "gobierna la flexión"}) · e_losa=${fmt(tLosa * 100, 1)} cm · e_techo=${fmt(tTecho * 100, 1)} cm`,
       note: "A diferencia de los tanques circulares, aquí el espesor SÍ se resuelve directamente para que el cortante Vu≤φVc quede satisfecho (forma cerrada, sin iterar), porque en muros planos la capacidad de corte crece más rápido que la demanda al aumentar el espesor." },
     { n: "04", title: "Metrado de pesos propios", formula: "Wm=γc·perímetro·e_muro·H · Wt=γc·Lx·Ly·e_techo · Wf=γc·Lx·Ly·e_losa · Wa=γw·Lx·Ly·HL",
-      formulaTex: String.raw`W_m=\gamma_c\,P\,e_{muro}\,H\qquad W_t=\gamma_c L_x L_y e_{techo}\qquad W_f=\gamma_c L_x L_y e_{losa}\qquad W_a=\gamma_w L_x L_y H_L`,
+      formulaTex: String.raw`\begin{gathered}W_m=\gamma_c\,P\,e_{muro}\,H\qquad W_t=\gamma_c L_x L_y e_{techo}\\[4pt]W_f=\gamma_c L_x L_y e_{losa}\qquad W_a=\gamma_w L_x L_y H_L\end{gathered}`,
       table: { headers: ["Elemento", "Peso (t)"], rows: [
         ["Muros perimetrales", fmt(pesoMuro, 2)],
         ["Losa de techo", fmt(pesoTecho, 2)],
@@ -1806,6 +1825,10 @@ export const reservorioCuadrado: Engine = (raw) => {
     asTechoEsq: barTechoEsq.texto, asTechoVano: barTechoVano.texto,
     Wtotal: Wtotal.toFixed(2), FSvolteo: FSvolteo.toFixed(2), FSdeslizamiento: FSdeslizamiento.toFixed(2),
     Vbasal: VbasalGob.toFixed(2), Mvolteo: Math.max(MvolteoDirX, MvolteoDirY).toFixed(2),
+    Pi: (MvolteoDirX >= MvolteoDirY ? demX.Pi : demY.Pi).toFixed(2),
+    Pc: (MvolteoDirX >= MvolteoDirY ? demX.Pc : demY.Pc).toFixed(2),
+    hiIBP: (MvolteoDirX >= MvolteoDirY ? hnsX.hiIBP : hnsY.hiIBP).toFixed(3),
+    hcIBP: (MvolteoDirX >= MvolteoDirY ? hnsX.hcIBP : hnsY.hcIBP).toFixed(3),
   };
 
   return out(
