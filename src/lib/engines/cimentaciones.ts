@@ -7,7 +7,6 @@ import {
   parseCorrida,
   parseGrid,
   puCol,
-  type GridModel,
 } from "../layoutGrid";
 
 function out(

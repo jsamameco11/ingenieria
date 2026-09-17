@@ -237,7 +237,7 @@ export function layoutEstriboPantallaDC(p: {
   const hChafBot = Math.max(D + 0.05, H - hparap - e1 - e2);
   const hTrap = Math.max(0, hChafBot - D);
 
-  const layout = {
+  const layout: MetradoLayout = {
     id: "metrado-estribo-pantalla-dc",
     title: "Identificación de zonas — concreto DC (1 a 7)",
     caption:

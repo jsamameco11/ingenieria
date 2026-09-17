@@ -11,6 +11,20 @@ export type AdminPlatformBucket = {
   hosts: string[];
   lastSeen: string;
   present: boolean;
+  source?: string;
+};
+
+export type AdminSitePresence = {
+  id: string;
+  code: string;
+  label: string;
+  short: string;
+  pill: string;
+  count: number;
+  hosts: string[];
+  lastSeen: string;
+  present: boolean;
+  source: string;
 };
 
 export type AdminUser = {
@@ -47,6 +61,7 @@ export type AdminUser = {
   folio_status: string;
   platforms: string[];
   platformBreakdown: Record<string, AdminPlatformBucket>;
+  sitePresence?: AdminSitePresence[];
   platformCount: number;
   google_email: string;
   google_sub: string;
@@ -180,6 +195,21 @@ function asTaste(row: Record<string, unknown>): AdminTaste {
   };
 }
 
+function asSitePresence(row: Record<string, unknown>): AdminSitePresence {
+  return {
+    id: String(row.id || ""),
+    code: String(row.code || ""),
+    label: String(row.label || row.id || ""),
+    short: String(row.short || row.id || ""),
+    pill: String(row.pill || row.id || ""),
+    count: Number(row.count || 0),
+    hosts: Array.isArray(row.hosts) ? row.hosts.map(String) : [],
+    lastSeen: String(row.lastSeen || ""),
+    present: Boolean(row.present),
+    source: String(row.source || ""),
+  };
+}
+
 function asBucket(row: Record<string, unknown> | undefined, fallback: AdminPlatformBucket): AdminPlatformBucket {
   if (!row) return fallback;
   return {
@@ -189,6 +219,7 @@ function asBucket(row: Record<string, unknown> | undefined, fallback: AdminPlatf
     hosts: Array.isArray(row.hosts) ? row.hosts.map(String) : [],
     lastSeen: String(row.lastSeen || ""),
     present: Boolean(row.present),
+    source: row.source == null ? fallback.source : String(row.source),
   };
 }
 
@@ -204,6 +235,9 @@ function asUser(row: Record<string, unknown>): AdminUser {
     android: asBucket(rawBd.android, { id: "android", label: "Folio Android", count: 0, hosts: [], lastSeen: "", present: platforms.includes("android") }),
     ingenieria: asBucket(rawBd.ingenieria, { id: "ingenieria", label: "Ingeniería", count: 0, hosts: [], lastSeen: "", present: platforms.includes("ingenieria") }),
   };
+  const sitePresence = Array.isArray(row.sitePresence)
+    ? row.sitePresence.map((s) => asSitePresence((s || {}) as Record<string, unknown>))
+    : undefined;
   return {
     user_id: String(row.user_id || row.id || ""),
     email: String(row.email || ""),
@@ -238,6 +272,7 @@ function asUser(row: Record<string, unknown>): AdminUser {
     folio_status: String(row.folio_status || row.status || ""),
     platforms: platforms.length ? platforms : ["folio"],
     platformBreakdown,
+    sitePresence,
     platformCount: Number(row.platformCount || platforms.length || 1),
     google_email: String(row.google_email || row.email || ""),
     google_sub: String(row.google_sub || ""),
