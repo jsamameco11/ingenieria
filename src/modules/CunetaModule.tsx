@@ -272,6 +272,7 @@ C = (${fmt(inp.Ccalzada, 2)} × ${fmt(r.Acalzada, 1)} + ${fmt(inp.Ctalud, 2)} ×
             ["Velocidad mínima", `${fmt(r.V, 3)} m/s`, `≥ ${fmt(r.Vmin, 2)} m/s`, r.cumpleVelMin ? "Sí" : "No"],
             ["Velocidad máxima", `${fmt(r.V, 3)} m/s`, `≤ ${fmt(r.Vmax, 2)} m/s`, r.cumpleVelMax ? "Sí" : "No"],
             ["Espejo sobre calzada", `${fmt(r.spread, 3)} m`, `≤ Tmáx = ${fmt(inp.Tmax, 2)} m`, r.cumpleSpread ? "Sí" : "No"],
+            ["Longitud del tramo vs máxima", `${fmt(inp.Ltramo, 0)} m`, `≤ Lmáx = ${fmt(r.Lmax, 0)} m`, r.cumpleLtramo ? "Sí" : "No"],
           ],
         },
         {
@@ -289,12 +290,33 @@ C = (${fmt(inp.Ccalzada, 2)} × ${fmt(r.Acalzada, 1)} + ${fmt(inp.Ctalud, 2)} ×
           ok: r.cumpleSpread,
           text: `Espejo sobre calzada = ${fmt(r.spread, 3)} m ${r.cumpleSpread ? "≤" : ">"} Tmáx = ${fmt(inp.Tmax, 2)} m.`,
         },
-        { type: "h2", text: "7. Conclusión" },
+        { type: "h2", text: "7. Espaciamiento entre puntos de descarga" },
         {
           type: "p",
-          text: `Cuneta ${seccionTxt}, n = ${fmt(inp.n, 3)}, S = ${fmt(inp.S, 4)}. Aporte ${fmt(r.Aha, 4)} ha (L = ${fmt(inp.Ltramo, 0)} m), Qd = ${fmt(r.Qd, 4)} m³/s (${fmt(r.Qd * 1000, 1)} L/s) para T = ${inp.Tret} años e I = ${fmt(r.I, 2)} mm/h. Tirante ${fmt(r.yn, 3)} m, velocidad ${fmt(r.V, 2)} m/s, espejo ${fmt(r.spread, 2)} m. ${
-            r.cumpleTirante && r.cumpleVelMin && r.cumpleVelMax && r.cumpleSpread
-              ? "Cumple tirante, velocidad y espejo. Se recomienda detallar juntas, descargas y transiciones en el plano de obra."
+          text: "El caudal de la cuneta crece a lo largo del tramo porque el área tributaria (calzada + talud) crece con la longitud (método racional, área ∝ L). Se despeja la longitud a la que el caudal acumulado alcanzaría la capacidad de la sección — más allá de ese punto se necesita una alcantarilla de alivio o un aliviadero que derive el agua fuera de la cuneta.",
+        },
+        { type: "eq", text: "Lmáx = Ltramo · (Qcap / Qd)     (el caudal escala linealmente con el área tributaria, y esta con L)", num: "7" },
+        paso(
+          "7.1",
+          "Longitud máxima entre descargas",
+          "Lmáx = Ltramo·(Qcap/Qd)",
+          `Ltramo = ${fmt(inp.Ltramo, 0)} m · Qcap = ${fmt(r.Qcap, 4)} m³/s · Qd = ${fmt(r.Qd, 4)} m³/s`,
+          `Lmáx ≈ ${fmt(r.Lmax, 0)} m`,
+          "Si el tramo real analizado es más largo que Lmáx, la cuneta rebasa antes de llegar al punto de descarga previsto: hay que intercalar una alcantarilla de alivio, acortar el tramo o ampliar la sección.",
+        ),
+        {
+          type: "check",
+          ok: r.cumpleLtramo,
+          text: r.cumpleLtramo
+            ? `El tramo (${fmt(inp.Ltramo, 0)} m) cabe dentro de Lmáx (${fmt(r.Lmax, 0)} m).`
+            : `El tramo (${fmt(inp.Ltramo, 0)} m) excede Lmáx (${fmt(r.Lmax, 0)} m): intercalar una alcantarilla de alivio antes de ese punto.`,
+        },
+        { type: "h2", text: "8. Conclusión" },
+        {
+          type: "p",
+          text: `Cuneta ${seccionTxt}, n = ${fmt(inp.n, 3)}, S = ${fmt(inp.S, 4)}. Aporte ${fmt(r.Aha, 4)} ha (L = ${fmt(inp.Ltramo, 0)} m), Qd = ${fmt(r.Qd, 4)} m³/s (${fmt(r.Qd * 1000, 1)} L/s) para T = ${inp.Tret} años e I = ${fmt(r.I, 2)} mm/h. Tirante ${fmt(r.yn, 3)} m, velocidad ${fmt(r.V, 2)} m/s, espejo ${fmt(r.spread, 2)} m. Espaciamiento máx. entre descargas ≈ ${fmt(r.Lmax, 0)} m. ${
+            r.cumpleTirante && r.cumpleVelMin && r.cumpleVelMax && r.cumpleSpread && r.cumpleLtramo
+              ? "Cumple tirante, velocidad, espejo y espaciamiento entre descargas. Se recomienda detallar juntas, descargas y transiciones en el plano de obra."
               : "No cumple uno o más criterios: ajustar sección, revestimiento, pendiente o longitud entre descargas, o revisar C y la estación SENAMHI."
           }`,
         },

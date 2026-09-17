@@ -4,7 +4,7 @@ export const SOPORTE_WA = `https://wa.me/${SOPORTE_E164}`;
 export const SOPORTE_LABEL = "977 747 979";
 
 export const MSG_EQUIPO_OCUPADO =
-  "Esta cuenta ya está activa en otro equipo. Una cuenta, un solo equipo. Escriba a soporte por WhatsApp al 977 747 979 para que se cierren las sesiones.";
+  "Esta cuenta ya tiene 2 equipos con sesión activa. Cierre sesión en uno de ellos o ingrese con otra cuenta de Google. Si necesita ayuda, escriba a soporte por WhatsApp al 977 747 979.";
 
 export const MSG_SESION_CERRADA =
-  "Esta sesión se cerró. La cuenta solo puede usarse en un equipo. Si no recuerda dónde quedó abierta, escriba a soporte por WhatsApp al 977 747 979.";
+  "Esta sesión se cerró: la cuenta llegó a su máximo de equipos activos y se abrió en uno nuevo. Si no reconoce ese ingreso, escriba a soporte por WhatsApp al 977 747 979.";

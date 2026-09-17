@@ -73,6 +73,14 @@ PROFILE_SNIPPET = """ProxyPreserveHost On
 </Location>
 """
 
+CONTROL_SNIPPET = """ProxyPreserveHost On
+<Location /api/control>
+    FallbackResource disabled
+    ProxyPass http://127.0.0.1:8788/api/control
+    ProxyPassReverse http://127.0.0.1:8788/api/control
+</Location>
+"""
+
 DIR_SNIPPET = """<Directory /var/www/ingenieria>
     Options FollowSymLinks
     AllowOverride All
@@ -187,10 +195,13 @@ EOF""",
     run(ssh, "cat > /etc/apache2/snippets/ingenieria-grok.conf <<'EOF'\n" + GROK_SNIPPET + "EOF")
     run(ssh, "cat > /etc/apache2/snippets/ingenieria-revit.conf <<'EOF'\n" + REVIT_SNIPPET + "EOF")
     run(ssh, "cat > /etc/apache2/snippets/ingenieria-profile.conf <<'EOF'\n" + PROFILE_SNIPPET + "EOF")
+    run(ssh, "cat > /etc/apache2/snippets/ingenieria-control.conf <<'EOF'\n" + CONTROL_SNIPPET + "EOF")
     run(ssh, "cat > /etc/apache2/snippets/ingenieria-spa.conf <<'EOF'\n" + DIR_SNIPPET + "EOF")
     ssl = "/etc/apache2/sites-enabled/ingenieria.miacademiapreu.com-le-ssl.conf"
     http = "/etc/apache2/sites-enabled/ingenieria.miacademiapreu.com.conf"
-    for vhost in (ssl, http):
+    ctrl_ssl = "/etc/apache2/sites-enabled/control-ingenieria.miacademiapreu.com-le-ssl.conf"
+    ctrl_http = "/etc/apache2/sites-enabled/control-ingenieria.miacademiapreu.com.conf"
+    for vhost in (ssl, http, ctrl_ssl, ctrl_http):
         exists = run(ssh, f"test -f {vhost} && echo yes || true").strip()
         if not exists:
             continue
@@ -201,6 +212,7 @@ EOF""",
             "ingenieria-grok.conf",
             "ingenieria-revit.conf",
             "ingenieria-profile.conf",
+            "ingenieria-control.conf",
             "ingenieria-spa.conf",
         ):
             run(

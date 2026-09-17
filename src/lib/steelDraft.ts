@@ -1,0 +1,796 @@
+import { geoMuroVoladizo } from "./metradoZonas";
+import { barByName } from "./types";
+
+export type LeaderSide = "left" | "right" | "top" | "bottom";
+
+export type SteelBarPt = { x: number; y: number };
+
+export type SteelDraw = "dots" | "bar";
+
+export type SteelLayer = {
+  mark: number;
+  name: string;
+  face: string;
+  bar: string;
+  dbCm: number;
+  sCm: number;
+  nReal: number;
+  asProv: number;
+  asUnit: "cm²" | "cm²/m";
+  color: string;
+  side: LeaderSide;
+  /** Cortes (círculos) o barra longitudinal en el plano de la sección. */
+  draw?: SteelDraw;
+  bars: SteelBarPt[];
+  /** Polilínea de la barra en el plano (ganchos incluidos). */
+  barPath?: SteelBarPt[];
+  /** Varias polilíneas (p. ej. intradós + trasdós). */
+  barPaths?: SteelBarPt[][];
+  /** Punto de arranque de la cota-llamada (un lecho = una etiqueta). */
+  attach?: SteelBarPt;
+  callout?: { x: number; y: number; anchor: "start" | "middle" | "end" };
+};
+
+export type SteelDim = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  label: string;
+  side: LeaderSide;
+};
+
+export type SteelAnno = {
+  x: number;
+  y: number;
+  text: string;
+  anchor?: "start" | "middle" | "end";
+  fill?: string;
+};
+
+export type SteelDraftSpec = {
+  title: string;
+  subtitle: string;
+  caption: string;
+  note: string;
+  W: number;
+  H: number;
+  outline: string;
+  cover?: string;
+  soil?: string;
+  soilFront?: string;
+  groundY?: number;
+  barScale?: number;
+  /** Píxeles por metro, para la escala gráfica. */
+  pxPerM?: number;
+  /** Hoja grande (despiece de muro a escala de plano). */
+  sheet?: "a1";
+  /** Planta: sin terreno ni línea de suelo. */
+  mode?: "section" | "plan";
+  dims: SteelDim[];
+  layers: SteelLayer[];
+  annos?: SteelAnno[];
+};
+
+export const STEEL_FLEX = "#8b1e1e";
+export const STEEL_TEMP = "#1a4473";
+export const STEEL_DIST = "#5a4a28";
+
+export function nPerMeter(sCm: number) {
+  return Math.max(1, Math.round(100 / Math.max(sCm, 1)));
+}
+
+export function asProvCm2m(asBar: number, sCm: number) {
+  return (asBar / Math.max(sCm, 1e-6)) * 100;
+}
+
+export function nAlong(lengthCm: number, sCm: number) {
+  return Math.max(2, Math.floor(lengthCm / Math.max(sCm, 1)) + 1);
+}
+
+export function nDraw(nReal: number, maxN = 11) {
+  return Math.max(2, Math.min(nReal, maxN));
+}
+
+export function placeLine(ax: number, ay: number, bx: number, by: number, n: number): SteelBarPt[] {
+  if (n <= 1) return [{ x: (ax + bx) / 2, y: (ay + by) / 2 }];
+  return Array.from({ length: n }, (_, i) => ({
+    x: ax + ((bx - ax) * i) / (n - 1),
+    y: ay + ((by - ay) * i) / (n - 1),
+  }));
+}
+
+export function barRadius(dbCm: number, sc: number) {
+  return Math.max(2.6, Math.min(7.2, dbCm * sc * 0.62));
+}
+
+export function parseSteelText(text: string): { bar: string; s: number } {
+  const raw = String(text || "");
+  const barMatch = raw.match(/Ø\s*([^@·]+)/i);
+  const sMatch = raw.match(/@\s*([\d.,]+)/);
+  const bar = (barMatch?.[1] ?? '1/2"').replace(/inf\.|sup\.|cm.*/gi, "").trim() || '1/2"';
+  const s = parseFloat((sMatch?.[1] ?? "20").replace(",", "."));
+  return { bar, s: Number.isFinite(s) && s > 0 ? s : 20 };
+}
+
+export function hookBar(a: SteelBarPt, b: SteelBarPt, dir: "up" | "down" | "left" | "right", len: number): SteelBarPt[] {
+  const d = { up: [0, -len], down: [0, len], left: [-len, 0], right: [len, 0] }[dir];
+  return [a, b, { x: b.x + d[0], y: b.y + d[1] }];
+}
+
+export function midPoint(a: SteelBarPt, b: SteelBarPt): SteelBarPt {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+export function layerFromBar(opts: {
+  mark: number;
+  name: string;
+  face: string;
+  barName: string;
+  sCm: number;
+  lengthCm: number;
+  color: string;
+  side: LeaderSide;
+  a: SteelBarPt;
+  b: SteelBarPt;
+  maxDraw?: number;
+}): SteelLayer {
+  const bar = barByName(opts.barName);
+  const nReal = nAlong(opts.lengthCm, opts.sCm);
+  const bars = placeLine(opts.a.x, opts.a.y, opts.b.x, opts.b.y, nDraw(nReal, opts.maxDraw ?? 11));
+  return {
+    mark: opts.mark,
+    name: opts.name,
+    face: opts.face,
+    bar: bar.name,
+    dbCm: bar.db,
+    sCm: opts.sCm,
+    nReal,
+    asProv: asProvCm2m(bar.as, opts.sCm),
+    asUnit: "cm²/m",
+    color: opts.color,
+    side: opts.side,
+    bars,
+  };
+}
+
+function nv(v: Record<string, string>, k: string, fb = 0) {
+  const s = String(v[k] ?? "").trim().replace(",", ".");
+  if (s === "") return fb;
+  const x = Number(s);
+  return Number.isFinite(x) ? x : fb;
+}
+
+function sv(v: Record<string, string>, k: string, fb = "") {
+  return String(v[k] ?? "").trim() || fb;
+}
+
+const FLEX = STEEL_FLEX;
+const TEMP = STEEL_TEMP;
+const DIST = STEEL_DIST;
+
+function xyAt(x0: number, y0: number, x1: number, y1: number, t: number): SteelBarPt {
+  return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t };
+}
+
+export function ptsStr(pts: { x: number; y: number }[]) {
+  return pts.map((p) => `${p.x},${p.y}`).join(" ");
+}
+
+function sampleArc(cx: number, cy: number, r: number, a0: number, a1: number, n = 12): SteelBarPt[] {
+  const pts: SteelBarPt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** Polilínea con gancho 90° (radio interior tipo 6Ø, ramal 12Ø) muestreada para el plano. */
+export function pathHook90(
+  from: SteelBarPt,
+  corner: SteelBarPt,
+  toward: "right" | "left" | "up" | "down",
+  r: number,
+  hookLen: number,
+): SteelBarPt[] {
+  const ux = from.x - corner.x;
+  const uy = from.y - corner.y;
+  const len = Math.hypot(ux, uy) || 1;
+  const ix = ux / len;
+  const iy = uy / len;
+  const [ox, oy] = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] }[toward];
+  const rad = Math.min(r, len * 0.42, hookLen * 0.85);
+  const pEnter = { x: corner.x + ix * rad, y: corner.y + iy * rad };
+  const pExit = { x: corner.x + ox * rad, y: corner.y + oy * rad };
+  const cx = corner.x + (ix + ox) * rad;
+  const cy = corner.y + (iy + oy) * rad;
+  const a0 = Math.atan2(pEnter.y - cy, pEnter.x - cx);
+  const a1 = Math.atan2(pExit.y - cy, pExit.x - cx);
+  let da = a1 - a0;
+  while (da > Math.PI) da -= Math.PI * 2;
+  while (da < -Math.PI) da += Math.PI * 2;
+  const pEnd = { x: corner.x + ox * (rad + hookLen), y: corner.y + oy * (rad + hookLen) };
+  return [from, pEnter, ...sampleArc(cx, cy, rad, a0, a0 + da, 14).slice(1), pEnd];
+}
+
+/** Corte T del muro en voladizo: alma con talud, longitudinal en el plano, temperatura en corte. */
+export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec {
+  const H = nv(values, "H", 4);
+  const F = nv(values, "F", 0.4);
+  const C = nv(values, "C", 1.2);
+  const A = nv(values, "A", 2);
+  const e = nv(values, "esp", 0.4);
+  const Bp = nv(values, "Bp", 0.2);
+  const beta = nv(values, "beta", 10);
+  const hk = nv(values, "hk", 0);
+  const bkIn = nv(values, "bk", F);
+  const D = nv(values, "D", 0.8);
+  const rec = nv(values, "rec", 5);
+  const recZap = nv(values, "recZap", 7.5);
+  const barAlma = sv(values, "barAlma", '5/8"');
+  const sAlma = nv(values, "sAlma", 15);
+  const barPata = sv(values, "barPata", '5/8"');
+  const sPata = nv(values, "sPata", 15);
+  const barTalon = sv(values, "barTalon", '5/8"');
+  const sTalon = nv(values, "sTalon", 15);
+  const barTemp = sv(values, "barTemp", '3/8"');
+  const sTemp = nv(values, "sTemp", 25);
+
+  const g = geoMuroVoladizo({ H, D, A, C, F, Bp, esp: e, beta, hk, bk: bkIn });
+  const { B, xStemF, xStemB, xTopF, xTopB, xKeyL, xKeyR, wall } = g;
+  const hkUse = g.hk;
+  const bkUse = g.bk;
+
+  const padL = 228;
+  const padR = 248;
+  const padT = 88;
+  const padB = 148;
+  const spanY = H + Math.max(hkUse, 0.02);
+  const sc = Math.min(1180 / Math.max(B, 1.05), 1320 / Math.max(spanY, 2.2));
+  const W = Math.ceil(padL + B * sc + padR);
+  const Ht = Math.ceil(padT + spanY * sc + padB);
+  const ox = padL;
+  const yTopWall = padT;
+  const xy = (x: number, y: number) => ({ x: ox + x * sc, y: yTopWall + (H - y) * sc });
+  const outline = ptsStr(wall.map(([x, y]) => xy(x, y)));
+  const barScale = 1;
+
+  const recS = (rec / 100) * sc;
+  const recZ = (recZap / 100) * sc;
+  const dbAlma = barByName(barAlma).db;
+  const dbPata = barByName(barPata).db;
+  const dbTalon = barByName(barTalon).db;
+  const dbTemp = barByName(barTemp).db;
+  const barIntraN = sv(values, "barIntra", barTemp);
+  const sIntra = nv(values, "sIntra", Math.max(sTemp, 15));
+  const dbIntra = barByName(barIntraN).db;
+  const barDistN = sv(values, "barDist", barTemp);
+  const sDist = nv(values, "sDist", 20);
+  const dbDist = barByName(barDistN).db;
+  const rAlma = Math.max(1.8, (dbAlma / 100) * sc * 0.5);
+  const rIntra = Math.max(1.6, (dbIntra / 100) * sc * 0.5);
+  const rTemp = Math.max(1.5, (dbTemp / 100) * sc * 0.5);
+  const rPata = Math.max(1.7, (dbPata / 100) * sc * 0.5);
+  const rTalon = Math.max(1.7, (dbTalon / 100) * sc * 0.5);
+  const rDist = Math.max(1.6, (dbDist / 100) * sc * 0.5);
+  const bendAlma = Math.max(8, 6 * (dbAlma / 100) * sc);
+  const bendIntra = Math.max(7, 6 * (dbIntra / 100) * sc);
+  const bendPata = Math.max(7, 6 * (dbPata / 100) * sc);
+  const bendTalon = Math.max(7, 6 * (dbTalon / 100) * sc);
+  const bendDist = Math.max(7, 6 * (dbDist / 100) * sc);
+  const hookAlma = Math.max(22, 12 * (dbAlma / 100) * sc);
+  const hookIntra = Math.max(20, 12 * (dbIntra / 100) * sc);
+  const hookPata = Math.max(20, 12 * (dbPata / 100) * sc);
+  const hookTalon = Math.max(20, 12 * (dbTalon / 100) * sc);
+  const hookDist = Math.max(18, 12 * (dbDist / 100) * sc);
+
+  const pTopF = xy(xTopF, H);
+  const pTopB = xy(xTopB, H);
+  const pBaseF = xy(xStemF, e);
+  const pBaseB = xy(xStemB, e);
+  const pP = xy(0, e);
+  const pH = xy(B, e);
+  const pP0 = xy(0, 0);
+  const pH0 = xy(B, 0);
+  const pSF0 = xy(xStemF, 0);
+  const pSB0 = xy(xStemB, 0);
+
+  const thF = Math.atan2(pTopF.x - pBaseF.x, pBaseF.y - pTopF.y);
+  const thB = Math.atan2(pBaseB.x - pTopB.x, pBaseB.y - pTopB.y);
+  const inF = recS / Math.max(Math.cos(thF), 0.72) + rIntra;
+  const inB = recS / Math.max(Math.cos(thB), 0.72) + rAlma;
+  const inFTemp = inF + rIntra + rTemp + Math.max(2.2, sc * 0.008);
+  const inBTemp = inB + rAlma + rTemp + Math.max(2.2, sc * 0.008);
+
+  const front = (t: number) => xyAt(pTopF.x + inF, pTopF.y + recS + rIntra, pBaseF.x + inF, pBaseF.y + recZ + rIntra, t);
+  const back = (t: number) => xyAt(pTopB.x - inB, pTopB.y + recS + rAlma, pBaseB.x - inB, pBaseB.y + recZ + rAlma, t);
+  const frontT = (t: number) => xyAt(pTopF.x + inFTemp, pTopF.y + recS + rTemp, pBaseF.x + inFTemp, pBaseF.y - recZ * 0.2, t);
+  const backT = (t: number) => xyAt(pTopB.x - inBTemp, pTopB.y + recS + rTemp, pBaseB.x - inBTemp, pBaseB.y - recZ * 0.2, t);
+
+  const topBack = back(0.02);
+  const botBack = back(0.97);
+  const yHeelBar = pH.y + recZ + rAlma;
+  const pathAlma = pathHook90(topBack, { x: botBack.x, y: yHeelBar }, "right", bendAlma, Math.min(hookAlma, A * sc * 0.38));
+
+  const ySoffit = xy(0, 0).y;
+  const yPataInf = ySoffit - recZ - rPata;
+  const yPataSup = pP.y + recZ + rDist;
+  const xPata0 = pP0.x + recZ + rPata;
+  const xPata1 = pSF0.x + recS * 0.2;
+  const pathPata = pathHook90({ x: xPata0, y: yPataInf }, { x: xPata1, y: yPataInf }, "up", bendPata, Math.min(hookPata, (H - e) * sc * 0.1));
+  const pathPataSup = pathHook90(
+    { x: pSF0.x - recS * 0.15, y: yPataSup },
+    { x: xPata0, y: yPataSup },
+    "down",
+    bendDist,
+    Math.min(hookDist, e * sc * 0.45),
+  );
+
+  const yTalonSup = pH.y + recZ + rTalon;
+  const yTalonInf = ySoffit - recZ - rDist;
+  const xTal0 = pH0.x - recZ - rTalon;
+  const xTal1 = pSB0.x + recS * 0.15;
+  const pathTalon = pathHook90({ x: xTal1, y: yTalonSup }, { x: xTal0, y: yTalonSup }, "down", bendTalon, hookTalon);
+  const pathTalonInf = pathHook90(
+    { x: pSB0.x + recS * 0.2, y: yTalonInf },
+    { x: xTal0, y: yTalonInf },
+    "up",
+    bendDist,
+    Math.min(hookDist, e * sc * 0.45),
+  );
+
+  const yIntraHook = yPataSup + rIntra + rDist + 2;
+  const topFront = front(0.02);
+  const botFront = front(0.97);
+  const pathIntra = pathHook90(topFront, { x: botFront.x, y: yIntraHook }, "left", bendIntra, Math.min(hookIntra, C * sc * 0.42));
+
+  const coverPts: SteelBarPt[] = [
+    { x: pTopF.x + recS, y: pTopF.y + recS },
+    { x: pTopB.x - recS, y: pTopB.y + recS },
+    { x: pBaseB.x - recS, y: pBaseB.y + recZ },
+    { x: pH.x - recZ, y: pH.y + recZ },
+    { x: pH0.x - recZ, y: pH0.y - recZ },
+  ];
+  if (hkUse > 0.02) {
+    const kR0 = xy(xKeyR, 0);
+    const kRb = xy(xKeyR, -hkUse);
+    const kLb = xy(xKeyL, -hkUse);
+    const kL0 = xy(xKeyL, 0);
+    coverPts.push(
+      { x: kR0.x - recZ * 0.2, y: kR0.y - recZ },
+      { x: kRb.x - recZ * 0.2, y: kRb.y + recZ },
+      { x: kLb.x + recZ * 0.2, y: kLb.y + recZ },
+      { x: kL0.x + recZ * 0.2, y: kL0.y - recZ },
+    );
+  }
+  coverPts.push(
+    { x: pP0.x + recZ, y: pP0.y - recZ },
+    { x: pP.x + recZ, y: pP.y + recZ },
+    { x: pBaseF.x + recS, y: pBaseF.y + recZ },
+  );
+
+  const hFill = Math.tan((beta * Math.PI) / 180) * A;
+  const yFillM = Math.min(H - 0.2, e + Math.max(0.18, hFill));
+  const tFill = Math.min(0.88, Math.max(0.06, (yFillM - e) / Math.max(H - e, 0.2)));
+  const pFillEnd = xy(B, yFillM);
+  const pFillStem = xyAt(pTopB.x, pTopB.y, pBaseB.x, pBaseB.y, 1 - tFill);
+  const yKeyBot = xy(0, -hkUse).y;
+  const pD0 = xy(0, Math.min(Math.max(D, e + 0.08), H));
+  const pDs = xy(xStemF, Math.min(Math.max(D, e + 0.08), H));
+  const soil = `${pBaseB.x},${pBaseB.y} ${pH.x},${pH.y} ${pFillEnd.x},${pFillEnd.y} ${pFillStem.x},${pFillStem.y}`;
+  const soilFront = `${pP0.x - 28},${pD0.y} ${pDs.x},${pDs.y} ${pBaseF.x},${pBaseF.y} ${pP.x},${pP.y} ${pP0.x},${pP0.y} ${pP0.x},${yKeyBot} ${pP0.x - 28},${yKeyBot}`;
+
+  const nAlma = nAlong(100, sAlma);
+  const nIntra = nAlong(100, sIntra);
+  const nPata = nAlong(100, sPata);
+  const nTalon = nAlong(100, sTalon);
+  const nDist = nAlong(100, sDist);
+  const nTempDraw = nDraw(nAlong(Math.max(H - e, 0.5) * 100, sTemp), 11);
+  const tempFront = placeLine(frontT(0.06).x, frontT(0.06).y, frontT(0.9).x, frontT(0.9).y, nTempDraw);
+  const tempBack = placeLine(backT(0.1).x, backT(0.1).y, backT(0.88).x, backT(0.88).y, Math.max(2, nTempDraw - 1));
+
+  const temp: SteelLayer = {
+    ...layerFromBar({
+      mark: 3,
+      name: "Temperatura / horiz.",
+      face: "ambas caras del fuste",
+      barName: barTemp,
+      sCm: sTemp,
+      lengthCm: Math.max(H - e, 0.5) * 100,
+      color: TEMP,
+      side: "left",
+      a: tempFront[0],
+      b: tempFront[tempFront.length - 1],
+      maxDraw: nTempDraw,
+    }),
+    bars: [...tempFront, ...tempBack],
+    draw: "dots",
+    attach: tempFront[Math.min(4, tempFront.length - 1)] ?? tempFront[0],
+    callout: { x: 22, y: 198, anchor: "start" },
+  };
+
+  const attachLong = back(0.26);
+  const attachIntra = front(0.26);
+  const layers: SteelLayer[] = [
+    {
+      mark: 1,
+      name: "Longitudinal trasdós",
+      face: "trasdós (tierra)",
+      bar: barByName(barAlma).name,
+      dbCm: dbAlma,
+      sCm: sAlma,
+      nReal: nAlma,
+      asProv: asProvCm2m(barByName(barAlma).as, sAlma),
+      asUnit: "cm²/m",
+      color: FLEX,
+      side: "right",
+      draw: "bar",
+      bars: [attachLong],
+      barPath: pathAlma,
+      barPaths: [pathAlma],
+      attach: attachLong,
+      callout: { x: W - 22, y: 72, anchor: "end" },
+    },
+    {
+      mark: 2,
+      name: "Longitudinal intradós",
+      face: "intradós (desmonte)",
+      bar: barByName(barIntraN).name,
+      dbCm: dbIntra,
+      sCm: sIntra,
+      nReal: nIntra,
+      asProv: asProvCm2m(barByName(barIntraN).as, sIntra),
+      asUnit: "cm²/m",
+      color: DIST,
+      side: "left",
+      draw: "bar",
+      bars: [attachIntra],
+      barPath: pathIntra,
+      barPaths: [pathIntra],
+      attach: attachIntra,
+      callout: { x: 22, y: 64, anchor: "start" },
+    },
+    temp,
+    {
+      mark: 4,
+      name: "Puntera inferior",
+      face: "cara del suelo",
+      bar: barByName(barPata).name,
+      dbCm: dbPata,
+      sCm: sPata,
+      nReal: nPata,
+      asProv: asProvCm2m(barByName(barPata).as, sPata),
+      asUnit: "cm²/m",
+      color: FLEX,
+      side: "left",
+      draw: "bar",
+      bars: [{ x: (xPata0 + xPata1) / 2, y: yPataInf }],
+      barPath: pathPata,
+      attach: { x: xPata0 + (xPata1 - xPata0) * 0.38, y: yPataInf },
+      callout: { x: 22, y: Ht - 118, anchor: "start" },
+    },
+    {
+      mark: 5,
+      name: "Puntera superior",
+      face: "cara superior de la pata",
+      bar: barByName(barDistN).name,
+      dbCm: dbDist,
+      sCm: sDist,
+      nReal: nDist,
+      asProv: asProvCm2m(barByName(barDistN).as, sDist),
+      asUnit: "cm²/m",
+      color: DIST,
+      side: "left",
+      draw: "bar",
+      bars: [{ x: (xPata0 + pSF0.x) / 2, y: yPataSup }],
+      barPath: pathPataSup,
+      attach: { x: xPata0 + 36, y: yPataSup },
+      callout: { x: 22, y: pP.y - 8, anchor: "start" },
+    },
+    {
+      mark: 6,
+      name: "Talón superior",
+      face: "cara del relleno",
+      bar: barByName(barTalon).name,
+      dbCm: dbTalon,
+      sCm: sTalon,
+      nReal: nTalon,
+      asProv: asProvCm2m(barByName(barTalon).as, sTalon),
+      asUnit: "cm²/m",
+      color: FLEX,
+      side: "right",
+      draw: "bar",
+      bars: [{ x: (xTal0 + xTal1) / 2, y: yTalonSup }],
+      barPath: pathTalon,
+      attach: { x: xTal1 + (xTal0 - xTal1) * 0.55, y: yTalonSup },
+      callout: { x: W - 22, y: pH.y - 6, anchor: "end" },
+    },
+    {
+      mark: 7,
+      name: "Talón inferior",
+      face: "cara del suelo",
+      bar: barByName(barDistN).name,
+      dbCm: dbDist,
+      sCm: sDist,
+      nReal: nDist,
+      asProv: asProvCm2m(barByName(barDistN).as, sDist),
+      asUnit: "cm²/m",
+      color: DIST,
+      side: "right",
+      draw: "bar",
+      bars: [{ x: (xTal0 + xTal1) / 2, y: yTalonInf }],
+      barPath: pathTalonInf,
+      attach: { x: xTal0 - 24, y: yTalonInf },
+      callout: { x: W - 22, y: ySoffit + 18, anchor: "end" },
+    },
+  ];
+  if (hkUse > 0.02) {
+    const dbKey = barByName(sv(values, "barLlave", barPata)).db;
+    const rKey = Math.max(1.7, (dbKey / 100) * sc * 0.5);
+    const recK = recZ + rKey;
+    const pathKey: SteelBarPt[] = [
+      { x: xy(xKeyL, e * 0.55).x + recK, y: xy(xKeyL, e * 0.55).y },
+      { x: xy(xKeyL, -hkUse).x + recK, y: xy(xKeyL, -hkUse).y - recK },
+      { x: xy(xKeyR, -hkUse).x - recK, y: xy(xKeyR, -hkUse).y - recK },
+      { x: xy(xKeyR, e * 0.55).x - recK, y: xy(xKeyR, e * 0.55).y },
+    ];
+    const sKey = nv(values, "sLlave", sPata);
+    layers.push({
+      mark: 8,
+      name: "Dentellón (taco)",
+      face: "voladizo corto bajo el fuste",
+      bar: barByName(sv(values, "barLlave", barPata)).name,
+      dbCm: dbKey,
+      sCm: sKey,
+      nReal: nAlong(100, sKey),
+      asProv: asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey),
+      asUnit: "cm²/m",
+      color: FLEX,
+      side: "right",
+      draw: "bar",
+      bars: [pathKey[1]],
+      barPath: pathKey,
+      barPaths: [pathKey],
+      attach: pathKey[2],
+      callout: { x: W - 22, y: Ht - 78, anchor: "end" },
+    });
+  }
+
+  const yDim = ySoffit + 56 + (hkUse > 0.02 ? hkUse * sc + 10 : 0);
+  const xHdim = Math.max(48, pP0.x - 72);
+  const dims: SteelDim[] = [
+    { x1: pP0.x, y1: yDim, x2: pSF0.x, y2: yDim, label: `C = ${C.toFixed(2)} m`, side: "bottom" },
+    { x1: pSF0.x, y1: yDim, x2: pSB0.x, y2: yDim, label: `F = ${F.toFixed(2)} m`, side: "top" },
+    { x1: pSB0.x, y1: yDim, x2: pH0.x, y2: yDim, label: `A = ${A.toFixed(2)} m`, side: "bottom" },
+    { x1: xHdim, y1: pTopF.y, x2: xHdim, y2: pP0.y, label: `H = ${H.toFixed(2)} m`, side: "left" },
+    { x1: pH.x + 38, y1: pH.y, x2: pH.x + 38, y2: pH0.y, label: `e = ${e.toFixed(2)} m`, side: "right" },
+    { x1: pTopF.x, y1: pTopF.y - 28, x2: pTopB.x, y2: pTopB.y - 28, label: `B′ = ${g.Bp.toFixed(2)} m`, side: "top" },
+  ];
+  if (hkUse > 0.02) {
+    const kR = xy(xKeyR, 0);
+    const kRb = xy(xKeyR, -hkUse);
+    dims.push({ x1: kR.x + 28, y1: kRb.y, x2: kR.x + 28, y2: kR.y, label: `hk = ${hkUse.toFixed(2)} m`, side: "right" });
+  }
+
+  const annos: SteelAnno[] = [
+    { x: (pTopF.x + pTopB.x) / 2, y: pTopF.y + 20, text: "Corona", anchor: "middle", fill: "#1a4473" },
+    { x: front(0.42).x - 22, y: front(0.42).y, text: "Intradós", anchor: "end", fill: "#5a4a28" },
+    { x: back(0.42).x + 24, y: back(0.42).y, text: "Trasdós", anchor: "start", fill: "#5a4a28" },
+    { x: (pP.x + pBaseF.x) / 2, y: pP.y - 16, text: "Puntera", anchor: "middle", fill: "#1a4473" },
+    { x: (pBaseB.x + pH.x) / 2, y: pH.y - 16, text: "Cimentación", anchor: "middle", fill: "#1a4473" },
+  ];
+  if (hkUse > 0.02) {
+    const kC = xy((xKeyL + xKeyR) / 2, -hkUse * 0.5);
+    annos.push({ x: kC.x, y: kC.y + 5, text: "Dentellón", anchor: "middle", fill: "#8b1e1e" });
+  }
+
+  return {
+    title: "Corte de sección — despiece de aceros",
+    subtitle: "Muro en voladizo · corte A-A · franja de 1,00 m · una marca por lecho",
+    caption: `Trasdós Ø ${barAlma} @ ${sAlma.toFixed(0)} · Intradós Ø ${barIntraN} @ ${sIntra.toFixed(0)} · Puntera inf. Ø ${barPata} @ ${sPata.toFixed(0)} · Puntera sup. Ø ${barDistN} @ ${sDist.toFixed(0)} · Talón sup. Ø ${barTalon} @ ${sTalon.toFixed(0)} · Talón inf. Ø ${barDistN} @ ${sDist.toFixed(0)} · Temp. Ø ${barTemp} @ ${sTemp.toFixed(0)}${hkUse > 0.02 ? ` · Dentellón ${bkUse.toFixed(2)}×${hkUse.toFixed(2)} m` : ""}`,
+    note: "Lechos a recubrimiento. Verticales en el plano (trasdós e intradós); temperatura en corte, interior a los verticales. Zapata con malla inf. y sup. El dentellón (taco) solo aparece si el muro desliza.",
+    W,
+    H: Ht,
+    outline,
+    cover: ptsStr(coverPts),
+    soil,
+    soilFront,
+    groundY: yKeyBot,
+    barScale,
+    pxPerM: sc,
+    sheet: "a1",
+    dims,
+    layers,
+    annos,
+  };
+}
+
+/** Sección rectangular de viga: lecho de tracción, montantes y estribo. */
+export function specVigaRect(values: Record<string, string>): SteelDraftSpec {
+  const b = nv(values, "b", 25);
+  const h = nv(values, "h", 50);
+  const rec = nv(values, "rec", 5);
+  const nLong = Math.max(2, Math.round(nv(values, "nLong", 3)));
+  const barLong = sv(values, "barLong", '1/2"');
+  const barEst = sv(values, "barEst", '3/8"');
+  const dest = nv(values, "dest", barByName(barEst).db);
+  const asLong = sv(values, "asLong", "");
+  const W = 640;
+  const Ht = 360;
+  const sc = Math.min(5.2, 220 / Math.max(h, 20), 180 / Math.max(b, 15));
+  const w = b * sc;
+  const ht = h * sc;
+  const sx = 150;
+  const sy = 48;
+  const recPx = rec * sc;
+  const destPx = dest * sc;
+  const rLong = barRadius(barByName(barLong).db, sc);
+  const off = recPx + destPx + rLong;
+  const inf = placeLine(sx + off, sy + ht - off, sx + w - off, sy + ht - off, nLong);
+  const sup = placeLine(sx + off, sy + off, sx + w - off, sy + off, 2);
+  const bar = barByName(barLong);
+  const est = barByName(barEst);
+
+  const layers: SteelLayer[] = [
+    {
+      mark: 1,
+      name: "Lecho de tracción",
+      face: "inferior",
+      bar: bar.name,
+      dbCm: bar.db,
+      sCm: nLong > 1 ? (b - 2 * rec - dest) / (nLong - 1) : b,
+      nReal: nLong,
+      asProv: nLong * bar.as,
+      asUnit: "cm²",
+      color: FLEX,
+      side: "bottom",
+      bars: inf,
+    },
+    {
+      mark: 2,
+      name: "Montantes / compresión",
+      face: "superior",
+      bar: bar.name,
+      dbCm: bar.db,
+      sCm: b - 2 * rec,
+      nReal: 2,
+      asProv: 2 * bar.as,
+      asUnit: "cm²",
+      color: DIST,
+      side: "top",
+      bars: sup,
+    },
+    {
+      mark: 3,
+      name: "Estribo",
+      face: "perímetro",
+      bar: est.name,
+      dbCm: est.db,
+      sCm: nv(values, "sAd", nv(values, "sApoyo", 10)),
+      nReal: 1,
+      asProv: est.as,
+      asUnit: "cm²",
+      color: TEMP,
+      side: "right",
+      bars: [{ x: sx + w - recPx - destPx / 2, y: sy + recPx + destPx / 2 }],
+    },
+  ];
+
+  const outline = `${sx},${sy} ${sx + w},${sy} ${sx + w},${sy + ht} ${sx},${sy + ht}`;
+  const inner = recPx + destPx / 2;
+  const cover = `${sx + inner},${sy + inner} ${sx + w - inner},${sy + inner} ${sx + w - inner},${sy + ht - inner} ${sx + inner},${sy + ht - inner}`;
+
+  return {
+    title: "Corte de sección — despiece de aceros",
+    subtitle: `Viga ${b.toFixed(0)} × ${h.toFixed(0)} cm · una marca por lecho`,
+    caption: `Tracción: ${nLong} Ø ${bar.name} (Ø=${bar.db.toFixed(2)} cm)${asLong ? ` · As = ${asLong}` : ""} · Estribos Ø ${est.name}`,
+    note: "Lecho inferior = acero de flexión. Estribo = acero de corte. Recubrimiento y Ø dibujados a escala.",
+    W,
+    H: Ht,
+    outline,
+    cover,
+    dims: [
+      { x1: sx, y1: sy + ht + 16, x2: sx + w, y2: sy + ht + 16, label: `b = ${b.toFixed(0)} cm`, side: "bottom" },
+      { x1: sx - 20, y1: sy, x2: sx - 20, y2: sy + ht, label: `h = ${h.toFixed(0)} cm`, side: "left" },
+      { x1: sx + w + 12, y1: sy + ht - recPx, x2: sx + w + 12, y2: sy + ht, label: `r = ${rec.toFixed(1)} cm`, side: "right" },
+    ],
+    layers,
+  };
+}
+
+/** Franja de 1,00 m (losa, zapata, muro de tanque): lechos inf./sup. */
+export function specFranja1m(opts: {
+  title: string;
+  hCm: number;
+  recCm: number;
+  infText: string;
+  supText?: string;
+  distText?: string;
+}): SteelDraftSpec {
+  const inf = parseSteelText(opts.infText);
+  const sup = opts.supText ? parseSteelText(opts.supText) : null;
+  const dist = opts.distText ? parseSteelText(opts.distText) : null;
+  const W = 640;
+  const Ht = 300;
+  const L = 100;
+  const scx = 360 / L;
+  const scy = Math.min(4.2, 140 / Math.max(opts.hCm, 8));
+  const sx = 130;
+  const sy = 56;
+  const w = L * scx;
+  const ht = opts.hCm * scy;
+  const recPx = opts.recCm * scy;
+  const rInf = barRadius(barByName(inf.bar).db, Math.max(scy, 2.2));
+  const infBars = layerFromBar({
+    mark: 1,
+    name: "Lecho inferior",
+    face: "fondo / suelo",
+    barName: inf.bar,
+    sCm: inf.s,
+    lengthCm: L,
+    color: FLEX,
+    side: "bottom",
+    a: { x: sx + recPx + rInf, y: sy + ht - recPx - rInf },
+    b: { x: sx + w - recPx - rInf, y: sy + ht - recPx - rInf },
+  });
+  const layers: SteelLayer[] = [infBars];
+  if (sup) {
+    const rSup = barRadius(barByName(sup.bar).db, Math.max(scy, 2.2));
+    layers.push(
+      layerFromBar({
+        mark: 2,
+        name: "Lecho superior",
+        face: "cara superior",
+        barName: sup.bar,
+        sCm: sup.s,
+        lengthCm: L,
+        color: TEMP,
+        side: "top",
+        a: { x: sx + recPx + rSup, y: sy + recPx + rSup },
+        b: { x: sx + w - recPx - rSup, y: sy + recPx + rSup },
+      }),
+    );
+  }
+  if (dist) {
+    const rD = barRadius(barByName(dist.bar).db, Math.max(scy, 2));
+    layers.push(
+      layerFromBar({
+        mark: layers.length + 1,
+        name: "Distribución / temp.",
+        face: "90° al principal",
+        barName: dist.bar,
+        sCm: dist.s,
+        lengthCm: opts.hCm,
+        color: DIST,
+        side: "right",
+        a: { x: sx + w / 2, y: sy + recPx + rD },
+        b: { x: sx + w / 2, y: sy + ht - recPx - rD },
+        maxDraw: 5,
+      }),
+    );
+  }
+  return {
+    title: "Corte de sección — despiece de aceros",
+    subtitle: opts.title,
+    caption: layers.map((l) => `${l.mark} Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("  ·  "),
+    note: "Franja de 1,00 m. Una marca por lecho. Los círculos son barras cortadas por el plano de la sección.",
+    W,
+    H: Ht,
+    outline: `${sx},${sy} ${sx + w},${sy} ${sx + w},${sy + ht} ${sx},${sy + ht}`,
+    cover: `${sx + recPx},${sy + recPx} ${sx + w - recPx},${sy + recPx} ${sx + w - recPx},${sy + ht - recPx} ${sx + recPx},${sy + ht - recPx}`,
+    dims: [
+      { x1: sx, y1: sy + ht + 16, x2: sx + w, y2: sy + ht + 16, label: "1,00 m", side: "bottom" },
+      { x1: sx - 18, y1: sy, x2: sx - 18, y2: sy + ht, label: `h = ${opts.hCm.toFixed(1)} cm`, side: "left" },
+    ],
+    layers,
+  };
+}
+
+export function centroid(pts: SteelBarPt[]) {
+  if (!pts.length) return { x: 0, y: 0 };
+  return {
+    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+    y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+  };
+}

@@ -7,6 +7,7 @@ import { barByName } from "../lib/types";
 import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, parseHolesText, parsePolyText, resolvePmForma, steelZonesFor } from "../lib/pmSections";
 import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
 import { CrossCroquisAny } from "./DiagramCross";
+import { CargaDistribuida } from "./DclCargas";
 
 const DimLive = createContext<{
   values: Record<string, string>;
@@ -759,6 +760,9 @@ function VigaSeccion({ values, active, onFocus }: { values: Record<string, strin
   const recPx = recFace;
   const stOff = recFace + destPx / 2;
   const barOff = recFace + destPx + barR;
+  const nLong = Math.max(2, Math.round(n(values, "nLong", 3)));
+  const barLong = values.barLong || values.asLong || "";
+  const xsInf = Array.from({ length: nLong }, (_, i) => (i + 1) / (nLong + 1));
   const sAp = n(values, "sApoyo", n(values, "sAd", 0));
   const sMidN = n(values, "sCentro", n(values, "sMid", sAp));
   const L = n(values, "L", 6);
@@ -808,12 +812,17 @@ function VigaSeccion({ values, active, onFocus }: { values: Record<string, strin
         strokeWidth={tEst}
         rx={Math.max(3, barR + destPx / 2)}
       />
-      {[0.24, 0.5, 0.76].map((px) => (
+      {xsInf.map((px) => (
         <circle key={`inf-${px}`} cx={sx + w * px} cy={sy + ht - barOff} r={barR} fill="#8b1e1e" />
       ))}
       {[0.24, 0.76].map((px) => (
         <circle key={`sup-${px}`} cx={sx + w * px} cy={sy + barOff} r={barR * 0.82} fill="#8b1e1e" />
       ))}
+      {barLong ? (
+        <text x={sx + w / 2} y={sy + ht + 11} textAnchor="middle" fontSize="7.5" fill="#8b1e1e">
+          {String(barLong).includes("Ø") ? barLong : `${nLong} Ø ${barLong}`}
+        </text>
+      ) : null}
       <Dim x1={sx} y1={sy + ht} x2={sx + w} y2={sy + ht} label={`${b.toFixed(0)}`} field="b" unit="cm" side={sideB} active={active} onFocus={onFocus} />
       <Dim x1={sx} y1={sy} x2={sx} y2={sy + ht} label={`${h.toFixed(0)}`} field="h" unit="cm" side={sideH} active={active} onFocus={onFocus} />
       <Dim x1={sx + w} y1={sy + ht - recPx} x2={sx + w} y2={sy + ht} label={`${rec.toFixed(0)}`} field="rec" unit="cm" side={-sideR} active={active} onFocus={onFocus} />
@@ -2443,11 +2452,6 @@ function Estribo({ values, active, onFocus }: { values: Record<string, string>; 
   ]);
 
   const ehBase = Math.min(Math.max(Ltalon * 0.38, 0.85), 1.45);
-  const triEH = pts([
-    [X(xaFill), Y(H)],
-    [X(xaFill + ehBase), Y(D)],
-    [X(xaFill), Y(D)],
-  ]);
 
   const hzDraw = Math.min(hz, H * 0.55);
   const toeW = 1.42 * sc;
@@ -2471,8 +2475,6 @@ function Estribo({ values, active, onFocus }: { values: Record<string, string>; 
   const tabX = X(xaSeatF) + 2;
   const tabY = Y(hCajTop) - beamH;
   const tabCx = tabX + beamW / 2;
-  const ehCx = X(xaFill + ehBase * 0.42);
-  const ehCy = (Y(H) + Y(D)) / 2 + 8;
 
   return (
     <SvgFrame
@@ -2493,10 +2495,6 @@ function Estribo({ values, active, onFocus }: { values: Record<string, string>; 
           <path d="M0 6.5 Q4.5 3.2 9 6.5 T18 6.5" fill="none" stroke="#9a7344" strokeWidth="0.95" />
           <path d="M0 2.4 Q4.5 -0.4 9 2.4 T18 2.4" fill="none" stroke="#b08a58" strokeWidth="0.7" />
         </pattern>
-        <pattern id="estPantEh" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-38)">
-          <rect width="8" height="8" fill="#c48a52" />
-          <line x1="0" y1="0" x2="0" y2="8" stroke="#8a5228" strokeWidth="1.55" />
-        </pattern>
         <pattern id="estPantWater" width="16" height="10" patternUnits="userSpaceOnUse">
           <rect width="16" height="10" fill="#c4dced" />
           <path d="M0 3 Q4 0.6 8 3 T16 3" fill="none" stroke="#4a7a9a" strokeWidth="0.95" />
@@ -2505,17 +2503,23 @@ function Estribo({ values, active, onFocus }: { values: Record<string, string>; 
       </defs>
       <polygon points={soilL} fill="url(#estPantSoil)" stroke="#8a7344" strokeWidth="0.6" />
       <polygon points={soilR} fill="url(#estPantSoil)" stroke="#8a7344" strokeWidth="0.6" />
-      <polygon points={triEH} fill="url(#estPantEh)" stroke="#8a5228" strokeWidth="0.85" />
+      <CargaDistribuida
+        id="est-pant-eh"
+        x0={X(xaFill)}
+        y0={Y(H)}
+        y1={Y(D)}
+        w0={4}
+        w1={Math.max(36, ehBase * sc)}
+        toward="right"
+        color="#8b1e1e"
+        label="EH"
+        sublabel="LS,x"
+        fillOpacity={0.12}
+      />
       <polygon points={water} fill="url(#estPantWater)" stroke="#4a7a9a" strokeWidth="0.8" />
       <line x1={X(0) + 22} y1={Y(hw)} x2={X(0) + toeW + 18} y2={Y(hw)} stroke="#3d6a84" strokeWidth="1.25" />
       <text x={X(0) + toeW - 2} y={Y(hw) - 7} textAnchor="end" fontSize="11" fill="#3d6a84" fontFamily={ff} fontWeight="700">
         aguas
-      </text>
-      <text x={ehCx} y={ehCy} textAnchor="middle" fontSize="12" fill="#8b1e1e" fontFamily={ff} fontWeight="700">
-        EH
-      </text>
-      <text x={ehCx} y={ehCy + 13} textAnchor="middle" fontSize="10.5" fill="#8b1e1e" fontFamily={ff}>
-        LS,x
       </text>
       <polygon points={conc} fill="url(#estPantConc)" stroke="#1a4473" strokeWidth="2" strokeLinejoin="miter" />
       <line x1={X(B) + 28} y1={Y(0)} x2={X(0) + toeW + 16} y2={Y(0)} stroke="#6b5a3a" strokeWidth="1.15" />
@@ -2651,7 +2655,6 @@ function EstriboG({ values, active, onFocus }: { values: Record<string, string>;
     .join(" ");
 
   const ehW = Math.max(40, Math.min(62, (X(B) - X(xHeel)) * 0.55 + 36));
-  const triEH = `${X(xHeel)},${Y(H)} ${X(xHeel) + ehW},${Y(h)} ${X(xHeel)},${Y(h)}`;
   const tabW = Math.max(X(xBack) - X(xSeat), 36) + 24;
   const tabH = Math.max(e * sc * 0.55, 28);
   const tabX = X(xSeat) - 12;
@@ -2665,10 +2668,18 @@ function EstriboG({ values, active, onFocus }: { values: Record<string, string>;
     >
       <polygon points={soilBack} fill="url(#soil)" opacity="0.94" />
       <polygon points={soilToe} fill="url(#soil)" opacity="0.82" />
-      <polygon points={triEH} fill="#c45c4a" opacity="0.32" stroke="#8b1e1e" strokeWidth="0.9" />
-      <text x={X(xHeel) + ehW * 0.55} y={(Y(H) + Y(h)) / 2} textAnchor="middle" fontSize="12" fill="#8b1e1e" fontFamily="IBM Plex Sans, sans-serif">
-        EH
-      </text>
+      <CargaDistribuida
+        id="est-grav-eh"
+        x0={X(xHeel)}
+        y0={Y(H)}
+        y1={Y(h)}
+        w0={4}
+        w1={ehW}
+        toward="left"
+        color="#8b1e1e"
+        label="EH"
+        fillOpacity={0.12}
+      />
       <rect x={X(xHeel)} y={Y(H + eLosa)} width={Math.max(X(B) - X(xHeel), 8)} height={eLosa * sc} fill="#c4d4e8" stroke="#1a4473" strokeWidth="1" />
       <polygon points={conc} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.7" strokeLinejoin="round" />
       <rect x={tabX} y={tabY} width={tabW} height={tabH} fill="#b7c6d8" stroke="#1a4473" strokeWidth="1.2" />
@@ -3240,53 +3251,117 @@ function MuroContencion({ values, active, onFocus }: { values: Record<string, st
   const esp = Math.max(0.15, Math.min(H * 0.6, n(values, "esp", 0.4)));
   const beta = n(values, "beta", 10);
   const hSat = Math.max(0, n(values, "hSat", 2));
+  const hk = Math.max(0, n(values, "hk", 0));
+  const bk = hk > 0.02 ? Math.min(F, Math.max(0.25, n(values, "bk", F))) : 0;
+  const Hs = Math.max(0.05, H - esp);
   const B = A + C + F;
   const B1 = Math.max(0, (F - Bp) / 2);
   const sx = 300 / Math.max(B, 2.4);
-  const sy = 200 / Math.max(H, 2.4);
+  const sy = 200 / Math.max(H + hk, 2.4);
   const x0 = 88;
-  const yBot = 318;
+  const yBot = 318 - (hk > 0.02 ? Math.min(36, hk * sy) : 0);
   const yTop = yBot - H * sy;
   const yBase = yBot - esp * sy;
   const yFront = yBot - Math.min(D, H) * sy;
+  const yKey = yBot + hk * sy;
   const xP = x0;
   const xSF = x0 + C * sx;
   const xSB = x0 + (C + F) * sx;
   const xH = x0 + B * sx;
   const xTopF = xSF + B1 * sx;
   const xTopB = xSB - B1 * sx;
+  const xKeyR = xSF + bk * sx;
   const slope = Math.tan((beta * Math.PI) / 180) * sy;
-  const xFill = xH + 46;
+  const paW = 34;
+  const pwW = 26;
+  const colGap = 14;
+  const xLoad0 = xSB + 8;
+  const xPaFace = xLoad0;
+  const xPwFace = xLoad0 + paW + colGap;
+  const xLoadsR = xPwFace + (hSat > 0.05 ? pwW : paW);
+  const xFill = Math.max(xH + 52, xLoadsR + 96);
   const yFill = yBase - slope * ((xFill - xSB) / Math.max(sx, 1)) * (sx / sy);
   const yWater = yBot - Math.min(hSat, H) * sy;
-  const wall = `${xP},${yBase} ${xP},${yBot} ${xH},${yBot} ${xH},${yBase} ${xSB},${yBase} ${xTopB},${yTop} ${xTopF},${yTop} ${xSF},${yBase}`;
+  const wall =
+    hk > 0.02
+      ? `${xP},${yBase} ${xP},${yBot} ${xSF},${yBot} ${xSF},${yKey} ${xKeyR},${yKey} ${xKeyR},${yBot} ${xH},${yBot} ${xH},${yBase} ${xSB},${yBase} ${xTopB},${yTop} ${xTopF},${yTop} ${xSF},${yBase}`
+      : `${xP},${yBase} ${xP},${yBot} ${xH},${yBot} ${xH},${yBase} ${xSB},${yBase} ${xTopB},${yTop} ${xTopF},${yTop} ${xSF},${yBase}`;
+  const xCotaR = xLoadsR + 16;
   const dim = { active, onFocus };
   return (
-    <SvgFrame caption="Muro en voladizo — pata, alma, talón y zapata corrida" heading="Cimentación y pantalla" viewBox="0 0 540 400">
+    <SvgFrame caption="Muro en voladizo — pata, alma, talón y zapata corrida, con empujes como carga distribuida" heading="Cimentación y pantalla" viewBox="0 0 560 420">
       <polygon points={`${xSB},${yBase} ${xH},${yBase} ${xFill},${Math.min(yBase, yFill)} ${xFill},${yTop - 8} ${xTopB},${yTop}`} fill="#c4b48a" opacity="0.55" />
       {hSat > 0.05 ? (
         <polygon
           points={`${xSB},${yBase} ${xH},${yBase} ${xH},${Math.max(yWater, yTop)} ${xSB},${Math.max(yWater, yBase)}`}
           fill="#6a9cc9"
-          opacity="0.28"
+          opacity="0.1"
         />
       ) : null}
-      <polygon points={`${xP - 8},${yFront} ${xP},${yFront} ${xP},${yBot} ${xP - 8},${yBot}`} fill="#b9a57a" opacity="0.7" />
-      <line x1={xP - 36} y1={yBot} x2={xH + 52} y2={yBot} stroke="#8a7a55" strokeWidth="2" />
+      <polygon points={`${xP - 8},${yFront} ${xP},${yFront} ${xP},${hk > 0.02 ? yKey : yBot} ${xP - 8},${hk > 0.02 ? yKey : yBot}`} fill="#b9a57a" opacity="0.7" />
+      <line x1={xP - 36} y1={hk > 0.02 ? yKey : yBot} x2={xFill + 8} y2={hk > 0.02 ? yKey : yBot} stroke="#8a7a55" strokeWidth="2" />
       <polygon points={wall} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.6" />
-      <polygon points={`${xSB},${yTop + 12} ${xSB + 78},${yTop + 12} ${xSB + 18},${yBase - 8} ${xSB},${yBase - 8}`} fill="#8b1e1e18" stroke="#8b1e1e" strokeWidth="1" />
-      <text x={xSB + 38} y={yTop + 48} fontSize="10" fill="#8b1e1e">Pa</text>
-      <text x={(xP + xSF) / 2} y={yBase - 8} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">PATA</text>
-      <text x={(xSF + xSB) / 2} y={(yTop + yBase) / 2} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">ALMA</text>
-      <text x={(xSB + xH) / 2} y={yBase - 8} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">TALÓN</text>
-      <text x={(xP + xH) / 2} y={yBot - 8} textAnchor="middle" fontSize="10" fill="#5a4a28">ZAPATA</text>
+      <CargaDistribuida
+        id="muro-geom-pa"
+        x0={xTopB}
+        y0={yTop}
+        xFace1={xSB}
+        y1={yBase}
+        offset={xPaFace - xSB}
+        w0={4}
+        w1={paW}
+        toward="left"
+        color="#8b1e1e"
+        label="Pa"
+        sublabel="ka γ z"
+        labelT={0.16}
+        labelGap={6}
+        fillOpacity={0.1}
+      />
+      {hSat > 0.05 && yWater < yBase - 8 ? (
+        <CargaDistribuida
+          id="muro-geom-pw"
+          x0={xSB}
+          y0={Math.max(yWater, yTop)}
+          y1={yBase}
+          offset={xPwFace - xSB}
+          w0={4}
+          w1={pwW}
+          toward="left"
+          color="#2f6a8f"
+          label="Pw"
+          sublabel="γw h″"
+          labelT={0.14}
+          labelGap={6}
+          fillOpacity={0.14}
+        />
+      ) : null}
+      <line x1={xSB} y1={yWater} x2={xCotaR + 34} y2={yWater} stroke="#2f6a8f" strokeWidth="1" strokeDasharray="4,2" />
+      <text x={(xP + xSF) / 2} y={yBase - 8} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">PUNTERA</text>
+      <text x={(xSF + xSB) / 2} y={(yTop + yBase) / 2} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">PANTALLA</text>
+      <text x={(xSB + xH) / 2} y={(yBase + yBot) / 2 + 4} textAnchor="middle" fontSize="10" fill="#1a4473" fontWeight="700">TALÓN</text>
+      <text x={(xP + xH) / 2} y={yBot - 8} textAnchor="middle" fontSize="10" fill="#5a4a28">CIMENTACIÓN</text>
+      {hk > 0.02 ? (
+        <text x={(xSF + xKeyR) / 2} y={(yBot + yKey) / 2 + 3} textAnchor="middle" fontSize="8.5" fill="#8b1e1e" fontWeight="700">
+          DENTELLÓN
+        </text>
+      ) : null}
       <Dim x1={xP} y1={yBot} x2={xSF} y2={yBot} label={`${C.toFixed(2)}`} field="C" unit="m" side={28} {...dim} />
       <Dim x1={xSF} y1={yBot} x2={xSB} y2={yBot} label={`${F.toFixed(2)}`} field="F" unit="m" side={48} {...dim} />
       <Dim x1={xSB} y1={yBot} x2={xH} y2={yBot} label={`${A.toFixed(2)}`} field="A" unit="m" side={28} {...dim} />
+      <Dim x1={xP} y1={yBot} x2={xH} y2={yBot} label={`B=${B.toFixed(2)}`} unit="m" side={68} />
       <Dim x1={xP} y1={yTop} x2={xP} y2={yBot} label={`${H.toFixed(2)}`} field="H" unit="m" side={-36} {...dim} />
-      <Dim x1={xH} y1={yBase} x2={xH} y2={yBot} label={`${esp.toFixed(2)}`} field="esp" unit="m" side={22} {...dim} />
+      <Dim x1={xSF} y1={yTop} x2={xSF} y2={yBase} label={`Hs=${Hs.toFixed(2)}`} unit="m" side={18} />
+      <Dim x1={xCotaR} y1={yBot} x2={xCotaR} y2={yBase} label={`${esp.toFixed(2)}`} field="esp" unit="m" side={22} {...dim} />
       <Dim x1={xP - 18} y1={yFront} x2={xP - 18} y2={yBot} label={`${D.toFixed(2)}`} field="D" unit="m" side={-22} {...dim} />
       <Dim x1={xTopF} y1={yTop} x2={xTopB} y2={yTop} label={`${Bp.toFixed(2)}`} field="Bp" unit="m" side={-18} {...dim} />
+      {hk > 0.02 ? <Dim x1={xSF} y1={yKey} x2={xSF} y2={yBot} label={`${hk.toFixed(2)}`} unit="m" side={-22} /> : null}
+      {hSat > 0.05 ? (
+        <Dim x1={xCotaR + 34} y1={yBot} x2={xCotaR + 34} y2={yWater} label={`h''=${hSat.toFixed(2)}`} field="hSat" unit="m" side={44} {...dim} />
+      ) : null}
+      <text x={xFill - 4} y={yTop + 6} fontSize="9" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
+        {`β = ${beta.toFixed(1)}°`}
+      </text>
     </SvgFrame>
   );
 }
@@ -3296,8 +3371,19 @@ function Empuje({ values, active, onFocus }: { values: Record<string, string>; a
   return (
     <SvgFrame caption="Empuje activo — diagrama triangular ka γ H">
       <rect x="120" y="50" width="36" height="230" fill="url(#conc)" stroke="#1a4473" />
-      <polygon points="156,50 156,280 310,280" fill="#8b1e1e22" stroke="#8b1e1e" />
-      <text x="230" y="200" fontSize="11" fill="#8b1e1e">σ = ka γ H</text>
+      <CargaDistribuida
+        id="empuje-ka"
+        x0={156}
+        y0={50}
+        y1={280}
+        w0={5}
+        w1={154}
+        toward="left"
+        color="#8b1e1e"
+        label="σ = ka γ H"
+        labelT={0.72}
+        fillOpacity={0.12}
+      />
       <Dim x1={120} y1={50} x2={120} y2={280} label={`H=${H.toFixed(2)}`} field="H" side={-22} active={active} onFocus={onFocus} />
     </SvgFrame>
   );

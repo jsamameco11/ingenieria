@@ -11,7 +11,7 @@ export const FOLIO_URL = url.replace(/\/$/, "");
 export const FOLIO_ANON_KEY = key;
 export const FOLIO_GOOGLE_WEB_CLIENT_ID =
   (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ||
-  "554728885093-jnn9ibrh5jl7f5nfth67cabipo4i4bd6.apps.googleusercontent.com";
+  "554728885093-k342oglgdti8he0ljb3k132t7afppfi3.apps.googleusercontent.com";
 export const GOOGLE_SESSION_URL =
   (import.meta.env.VITE_GOOGLE_SESSION_URL as string | undefined) ||
   "https://qfvgksstvdrxcugbdwkv.supabase.co/functions/v1/google-session";
@@ -20,7 +20,7 @@ export const folio: SupabaseClient = createClient(FOLIO_URL, FOLIO_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
     storageKey: "memorcalc-folio-auth",
   },
 });

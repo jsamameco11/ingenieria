@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session, User } from "@supabase/supabase-js";
 import { folio } from "../lib/folio";
 import { installPlazaLiveWatch } from "../lib/plazaLive";
-import { exchangeGoogleSession, identityFromCredential, type GoogleIdentity } from "../lib/auth/google";
+import { exchangeGoogleSession, identityFromCredential, takePendingGoogleToken, consumeGoogleReturnPath, type GoogleIdentity } from "../lib/auth/google";
 import { currentInsight, fetchCloudProfile, fetchCloudQuotaUses, flushEvents, installId, mergeUserProfile, pushLocalEvent, readLocalEvents, readLocalProfile, readLocalQuotaUses, saveCloudProfile, saveCloudQuotaUse, writeLocalProfile, writeLocalQuotaUses } from "../lib/auth/store";
 import { anchorIngenieriaPlatform } from "../lib/auth/masterIdentity";
 import { actionLabelOf, isEditAttempt } from "../lib/auth/editGate";
@@ -203,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeGoogle = useCallback(async (identity: GoogleIdentity) => {
     setBusy(true);
     setError("");
+    setModal("google");
     try {
       const { userId, email } = await exchangeGoogleSession(identity, installId());
       const { data } = await folio.auth.getSession();
@@ -218,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         google_sub: identity.sub,
       };
       writeLocalProfile(next);
+      consumeGoogleReturnPath();
       await hydrate(user);
     } catch (err) {
       const raw = err instanceof Error ? err.message : "No se pudo entrar con Google.";
@@ -229,12 +231,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [hydrate]);
 
   useEffect(() => {
-    const raw = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
-    if (!raw.includes("id_token=")) return;
-    const idToken = new URLSearchParams(raw).get("id_token");
-    if (!idToken) return;
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    void completeGoogle(identityFromCredential(idToken));
+    const token = takePendingGoogleToken();
+    if (!token) return;
+    setModal("google");
+    void completeGoogle(identityFromCredential(token));
   }, [completeGoogle]);
 
   const saveProfile = useCallback(

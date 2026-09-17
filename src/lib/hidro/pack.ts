@@ -65,6 +65,64 @@ function ynRect(Q: number, n: number, S: number, b: number, z = 0) {
   return tiranteNormal({ Q, n, S, tipo: z > 0 ? "trapezoidal" : "rectangular", b, z, D: 0 });
 }
 
+/** Interpola linealmente en una tabla (x,y) ordenada, prolongando el último tramo fuera de rango. */
+function interpTabla(x: number, tabla: [number, number][]): number {
+  if (x <= tabla[0][0]) return tabla[0][1];
+  for (let i = 1; i < tabla.length; i++) {
+    if (x <= tabla[i][0]) {
+      const [x0, y0] = tabla[i - 1];
+      const [x1, y1] = tabla[i];
+      return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+    }
+  }
+  return tabla[tabla.length - 1][1];
+}
+
+/** Exponente x de Lischtvan–Lebediev según el diámetro medio del lecho Dm (mm), suelos no cohesivos. */
+const TABLA_X_LL: [number, number][] = [
+  [0.05, 0.18], [0.15, 0.2], [0.5, 0.223], [1, 0.242], [1.5, 0.25], [2.5, 0.27], [4, 0.282],
+  [6, 0.3], [8, 0.31], [10, 0.32], [15, 0.33], [20, 0.34], [25, 0.35], [40, 0.37], [60, 0.39],
+  [100, 0.41], [150, 0.43], [200, 0.44], [300, 0.46],
+];
+/** Coeficiente β de Lischtvan–Lebediev según el periodo de retorno de la avenida de diseño. */
+const TABLA_BETA_LL: [number, number][] = [
+  [5, 0.77], [10, 0.82], [20, 0.86], [50, 0.9], [100, 0.94], [200, 0.97], [500, 1.0], [1000, 1.03],
+];
+
+/**
+ * Socavación general por Lischtvan–Lebediev (suelos no cohesivos), método estándar en el Perú
+ * (MTC, Manual de Hidrología, Hidráulica y Drenaje) para cauces naturales bajo estructuras.
+ * qd = caudal unitario de diseño (m³/s por m de ancho efectivo); Dm = diámetro medio del lecho (mm).
+ * Devuelve Hs: profundidad de la lámina de agua erosionada medida desde la superficie (m); la
+ * socavación neta bajo el lecho original es Hs − Ho.
+ */
+export function socavacionLischtvanLebediev(Qd: number, Be: number, mu: number, DmMm: number, Tr: number) {
+  const qd = Qd / Math.max(Be * Math.max(mu, 0.1), 1e-6);
+  const x = interpTabla(Math.max(DmMm, 0.01), TABLA_X_LL);
+  const beta = interpTabla(Math.max(Tr, 1), TABLA_BETA_LL);
+  const Dm = Math.max(DmMm, 0.01);
+  const Hs = Math.pow(qd / (0.68 * beta * Math.pow(Dm, 0.28)), 1 / (1 + x));
+  return { qd, x, beta, Hs };
+}
+
+/** Coeficiente de línea de infiltración ponderada de Lane (Cw), por tipo de material de cimentación. */
+export const LANE_CW: { id: string; label: string; Cw: number }[] = [
+  { id: "arena_fina_limo", label: "Arena muy fina o limo", Cw: 8.5 },
+  { id: "arena_fina", label: "Arena fina", Cw: 7.0 },
+  { id: "arena_media", label: "Arena media", Cw: 6.0 },
+  { id: "arena_gruesa", label: "Arena gruesa", Cw: 5.0 },
+  { id: "grava_fina", label: "Grava fina", Cw: 4.0 },
+  { id: "grava_media", label: "Grava media", Cw: 3.5 },
+  { id: "grava_gruesa_boleos", label: "Grava gruesa con boleos", Cw: 3.0 },
+  { id: "arcilla_blanda", label: "Arcilla blanda", Cw: 3.0 },
+  { id: "arcilla_media", label: "Arcilla media", Cw: 2.4 },
+  { id: "arcilla_dura", label: "Arcilla dura", Cw: 1.8 },
+  { id: "arcilla_muy_dura", label: "Arcilla muy dura", Cw: 1.6 },
+];
+export function laneCw(id: string) {
+  return LANE_CW.find((s) => s.id === id)?.Cw ?? 4.0;
+}
+
 /** Velocidad de caída de partícula (Stokes si Re<1; Rubey si no). */
 export function velocidadCaida(dMm: number, Gs = 2.65, T = 20) {
   const d = Math.max(dMm, 0.01) / 1000;
@@ -135,7 +193,52 @@ export type BocatomaIn = {
   Ccreager: number;
   d50: number;
   Kreja: number;
+  // Socavación general (Lischtvan–Lebediev)
+  Tr: number;
+  muContr: number;
+  // Estabilidad del barraje (sección de gravedad, método de Lane)
+  Bbarraje: number;
+  mDescarga: number;
+  cutoffUp: number;
+  cutoffDown: number;
+  tipoSuelo: string;
+  gammaConcreto: number;
+  phiCimentacion: number;
+  sigmaAdmBarraje: number;
+  // Desripiador (compuerta de purga de fondo)
+  bDesrip: number;
+  hDesrip: number;
+  CdDesrip: number;
 };
+
+/** Perfil de remanso aguas arriba del barraje por el método de paso directo (canal ancho rectangular). */
+function perfilRemansoDirecto(Q: number, briver: number, nRio: number, Srio: number, yHeadwater: number) {
+  const b = Math.max(briver, 0.5);
+  const yn = tiranteNormal({ Q, n: nRio, S: Math.max(Srio, 1e-5), tipo: "rectangular", b, z: 0, D: 0 });
+  const yTope = Math.max(yn * 1.01, 0.05);
+  if (yHeadwater <= yTope || Srio <= 0) return { yn, L: 0 };
+  const nPasos = 20;
+  const dy = (yHeadwater - yTope) / nPasos;
+  let x = 0;
+  let y = yHeadwater;
+  for (let i = 0; i < nPasos; i++) {
+    const y2 = Math.max(yTope, y - dy);
+    const g1 = geom("rectangular", y, b, 0, 0);
+    const g2 = geom("rectangular", y2, b, 0, 0);
+    const V1 = Q / Math.max(g1.A, 1e-6);
+    const V2 = Q / Math.max(g2.A, 1e-6);
+    const E1 = y + (V1 * V1) / (2 * G);
+    const E2 = y2 + (V2 * V2) / (2 * G);
+    const Sf1 = ((nRio * V1) / Math.pow(g1.A / Math.max(g1.P, 1e-6), 2 / 3)) ** 2;
+    const Sf2 = ((nRio * V2) / Math.pow(g2.A / Math.max(g2.P, 1e-6), 2 / 3)) ** 2;
+    const SfProm = 0.5 * (Sf1 + Sf2);
+    const denom = Srio - SfProm;
+    const dx = Math.abs(denom) > 1e-6 ? (E2 - E1) / denom : 0;
+    x += Math.abs(dx);
+    y = y2;
+  }
+  return { yn, L: x };
+}
 
 export function calcularBocatoma(inp: BocatomaIn) {
   const H = Math.max(inp.Hest, 0.05);
@@ -151,10 +254,56 @@ export function calcularBocatoma(inp: BocatomaIn) {
   const P = inp.ho + hOrif + inp.hs;
   const Cc = inp.Co + P;
   const He = inp.Lbarraje > 0 ? (inp.Qmax / (inp.Ccreager * inp.Lbarraje)) ** (2 / 3) : 0;
-  const Lremanso = inp.Srio > 0 ? inp.Ymax / inp.Srio : 0;
   const htMuro = inp.Ymax + He + 0.30;
   const hReja = inp.Kreja * (inp.Q / Math.max(bNeto * H, 1e-6)) ** 2 / (2 * G);
-  return { ...inp, M, s, k, bNeto, nBarr, bTotal, hOrif, P, Cc, He, Lremanso, htMuro, hReja };
+
+  /* ── Socavación general aguas abajo del barraje (Lischtvan–Lebediev, suelo no cohesivo) ── */
+  const soc = socavacionLischtvanLebediev(inp.Qmax, inp.Lbarraje, inp.muContr, inp.d50, inp.Tr);
+  const socNeta = Math.max(0, soc.Hs - inp.Ymax);
+  const profZapata = socNeta + 0.5;
+
+  /* ── Estabilidad del barraje — sección de gravedad (talón vertical, cara de descarga con talud mD), método de Lane ── */
+  const Btot = Math.max(inp.Bbarraje, 0.5);
+  const mD = Math.max(inp.mDescarga, 0);
+  const Hbarraje = P + He;
+  const Wbarraje = 0.5 * (Btot + Math.max(Btot - mD * P, 0.1)) * P * inp.gammaConcreto;
+  const xW = Btot / 2;
+  const PhidroH = 0.5 * Hbarraje * Hbarraje;
+  const yPhidro = Hbarraje / 3;
+  const CwLane = laneCw(inp.tipoSuelo);
+  const LDescarga = Math.sqrt(P * P + (mD * P) * (mD * P));
+  const LwCreep = inp.cutoffUp + inp.cutoffDown + (1 / 3) * Btot + (1 / 3) * LDescarga;
+  const LwReq = CwLane * Hbarraje;
+  const okPercolacion = LwCreep >= LwReq;
+  const presUp = Hbarraje * (1 - inp.cutoffUp / Math.max(LwCreep, 1e-6));
+  const presDown = Hbarraje * (1 - (LwCreep - inp.cutoffDown) / Math.max(LwCreep, 1e-6));
+  const Usub = 0.5 * (presUp + presDown) * Btot;
+  const Wneto = Wbarraje - Usub;
+  const FSdeslBarraje = (Wneto * Math.tan((inp.phiCimentacion * Math.PI) / 180)) / Math.max(PhidroH, 1e-6);
+  const MrBarraje = Wbarraje * xW;
+  const MaBarraje = PhidroH * yPhidro + Usub * (Btot / 2);
+  const FSvoltBarraje = MrBarraje / Math.max(MaBarraje, 1e-6);
+  const eBarraje = Btot / 2 - (MrBarraje - MaBarraje) / Math.max(Wneto, 1e-6);
+  const qmaxBarraje = (Wneto / Btot) * (1 + (6 * Math.abs(eBarraje)) / Btot);
+  const okBarraje = FSdeslBarraje >= 1.5 && FSvoltBarraje >= 1.5 && Math.abs(eBarraje) <= Btot / 6 && qmaxBarraje <= inp.sigmaAdmBarraje && okPercolacion;
+
+  /* ── Perfil de remanso — método de paso directo (reemplaza la estimación lineal Ymáx/S) ── */
+  const remanso = perfilRemansoDirecto(inp.Qmax, inp.Lbarraje, 0.035, inp.Srio, Hbarraje);
+  const Lremanso = remanso.L;
+
+  /* ── Desripiador (compuerta de purga de fondo, orificio bajo la carga del barraje) ── */
+  const AreaDesrip = Math.max(inp.bDesrip, 0.1) * Math.max(inp.hDesrip, 0.1);
+  const QDesrip = inp.CdDesrip * AreaDesrip * Math.sqrt(2 * G * Math.max(P, 0.1));
+  const VDesrip = QDesrip / Math.max(AreaDesrip, 1e-6);
+  const okDesrip = VDesrip >= 1.0;
+
+  return {
+    ...inp, M, s, k, bNeto, nBarr, bTotal, hOrif, P, Cc, He, Lremanso, htMuro, hReja,
+    ...soc, socNeta, profZapata,
+    Btot, Hbarraje, Wbarraje, PhidroH, CwLane, LwCreep, LwReq, okPercolacion, Usub, FSdeslBarraje, FSvoltBarraje, eBarraje, qmaxBarraje, okBarraje,
+    ynRemanso: remanso.yn,
+    AreaDesrip, QDesrip, VDesrip, okDesrip,
+  };
 }
 
 export type RapidaTipo = "rapida" | "vertical" | "escalonada";
@@ -174,6 +323,7 @@ export type RapidaIn = {
   lEscalon: number;
   TW: number;
   eLosa: number;
+  GsRip: number;
 };
 
 export function calcularRapida(inp: RapidaIn) {
@@ -204,6 +354,27 @@ export function calcularRapida(inp: RapidaIn) {
   const FrEsc = dc > 0 ? q / Math.sqrt(G * dc ** 3) : 0;
   const Ce = clamp(0.75 * Math.sin(alfa) ** 0.75, 0.3, 0.7);
   const Hr = 0.3 * dc * (FrEsc ** 0.6) * (1 - Ce * 0.4) + 0.5;
+
+  /* ── Poza de disipación USBR — apéndices del cuenco (Peterka 1978, reglas proporcionales usuales:
+     dados/dentellones de entrada ≈ y1; contradados Tipo III solo si Fr1∈[4.5,17], q≤18.6 m²/s y
+     V1≤15 m/s; solera terminal ≈0,2·y2). Verificar el dimensionamiento fino contra las cartas de
+     diseño de Peterka antes de construir — aquí se da un predimensionamiento razonado, no el ajuste
+     fino de las cartas. ── */
+  const usbrTipo: "I" | "II" | "III" | "IV" | "ninguno" = Fr1 < 1.7 ? "ninguno" : Fr1 < 2.5 ? "I" : Fr1 < 4.5 ? "II" : Fr1 <= 9 ? "III" : "IV";
+  const hBloqueEntrada = y1;
+  const wBloqueEntrada = y1;
+  const sBloqueEntrada = y1;
+  const nBloquesEntrada = Math.max(2, Math.round(inp.b / (2 * Math.max(y1, 0.05))));
+  const aptoContradado = usbrTipo === "III" && q <= 18.6 && V1 <= 15;
+  const hContradadoMin = 0.75 * y1;
+  const hContradadoMax = Math.max(hContradadoMin, y2 / 6);
+  const hSolera = 0.2 * y2;
+  const LcuencoUSBR = usbrTipo === "III" && aptoContradado ? Math.max(2.3 * y2, 0.6 * Lres) : Lres;
+  const V2apron = y2 > 0.02 ? inp.Q / (inp.b * y2) : 0;
+  const KIzbash = 0.86;
+  const D50rip = (V2apron * V2apron) / (2 * G * Math.max(inp.GsRip - 1, 0.5) * KIzbash * KIzbash);
+  const Lapron = 5 * y2;
+
   return {
     ...inp,
     q,
@@ -232,6 +403,9 @@ export function calcularRapida(inp: RapidaIn) {
     tipoUSBR: Fr1 < 2.5 ? "sin resalto claro" : Fr1 < 4.5 ? "USBR I / II" : Fr1 < 9 ? "USBR III" : "USBR IV",
     resaltoAhogado: inp.TW > y2,
     okResalto: Fr1 >= 2.5 && y2 > y1 && inp.TW <= y2 + 0.05,
+    usbrTipo, hBloqueEntrada, wBloqueEntrada, sBloqueEntrada, nBloquesEntrada,
+    aptoContradado, hContradadoMin, hContradadoMax, hSolera, LcuencoUSBR,
+    V2apron, D50rip, Lapron,
   };
 }
 
@@ -533,10 +707,13 @@ export const SEMILLA_DES: DesarenadorIn = {
 export const SEMILLA_BOC: BocatomaIn = {
   Q: 0.45, Qmax: 8, Hest: 0.55, Y1: 0.4, kBarrote: 0.85, eBarrote: 0.012, eLuz: 0.04, CdOrif: 0.6, Co: 1842.15, ho: 0.5, hs: 0.2, Srio: 0.012, Ymax: 1.4, Lbarraje: 18, Ccreager: 2.16,
   d50: 8, Kreja: 0.8,
+  Tr: 100, muContr: 1,
+  Bbarraje: 4, mDescarga: 0.75, cutoffUp: 1.2, cutoffDown: 1.7, tipoSuelo: "grava_media", gammaConcreto: 2.4, phiCimentacion: 32, sigmaAdmBarraje: 25,
+  bDesrip: 0.8, hDesrip: 0.6, CdDesrip: 0.62,
 };
 export const SEMILLA_RAP: RapidaIn = {
   tipo: "rapida", Q: 2.3, b: 1.2, nRap: 0.013, Srap: 0.075, nCanal: 0.025, Scanal: 0.0008, bCanal: 1.8, zCanal: 1, Hdesnivel: 8.5, hEscalon: 0.4, lEscalon: 0.5,
-  TW: 0.85, eLosa: 0.20,
+  TW: 0.85, eLosa: 0.20, GsRip: 2.65,
 };
 export const SEMILLA_ALI: AliviaderoIn = {
   Q: 4, Qmax: 15, Q2: 6, n: 0.014, z: 1, S: 0.001, b: 2.4, p: 1, muF: 0.95, muW: 0.62, BL: 0.54,

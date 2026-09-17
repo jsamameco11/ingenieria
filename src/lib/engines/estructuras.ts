@@ -1,6 +1,7 @@
 import {
   type CalcCheck,
   type CalcOutput,
+  type CalcStep,
   type Engine,
   barByName,
   beta1,
@@ -43,6 +44,8 @@ import { resolveE030 } from "../e030/resolve";
 import { calcularEscalera, type EscaleraTramo } from "../escaleraCalc";
 import { designBeamStirrups, designColumnStirrups } from "../estribos";
 import { diagramaInteraccion } from "./interaccion";
+import { coefAci3 } from "../steelEngine";
+import { paneContinuity, paneOn, parseGrid, type GridModel } from "../layoutGrid";
 
 function out(
   headline: string,
@@ -574,23 +577,49 @@ export const vigaFlexion: Engine = (raw) => {
   const db = num(raw, "db", 1.59);
   const nRamas = Math.max(2, Math.round(num(raw, "nRamas", 2)));
   const VuIn = num(raw, "Vu", 0);
+  const metodoAs = str(raw, "metodoAs", "cuantia") === "iteracion" ? "iteracion" : "cuantia";
+  const metodoMu = str(raw, "metodoMu", "auto") === "directo" ? "directo" : "auto";
   const d = h - rec - dest - db / 2;
-  const Mu = MuIn > 0 ? MuIn : (wu * L * L) / 8;
+  const Mu = metodoMu === "directo" ? MuIn : (wu * L * L) / 8;
   const Mu_kgcm = Mu * 100000;
   const phiF = 0.9;
   const b1 = beta1(fc);
   const Rn = Mu_kgcm / (phiF * b * d * d);
-  const rho = (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, 1 - (2 * Rn) / (0.85 * fc))));
+  const rhoCuantia = (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, 1 - (2 * Rn) / (0.85 * fc))));
   const rhoMin = Math.max(0.8 * Math.sqrt(fc) / fy, 14 / fy);
   const rhoB = (0.85 * b1 * fc / fy) * (6300 / (6300 + fy));
   const rhoMax = 0.75 * rhoB;
+
+  /** Método de iteraciones sucesivas: se tantea el brazo de palanca (a) hasta que As converge. */
+  const iterAs: { k: number; a: number; As: number; delta: number }[] = [];
+  let asIter = Mu_kgcm / (phiF * fy * d);
+  let aIter = 0;
+  for (let k = 1; k <= 8; k++) {
+    aIter = (asIter * fy) / (0.85 * fc * b);
+    const asNext = Mu_kgcm / (phiF * fy * (d - aIter / 2));
+    const delta = Math.abs(asNext - asIter);
+    asIter = asNext;
+    iterAs.push({ k, a: aIter, As: asIter, delta });
+    if (delta < 0.01) break;
+  }
+  const asIter0 = Mu_kgcm / (phiF * fy * d);
+  const rhoIter = asIter / (b * d);
+
+  const rho = metodoAs === "iteracion" ? rhoIter : rhoCuantia;
   const rhoUse = Math.max(rho, rhoMin);
   const As = rhoUse * b * d;
   const a = (As * fy) / (0.85 * fc * b);
+  const c = a / Math.max(b1, 1e-6);
+  const epsCu = 0.003;
+  const epsS = (epsCu * Math.max(d - c, 0)) / Math.max(c, 1e-6);
+  const epsY = fy / 2_000_000;
+  const phiFlex = epsS >= 0.005 ? 0.9 : Math.max(0.65, 0.65 + (epsS - 0.002) * (0.25 / 0.003));
   const phiMn = (phiF * As * fy * (d - a / 2)) / 100000;
   const bars = pickBars(As, ['1/2"', '5/8"', '3/4"', '1"']);
   const tension = rhoUse <= rhoMax;
   const capacity = phiMn + 0.01 >= Mu;
+  const rhoMinFc = (0.8 * Math.sqrt(fc)) / fy;
+  const rhoMin14 = 14 / fy;
 
   const stirrup = nearestBar(dest);
   const Av = nRamas * stirrup.as;
@@ -625,43 +654,117 @@ export const vigaFlexion: Engine = (raw) => {
         n: "01",
         title: "Peralte efectivo",
         formula: "d = h − rec − Øest − db/2",
+        formulaTex: String.raw`d=h-\text{rec}-\varnothing_{est}-\dfrac{d_b}{2}`,
         substitution: `d = ${h} − ${rec} − ${fmt(dest, 2)} − ${fmt(db, 2)}/2 = ${fmt(d, 2)} cm`,
         result: `d = ${fmt(d, 2)} cm`,
-      },
+        note: "d es la distancia entre la fibra extrema en compresión y el centroide del acero en tracción: descuenta el recubrimiento libre, el diámetro del estribo (que envuelve al acero longitudinal) y la mitad del diámetro de la barra principal (su centroide)." },
       {
         n: "02",
-        title: "Momento último",
-        formula: MuIn > 0 ? "Mu ingresado" : "Mu = wu L² / 8  (viga simplemente apoyada)",
-        substitution: MuIn > 0 ? `Mu = ${fmt(Mu, 2)} t·m` : `Mu = ${fmt(wu, 2)}×${fmt(L, 2)}² / 8 = ${fmt(Mu, 2)} t·m`,
+        title: `Momento último — Método: ${metodoMu === "directo" ? "Mu ingresado directamente" : "Mu = wu L²/8 (viga simplemente apoyada)"}`,
+        formula: metodoMu === "directo" ? "Mu ingresado" : "Mu = wu L² / 8  (viga simplemente apoyada)",
+        formulaTex: metodoMu === "directo" ? undefined : String.raw`M_u=\dfrac{w_u L^2}{8}`,
+        substitution: metodoMu === "directo" ? `Mu = ${fmt(Mu, 2)} t·m (dato de entrada)` : `Mu = ${fmt(wu, 2)}×${fmt(L, 2)}² / 8 = ${fmt(Mu, 2)} t·m`,
         result: `${fmt(Mu, 2)} t·m = ${fmt(Mu_kgcm, 0)} kg·cm`,
-      },
+        note: metodoMu === "directo" ? "Se usa el Mu de un análisis externo (viga continua, envolvente de sismo, ETABS/SAP2000, etc.), en vez de calcularlo con wu y L." : "wuL²/8 es el momento máximo (al centro de luz) de una viga simplemente apoyada con carga uniforme; para vigas continuas o con otro tipo de carga, cambie el método a «Ingresar Mu directamente»." },
       {
         n: "03",
-        title: "Cuantía requerida",
-        formula: "ρ = (0.85 f'c / fy) [ 1 − √(1 − 2 Rn / (0.85 f'c)) ]",
-        substitution: `Rn = ${fmt(Rn, 2)} kg/cm²  →  ρ = ${fmt(rho, 5)}  ·  ρmín = ${fmt(rhoMin, 5)}  ·  ρmáx = ${fmt(rhoMax, 5)}`,
-        result: `ρ usar = ${fmt(rhoUse, 5)}`,
-        ok: tension,
-      },
+        title: "Cuantías límite — mínima y máxima (ductilidad del acero de tracción)",
+        formula: "ρmín = máx(0.8√f'c/fy , 14/fy)    ·    ρb = 0.85 β1 (f'c/fy)(6300/(6300+fy))    ·    ρmáx = 0.75 ρb",
+        formulaTex: String.raw`\rho_{min}=\max\!\left(\dfrac{0{,}8\sqrt{f'_c}}{f_y},\ \dfrac{14}{f_y}\right)\qquad \rho_b=0{,}85\,\beta_1\,\dfrac{f'_c}{f_y}\left(\dfrac{6300}{6300+f_y}\right)\qquad \rho_{max}=0{,}75\,\rho_b`,
+        substitution: `f'c = ${fmt(fc, 0)} kg/cm²  ·  fy = ${fmt(fy, 0)} kg/cm²  ·  √f'c = ${fmt(Math.sqrt(fc), 3)}  ·  β1 = ${fmt(b1, 3)}  ·  0,8√f'c/fy = 0,8×${fmt(Math.sqrt(fc), 3)}/${fmt(fy, 0)} = ${fmt(rhoMinFc, 5)}  ·  14/fy = 14/${fmt(fy, 0)} = ${fmt(rhoMin14, 5)}  ·  ρmín = máx(${fmt(rhoMinFc, 5)} ; ${fmt(rhoMin14, 5)}) = ${fmt(rhoMin, 5)}  ·  ρb = 0,85×${fmt(b1, 3)}×(${fmt(fc, 0)}/${fmt(fy, 0)})×(6300/(6300+${fmt(fy, 0)})) = ${fmt(rhoB, 5)}  ·  ρmáx = 0,75×${fmt(rhoB, 5)} = ${fmt(rhoMax, 5)}`,
+        result: `ρmín = ${fmt(rhoMin, 5)}  ·  ρb = ${fmt(rhoB, 5)}  ·  ρmáx = ${fmt(rhoMax, 5)}`,
+        desarrollo: [
+          `Primera rama de ρmín (por control de fisuración, ligada a la resistencia del concreto): 0,8√f'c/fy = 0,8×√${fmt(fc, 0)}/${fmt(fy, 0)} = 0,8×${fmt(Math.sqrt(fc), 3)}/${fmt(fy, 0)} = ${fmt((0.8 * Math.sqrt(fc)) / fy, 5)}.`,
+          `Segunda rama de ρmín (piso absoluto, independiente de f'c — gobierna con concretos de baja resistencia): 14/fy = 14/${fmt(fy, 0)} = ${fmt(14 / fy, 5)}.`,
+          `ρmín = máx(ambas ramas) = ${fmt(rhoMin, 5)}  (rige la ${0.8 * Math.sqrt(fc) / fy >= 14 / fy ? "primera" : "segunda"} rama con estos datos). Por debajo de ρmín el acero podría romperse apenas fisura el concreto: la sección fallaría sin aviso, de forma frágil, justo al agrietarse.`,
+          `β1 (E.060 10.2.7.3): ${fc <= 280 ? `f'c = ${fmt(fc, 0)} ≤ 280 kg/cm² → β1 = 0,85 (valor constante en este rango).` : `f'c = ${fmt(fc, 0)} > 280 kg/cm² → β1 = máx(0,65 ; 0,85 − 0,05×(${fmt(fc, 0)}−280)/70) = ${fmt(b1, 3)}.`}`,
+          `Cuantía balanceada ρb = 0,85×β1×(f'c/fy)×(6300/(6300+fy)) = 0,85×${fmt(b1, 3)}×(${fmt(fc, 0)}/${fmt(fy, 0)})×(6300/(6300+${fmt(fy, 0)})) = ${fmt(rhoB, 5)}. Es la cuantía exacta a la que, según el diagrama de deformaciones, el acero alcanza fy en el mismo instante en que el concreto llega a su deformación última εcu = 0,003: una falla balanceada, simultánea y sin aviso previo.`,
+          `Cuantía máxima ρmáx = 0,75×ρb = 0,75×${fmt(rhoB, 5)} = ${fmt(rhoMax, 5)}. El factor 0,75 impone un margen de ductilidad exigido por norma: obliga a que el acero fluya y la sección se deforme visiblemente (grandes flechas y fisuras) bastante antes de que el concreto se aplaste — evitando la falla frágil del concreto sin previo aviso.`,
+        ],
+        note: "Toda sección a flexión debe cumplir ρmín ≤ ρ ≤ ρmáx. Por debajo de ρmín: falla frágil por acero insuficiente (se rompe apenas fisura el concreto). Por encima de ρmáx: falla frágil por exceso de acero (el concreto se aplasta antes de que el acero fluya, sin deformación visible previa)." },
       {
         n: "04",
-        title: "Área de acero a flexión",
-        formula: "As = ρ b d    ·    a = As fy / (0.85 f'c b)",
-        substitution: `As = ${fmt(rhoUse, 5)}×${b}×${fmt(d, 1)} = ${fmt(As, 2)} cm²   a = ${fmt(a, 2)} cm`,
-        result: `${fmt(As, 2)} cm²  →  ${bars.text}`,
-      },
+        title: `Acero de flexión (tracción) — cuantía ρ — Método: ${metodoAs === "iteracion" ? "iteraciones sucesivas (tanteo de a)" : "cuantía mecánica (ω)"}`,
+        formula:
+          metodoAs === "iteracion"
+            ? "As(0) = Mu/(φ fy d)   ·   a(k) = As(k−1) fy/(0.85 f'c b)   ·   As(k) = Mu/[φ fy (d − a(k)/2)]  → converge"
+            : "Rn = Mu/(φ b d²)   ·   ρ = (0.85 f'c/fy)[1 − √(1 − 2Rn/(0.85 f'c))]   ·   ω = ρ fy/f'c",
+        formulaTex:
+          metodoAs === "iteracion"
+            ? String.raw`A_s^{(0)}=\dfrac{M_u}{\phi f_y d}\qquad a^{(k)}=\dfrac{A_s^{(k-1)}f_y}{0{,}85f'_c b}\qquad A_s^{(k)}=\dfrac{M_u}{\phi f_y\left(d-\dfrac{a^{(k)}}{2}\right)}`
+            : String.raw`R_n=\dfrac{M_u}{\phi\,b\,d^2}\qquad \rho=\dfrac{0{,}85f'_c}{f_y}\left[1-\sqrt{1-\dfrac{2R_n}{0{,}85f'_c}}\right]\qquad \omega=\rho\,\dfrac{f_y}{f'_c}`,
+        substitution:
+          metodoAs === "iteracion"
+            ? `Mu = ${fmt(Mu_kgcm, 0)} kg·cm  ·  φfy = 0,9×${fmt(fy, 0)}  ·  d = ${fmt(d, 2)} cm`
+            : `Mu = ${fmt(Mu_kgcm, 0)} kg·cm  ·  φ = 0,90  ·  b = ${fmt(b, 0)} cm  ·  d = ${fmt(d, 2)} cm`,
+        result:
+          metodoAs === "iteracion"
+            ? `Converge en ${iterAs.length} iteración(es) → As = ${fmt(asIter, 2)} cm²  (ρ = ${fmt(rho, 5)})`
+            : `Rn = ${fmt(Rn, 2)} kg/cm²  →  ρ = ${fmt(rho, 5)}  (ω = ${fmt((rho * fy) / fc, 4)})`,
+        ok: tension,
+        table:
+          metodoAs === "iteracion"
+            ? {
+                caption: "Convergencia del método de iteraciones sucesivas",
+                headers: ["k", "a (cm)", "As (cm²)", "Δ As (cm²)"],
+                rows: iterAs.map((it) => [String(it.k), fmt(it.a, 3), fmt(it.As, 3), fmt(it.delta, 4)]),
+              }
+            : undefined,
+        desarrollo:
+          metodoAs === "iteracion"
+            ? [
+                `Arranque (k=0): se asume brazo de palanca máximo a(0) = 0 (bloque de compresión aún desconocido) → As(0) = Mu/(φ fy d) = ${fmt(Mu_kgcm, 0)}/(0,9×${fmt(fy, 0)}×${fmt(d, 2)}) = ${fmt(asIter0, 3)} cm².`,
+                ...iterAs.map(
+                  (it, i) =>
+                    `Iteración ${it.k}: con As(${it.k - 1}) = ${fmt(i === 0 ? asIter0 : iterAs[i - 1].As, 3)} cm² se obtiene a(${it.k}) = As(${it.k - 1})·fy/(0,85 f'c b) = ${fmt(it.a, 3)} cm  →  As(${it.k}) = Mu/[φ fy (d − a(${it.k})/2)] = ${fmt(it.As, 3)} cm²  (Δ = ${fmt(it.delta, 4)} cm² respecto de la iteración anterior).`,
+                ),
+                `Se detiene cuando ΔAs < 0,01 cm² (variación despreciable frente al espesor de una barra): As = ${fmt(asIter, 2)} cm², de donde ρ = As/(b d) = ${fmt(rho, 5)}. Este método reproduce a mano, paso a paso, el mismo equilibrio que la fórmula cerrada resuelve de una vez — útil para verificar cálculos o cuando se prefiere no memorizar la fórmula cuadrática.`,
+              ]
+            : [
+                `Rn = Mu/(φ b d²) = ${fmt(Mu_kgcm, 0)}/(0,9×${fmt(b, 0)}×${fmt(d, 2)}²) = ${fmt(Rn, 2)} kg/cm².`,
+                "Este método plantea el equilibrio del bloque de Whitney (Mu = φ As fy (d−a/2), con a = As fy/(0,85 f'c b)) en función de la cuantía mecánica ω = ρ fy/f'c y lo resuelve de forma cerrada (ecuación cuadrática en ρ), sin tantear ni iterar.",
+                `ρ = (0,85×${fmt(fc, 0)}/${fmt(fy, 0)})×[1 − √(1 − 2×${fmt(Rn, 2)}/(0,85×${fmt(fc, 0)}))] = ${fmt(rho, 5)}.`,
+                `ω = ρ×fy/f'c = ${fmt(rho, 5)}×${fmt(fy, 0)}/${fmt(fc, 0)} = ${fmt((rho * fy) / fc, 4)} (cuantía mecánica: compara, en un solo número adimensional, la capacidad a tracción del acero fy·As con la capacidad a compresión del concreto f'c·b·d).`,
+                rho > rhoMax
+                  ? `ρ calculada (${fmt(rho, 5)}) supera ρmáx (${fmt(rhoMax, 5)}): la sección, simplemente armada, no puede tomar este Mu de forma dúctil — requeriría acero de compresión (ver módulo "Viga doblemente armada").`
+                  : "ρ ≤ ρmáx: la sección puede armarse simple (un solo lecho en tracción) con ductilidad garantizada.",
+              ],
+        note: `Se adopta ρ usar = máx(ρ, ρmín) = ${fmt(rhoUse, 5)}${rho < rhoMin ? " (gobierna el mínimo normativo, no el requerido por Mu)." : "."}` },
       {
         n: "05",
-        title: "Resistencia a flexión",
-        formula: "φMn = φ As fy (d − a/2)   ·   φ = 0.90",
-        substitution: `φMn = 0.9×${fmt(As, 2)}×${fy}×(${fmt(d, 1)}−${fmt(a, 2)}/2) / 1e5`,
-        result: `φMn = ${fmt(phiMn, 2)} t·m  ${capacity ? "≥ Mu  OK" : "< Mu  NO CUMPLE"}`,
-        ok: capacity,
-      },
+        title: "Acero de flexión (lecho de tracción) — As, bloque a, eje neutro c y εs",
+        formula: "As = ρ b d    ·    a = As fy / (0.85 f'c b)    ·    c = a/β1    ·    εs = 0.003 (d − c)/c",
+        formulaTex: String.raw`A_s=\rho\,b\,d\qquad a=\dfrac{A_s f_y}{0{,}85 f'_c b}\qquad c=\dfrac{a}{\beta_1}\qquad \varepsilon_s=0{,}003\,\dfrac{d-c}{c}`,
+        substitution: `ρ usar = ${fmt(rhoUse, 5)}  ·  b = ${fmt(b, 0)} cm  ·  d = ${fmt(d, 2)} cm  ·  As = ${fmt(rhoUse, 5)}×${fmt(b, 0)}×${fmt(d, 2)} = ${fmt(As, 2)} cm²  ·  a = ${fmt(As, 2)}×${fmt(fy, 0)} / (0,85×${fmt(fc, 0)}×${fmt(b, 0)}) = ${fmt(a, 2)} cm  ·  β1 = ${fmt(b1, 3)}  ·  c = ${fmt(a, 2)}/${fmt(b1, 3)} = ${fmt(c, 2)} cm  ·  εs = 0,003×(${fmt(d, 2)}−${fmt(c, 2)})/${fmt(c, 2)} = ${fmt(epsS, 5)}  ·  εy = fy/Es = ${fmt(fy, 0)}/2×10⁶ = ${fmt(epsY, 5)}`,
+        result: `${fmt(As, 2)} cm²  →  ${bars.text}    ·    a = ${fmt(a, 2)} cm    ·    c = ${fmt(c, 2)} cm    ·    εs = ${fmt(epsS, 5)}`,
+        desarrollo: [
+          `Este paso dimensiona el acero de flexión del lecho de tracción (cara inferior en vano de viga simplemente apoyada): no es el acero de corte ni el de compresión.`,
+          `As = ρ usar × b × d = ${fmt(rhoUse, 5)}×${fmt(b, 0)}×${fmt(d, 2)} = ${fmt(As, 2)} cm².`,
+          `Profundidad del bloque equivalente de Whitney (rectángulo de 0,85 f'c): a = As fy/(0,85 f'c b) = ${fmt(As, 2)}×${fmt(fy, 0)}/(0,85×${fmt(fc, 0)}×${fmt(b, 0)}) = ${fmt(a, 2)} cm.`,
+          `Eje neutro real (diagrama de deformaciones): c = a/β1 = ${fmt(a, 2)}/${fmt(b1, 3)} = ${fmt(c, 2)} cm. β1 comprime el bloque de Whitney respecto del triángulo de deformaciones.`,
+          `Deformación del acero de tracción (semejanza de triángulos, εcu = 0,003 en la fibra extrema): εs = 0,003×(d−c)/c = 0,003×(${fmt(d, 2)}−${fmt(c, 2)})/${fmt(c, 2)} = ${fmt(epsS, 5)}.`,
+          `Fluencia: εy = fy/Es = ${fmt(fy, 0)}/2 000 000 = ${fmt(epsY, 5)}.  εs ${epsS >= epsY ? "≥" : "<"} εy → el acero ${epsS >= epsY ? "sí fluye" : "NO llega a fy (revise ρ o d)"}.`,
+          `Ductilidad de φ: εs ${epsS >= 0.005 ? "≥ 0,005 → sección controlada por tracción, φ = 0,90." : `< 0,005 → φ interpolado = ${fmt(phiFlex, 2)} (se mantiene φ = 0,90 de cálculo si el proyecto lo justifica; E.060 exige εt ≥ 0,005 para φ = 0,90).`}`,
+          `Adopción comercial: ${bars.text}  (Ø ${bars.bar.name} = ${fmt(bars.bar.db, 2)} cm).`,
+        ] },
       {
         n: "06",
-        title: "Cortante en el paño del apoyo",
+        title: "Resistencia a flexión del acero de tracción",
+        formula: "φMn = φ As fy (d − a/2)   ·   φ = 0.90",
+        formulaTex: String.raw`\phi M_n=\phi A_s f_y\left(d-\dfrac{a}{2}\right)\qquad \phi=0{,}90`,
+        substitution: `φ = 0,90  ·  As = ${fmt(As, 2)} cm²  ·  fy = ${fmt(fy, 0)} kg/cm²  ·  d = ${fmt(d, 2)} cm  ·  a/2 = ${fmt(a / 2, 2)} cm  ·  brazo z = d − a/2 = ${fmt(d - a / 2, 2)} cm  ·  φMn = 0,90×${fmt(As, 2)}×${fmt(fy, 0)}×${fmt(d - a / 2, 2)} / 100000`,
+        result: `φMn = ${fmt(phiMn, 2)} t·m  ${capacity ? "≥ Mu  OK" : "< Mu  NO CUMPLE"}`,
+        ok: capacity,
+        desarrollo: [
+          `El brazo interno es la distancia entre el centroide del bloque de Whitney (a/2 desde la fibra comprimida) y el centroide del acero de tracción: z = d − a/2 = ${fmt(d, 2)} − ${fmt(a / 2, 2)} = ${fmt(d - a / 2, 2)} cm.`,
+          `φMn = 0,90×${fmt(As, 2)}×${fmt(fy, 0)}×${fmt(d - a / 2, 2)}/100000 = ${fmt(phiMn, 2)} t·m.`,
+          `φMn ${capacity ? "≥" : "<"} Mu = ${fmt(Mu, 2)} t·m: ${capacity ? "el acero de tracción adoptado cubre el momento último del diagrama M(x)." : "la sección NO cubre la demanda; aumente As, b, h o revise f'c/fy."}`,
+        ] },
+      {
+        n: "07",
+        title: "Cortante en el paño del apoyo — diagrama V(x)",
         formula: "VA = wu L / 2",
+        formulaTex: String.raw`V_A=\dfrac{w_u L}{2}`,
         substitution: `VA = ${fmt(wu, 2)} × ${fmt(L, 2)} / 2 = ${fmt(VA, 2)} t`,
         result: `VA = ${fmt(VA, 2)} t`,
         desarrollo: [
@@ -671,9 +774,10 @@ export const vigaFlexion: Engine = (raw) => {
         note: "Si la viga es continua, reemplace wu L/2 por la reacción de análisis (o ingrese Vu).",
       },
       {
-        n: "07",
+        n: "08",
         title: "Cortante de diseño a distancia d — E.060 11.1.3",
         formula: VuIn > 0 ? "Vu ingresado" : "Vu = VA (L/2 − d) / (L/2)",
+        formulaTex: VuIn > 0 ? undefined : String.raw`V_u=V_A\cdot\dfrac{\frac{L}{2}-d}{\frac{L}{2}}`,
         substitution:
           VuIn > 0
             ? `Vu = ${fmt(Vu, 2)} t`
@@ -688,9 +792,10 @@ export const vigaFlexion: Engine = (raw) => {
         ],
       },
       {
-        n: "08",
+        n: "09",
         title: "Resistencia del concreto — E.060 11.3",
         formula: "Vc = 0.53 √f'c b d    ·    φv = 0.85",
+        formulaTex: String.raw`V_c=0{,}53\sqrt{f'_c}\,b\,d\qquad \phi V_c=0{,}85\,V_c`,
         substitution: `Vc = 0.53√${fc} × ${b} × ${fmt(d, 1)} / 1000 = ${fmt(sh.Vc, 2)} t`,
         result: `φVc = ${fmt(sh.phiVc, 2)} t    ·    φVc/2 = ${fmt(sh.phiVc / 2, 2)} t`,
         desarrollo: [
@@ -703,9 +808,10 @@ export const vigaFlexion: Engine = (raw) => {
         note: sh.regimen,
       },
       {
-        n: "09",
-        title: "Acero de corte Vs y límite de sección",
+        n: "10",
+        title: "Acero de corte (estribos) — Vs y límite de sección",
         formula: "Vs = Vu/φ − Vc    ·    Vs ≤ 2.1 √f'c b d    ·    umbral s=d/4: 1.1 √f'c b d",
+        formulaTex: String.raw`V_s=\dfrac{V_u}{\phi}-V_c\qquad V_{s,max}=2{,}1\sqrt{f'_c}\,b\,d`,
         substitution: sh.needDesign
           ? `Vs = ${fmt(Vu, 2)}/0.85 − ${fmt(sh.Vc, 2)} = ${fmt(sh.Vs, 2)} t   ·   Vs,máx = ${fmt(sh.VsMax, 2)} t`
           : `Vs de diseño = 0  ·  Vs,máx = ${fmt(sh.VsMax, 2)} t`,
@@ -720,9 +826,10 @@ export const vigaFlexion: Engine = (raw) => {
         ],
       },
       {
-        n: "10",
-        title: "Av, s de cálculo y Av/s mínimo — E.060 11.5",
+        n: "11",
+        title: "Acero de corte (estribos) — Av, s de cálculo y Av/s mínimo — E.060 11.5",
         formula: "Av = n × As(Ø)    ·    s = Av fy d / Vs    ·    Av/s ≥ máx(3.5, 0.75√f'c) b / fy",
+        formulaTex: String.raw`A_v=n\cdot A_{s(\varnothing)}\qquad s=\dfrac{A_v f_y d}{V_s}\qquad \dfrac{A_v}{s}\ge \dfrac{\max(3{,}5,\ 0{,}75\sqrt{f'_c})\,b}{f_y}`,
         substitution: `Av = ${nRamas}×${fmt(stirrup.as, 2)} = ${fmt(Av, 2)} cm²  ·  s calc = ${fmt(Math.min(sh.sFromVs, 999), 1)} cm`,
         result: `s apoyo = ${sh.sApoyo} cm    ·    s centro = ${sh.sCentro} cm`,
         desarrollo: [
@@ -737,9 +844,10 @@ export const vigaFlexion: Engine = (raw) => {
         note: `Av/s adoptado = ${fmt(sh.avs, 3)} cm²/cm  ≥  ${fmt(sh.avsMin, 3)} cm²/cm.`,
       },
       {
-        n: "11",
+        n: "12",
         title: "Zona densa y primer estribo",
         formula: sismico ? "ℓo = 2h    ·    primer estribo a 5 cm del paño" : "ℓ hasta Vu ≈ φVc (≤ L/4)    ·    primer estribo a 5 cm",
+        formulaTex: sismico ? String.raw`\ell_o=2h` : undefined,
         substitution: `ℓo = ${fmt(sh.lo, 2)} m  ·  ℓ corte = ${fmt(sh.Lshear, 2)} m  ·  ℓ zona = ${fmt(sh.Lzona, 2)} m  ·  ℓ centro = ${fmt(sh.Lcentro, 2)} m`,
         result: sh.criterioZona,
         desarrollo: [
@@ -751,9 +859,10 @@ export const vigaFlexion: Engine = (raw) => {
         ],
       },
       {
-        n: "12",
+        n: "13",
         title: "Cantidad — n = 1 + ⌈(ℓ − 5)/s⌉",
         formula: "n_apoyo = 1 + ⌈(ℓzona − 5)/s⌉    ·    n_centro = ⌈ℓc/s⌉ − 1",
+        formulaTex: String.raw`n_{apoyo}=1+\left\lceil\dfrac{\ell_{zona}-5}{s}\right\rceil\qquad n_{centro}=\left\lceil\dfrac{\ell_c}{s}\right\rceil-1`,
         substitution: `n apoyo = 1 + ⌈(${fmt(sh.Lzona * 100, 1)} − 5)/${sh.sApoyo}⌉ = ${sh.nEnd}    ·    n centro = ${sh.nCentro}`,
         result: `${sh.arregloPlano}    ·    ${sh.nTotal} estribos`,
         desarrollo: [
@@ -765,9 +874,10 @@ export const vigaFlexion: Engine = (raw) => {
         note: "Así se evita el error de n = L/s redondeado, que no cuenta el primer estribo a 5 cm.",
       },
       {
-        n: "13",
+        n: "14",
         title: "Longitud unitaria y peso",
         formula: "L = 2(b′ + h′) + 2 ganchos 135°    ·    gancho = máx(6 db, 7.5 cm)",
+        formulaTex: String.raw`L=2(b'+h')+2\,\text{ganchos}_{135°}\qquad \text{gancho}=\max(6d_b,\ 7{,}5\text{ cm})`,
         substitution: `b′ = ${fmt(b - 2 * rec, 1)}  ·  h′ = ${fmt(h - 2 * rec, 1)}  ·  gancho = ${fmt(Math.max(6 * stirrup.db, 7.5), 1)} cm`,
         result: `L unit. = ${fmt(sh.Lunit, 1)} cm    ·    ${fmt(sh.peso, 2)} kg (${sh.nTotal} und)`,
         desarrollo: [
@@ -810,6 +920,18 @@ export const vigaFlexion: Engine = (raw) => {
       Lzona: String(sh.Lzona),
       arreglo: sh.arregloPlano,
       sismico: sismico ? "si" : "no",
+      Mu: Mu.toFixed(3),
+      VA: VA.toFixed(3),
+      Vu: Vu.toFixed(3),
+      wu: wu.toFixed(3),
+      L: L.toFixed(3),
+      nLong: String(bars.n),
+      barLong: bars.bar.name,
+      dbLong: String(bars.bar.db),
+      asLong: bars.text,
+      As: As.toFixed(2),
+      a: a.toFixed(2),
+      c: c.toFixed(2),
     }
   );
 };
@@ -943,48 +1065,157 @@ export const vigaDoble: Engine = (raw) => {
   const fc = num(raw, "fc", 210);
   const fy = num(raw, "fy", 4200);
   const Mu = num(raw, "Mu", 36.54);
+  const metodoAs = str(raw, "metodoAs", "cuantia") === "iteracion" ? "iteracion" : "cuantia";
   const d = h - rec - 1;
   const dp = rec + 1;
+  const Mu_kgcm = Mu * 100000;
+  const phiF = 0.9;
   const b1 = beta1(fc);
+  const rhoMin = Math.max((0.8 * Math.sqrt(fc)) / fy, 14 / fy);
   const rhoB = (0.85 * b1 * fc / fy) * (6300 / (6300 + fy));
   const rhoMax = 0.75 * rhoB;
-  const As1 = rhoMax * b * d;
+
+  // Paso 2: ¿la sección necesita realmente doble armadura? Se resuelve la cuantía que exigiría
+  // el Mu total asumiendo un solo lecho de tracción, por el método elegido, y se compara con ρmáx.
+  const Rn = Mu_kgcm / (phiF * b * d * d);
+  const rhoCuantia = (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, 1 - (2 * Rn) / (0.85 * fc))));
+
+  const iterAs: { k: number; a: number; As: number; delta: number }[] = [];
+  let asIter = Mu_kgcm / (phiF * fy * d);
+  const asIter0 = asIter;
+  let aIter = 0;
+  for (let k = 1; k <= 8; k++) {
+    aIter = (asIter * fy) / (0.85 * fc * b);
+    const asNext = Mu_kgcm / (phiF * fy * (d - aIter / 2));
+    const delta = Math.abs(asNext - asIter);
+    asIter = asNext;
+    iterAs.push({ k, a: aIter, As: asIter, delta });
+    if (delta < 0.01) break;
+  }
+  const rhoIter = asIter / (b * d);
+  const rhoReq = metodoAs === "iteracion" ? rhoIter : rhoCuantia;
+  const dobleArmada = rhoReq > rhoMax;
+
+  const As1 = dobleArmada ? rhoMax * b * d : Math.max(rhoReq, rhoMin) * b * d;
   const a1 = (As1 * fy) / (0.85 * fc * b);
-  const Mu1 = (0.9 * As1 * fy * (d - a1 / 2)) / 100000;
-  const Mr = Math.max(0, Mu - Mu1);
-  const As2 = Mr > 0 ? (Mr * 100000) / (0.9 * fy * (d - dp)) : 0;
+  const Mu1 = (phiF * As1 * fy * (d - a1 / 2)) / 100000;
+  const Mr = dobleArmada ? Math.max(0, Mu - Mu1) : 0;
+  const As2 = dobleArmada && Mr > 0 ? (Mr * 100000) / (phiF * fy * (d - dp)) : 0;
   const As = As1 + As2;
   const Asp = As2;
+
+  // Verificación de fluencia del acero de compresión (εs' ≥ εy): si no fluye, f's<fy y A's resulta
+  // subestimada por la fórmula simple; se reporta como alerta profesional, no se resuelve con la
+  // cúbica exacta (fuera del alcance de este módulo).
+  const c1 = a1 / b1;
+  const Es = 2_000_000;
+  const epsY = fy / Es;
+  const epsSp = dobleArmada ? (0.003 * (c1 - dp)) / Math.max(c1, 1e-6) : 0;
+  const compFluye = !dobleArmada || epsSp >= epsY;
+
   const inf = pickBars(As, ['3/4"', '1"', '5/8"']);
   const sup = Asp > 0.1 ? pickBars(Asp, ['5/8"', '1/2"', '3/4"']) : { text: "No requiere (sección simple)" };
-  return out(
-    Mr > 0 ? `Doble armadura  As = ${fmt(As, 2)}  A's = ${fmt(Asp, 2)} cm²` : "Basta armadura simple",
-    `Inferior: ${inf.text}   ·   Superior: ${sup.text}`,
-    [
-      {
-        n: "01",
-        title: "Momento máximo de sección simplemente armada",
-        formula: "ρmáx = 0.75 ρb   ·   Mu1 = φ As1 fy (d − a/2)",
-        substitution: `ρmáx = ${fmt(rhoMax, 5)}  ·  As1 = ${fmt(As1, 2)} cm²  ·  Mu1 = ${fmt(Mu1, 2)} t·m`,
-        result: `Mu1 = ${fmt(Mu1, 2)} t·m`,
-      },
-      {
-        n: "02",
-        title: "Momento residual",
-        formula: "Mr = Mu − Mu1",
-        substitution: `Mr = ${fmt(Mu, 2)} − ${fmt(Mu1, 2)} = ${fmt(Mr, 2)} t·m`,
-        result: Mr > 0 ? "Requiere acero de compresión" : "No requiere doble armadura",
-        ok: true,
-      },
+
+  const steps: CalcStep[] = [
+    {
+      n: "01",
+      title: "Cuantías límite — balanceada, máxima y mínima",
+      formula: "ρb = 0.85 β1 (f'c/fy)(6300/(6300+fy))    ·    ρmáx = 0.75 ρb    ·    ρmín = máx(0.8√f'c/fy , 14/fy)",
+      formulaTex: String.raw`\rho_b=0{,}85\,\beta_1\,\dfrac{f'_c}{f_y}\left(\dfrac{6300}{6300+f_y}\right)\qquad \rho_{max}=0{,}75\,\rho_b\qquad \rho_{min}=\max\!\left(\dfrac{0{,}8\sqrt{f'_c}}{f_y},\ \dfrac{14}{f_y}\right)`,
+      substitution: `f'c = ${fmt(fc, 0)} kg/cm²  ·  fy = ${fmt(fy, 0)} kg/cm²  ·  β1 = ${fmt(b1, 3)}  ·  0,8√f'c/fy = 0,8×${fmt(Math.sqrt(fc), 3)}/${fmt(fy, 0)} = ${fmt((0.8 * Math.sqrt(fc)) / fy, 5)}  ·  14/fy = ${fmt(14 / fy, 5)}  ·  ρmín = ${fmt(rhoMin, 5)}  ·  ρb = 0,85×${fmt(b1, 3)}×(${fmt(fc, 0)}/${fmt(fy, 0)})×(6300/(6300+${fmt(fy, 0)})) = ${fmt(rhoB, 5)}  ·  ρmáx = 0,75×${fmt(rhoB, 5)} = ${fmt(rhoMax, 5)}`,
+      result: `ρb = ${fmt(rhoB, 5)}  ·  ρmáx = ${fmt(rhoMax, 5)}  ·  ρmín = ${fmt(rhoMin, 5)}`,
+      desarrollo: [
+        `β1 (E.060 10.2.7.3): ${fc <= 280 ? `f'c = ${fmt(fc, 0)} ≤ 280 kg/cm² → β1 = 0,85.` : `f'c = ${fmt(fc, 0)} > 280 kg/cm² → β1 = máx(0,65 ; 0,85 − 0,05×(${fmt(fc, 0)}−280)/70) = ${fmt(b1, 3)}.`}`,
+        `ρb = 0,85×${fmt(b1, 3)}×(${fmt(fc, 0)}/${fmt(fy, 0)})×(6300/(6300+${fmt(fy, 0)})) = ${fmt(rhoB, 5)} — cuantía a la que el acero fluye (fy) justo cuando el concreto llega a εcu = 0,003 (falla balanceada, simultánea).`,
+        `ρmáx = 0,75×${fmt(rhoB, 5)} = ${fmt(rhoMax, 5)} — límite dúctil: por encima de este valor una sección simplemente armada fallaría por aplastamiento del concreto antes de que el acero fluya, sin aviso previo. Este es el techo de cuantía que se le permite tomar al lecho de tracción principal (As1); el resto del momento (si lo hay) se cubre agregando acero de compresión, no subiendo más la cuantía del lecho simple.`,
+        `ρmín, primera rama: 0,8√f'c/fy = 0,8×${fmt(Math.sqrt(fc), 3)}/${fmt(fy, 0)} = ${fmt((0.8 * Math.sqrt(fc)) / fy, 5)}.  Segunda rama: 14/fy = ${fmt(14 / fy, 5)}.  ρmín = máx(ambas) = ${fmt(rhoMin, 5)} — por debajo de este valor el acero se rompería apenas fisura el concreto (falla frágil por acero insuficiente).`,
+      ],
+      note: "Estos tres límites acotan cualquier lecho de acero en tracción de la sección: ρmín ≤ ρ ≤ ρmáx para el lecho simple (As1); el acero de compresión y su tracción adicional (As2) se agregan aparte, sin cuantía límite propia (se dimensionan por equilibrio de fuerzas, no por ductilidad de bloque de compresión)." },
+    {
+      n: "02",
+      title: `Verificación de necesidad de acero de compresión — Método: ${metodoAs === "iteracion" ? "iteraciones sucesivas" : "cuantía mecánica (ω)"}`,
+      formula:
+        metodoAs === "iteracion"
+          ? "As(0) = Mu/(φ fy d)   ·   a(k) = As(k−1) fy/(0.85 f'c b)   ·   As(k) = Mu/[φ fy (d − a(k)/2)]  → converge"
+          : "Rn = Mu/(φ b d²)   ·   ρreq = (0.85 f'c/fy)[1 − √(1 − 2Rn/(0.85 f'c))]",
+      formulaTex:
+        metodoAs === "iteracion"
+          ? String.raw`A_s^{(0)}=\dfrac{M_u}{\phi f_y d}\qquad a^{(k)}=\dfrac{A_s^{(k-1)}f_y}{0{,}85f'_c b}\qquad A_s^{(k)}=\dfrac{M_u}{\phi f_y\left(d-\dfrac{a^{(k)}}{2}\right)}`
+          : String.raw`R_n=\dfrac{M_u}{\phi\,b\,d^2}\qquad \rho_{req}=\dfrac{0{,}85f'_c}{f_y}\left[1-\sqrt{1-\dfrac{2R_n}{0{,}85f'_c}}\right]`,
+      substitution:
+        metodoAs === "iteracion"
+          ? `Mu = ${fmt(Mu_kgcm, 0)} kg·cm  ·  φfy = 0,9×${fmt(fy, 0)}  ·  d = ${fmt(d, 2)} cm`
+          : `Mu = ${fmt(Mu_kgcm, 0)} kg·cm  ·  φ = 0,90  ·  b = ${fmt(b, 0)} cm  ·  d = ${fmt(d, 2)} cm`,
+      result: `ρ requerida para Mu total (un solo lecho) = ${fmt(rhoReq, 5)}  ${dobleArmada ? ">" : "≤"}  ρmáx = ${fmt(rhoMax, 5)}  →  ${dobleArmada ? "SÍ requiere doble armadura" : "NO requiere doble armadura"}`,
+      ok: true,
+      table:
+        metodoAs === "iteracion"
+          ? {
+              caption: "Convergencia del método de iteraciones sucesivas (asumiendo un solo lecho)",
+              headers: ["k", "a (cm)", "As (cm²)", "Δ As (cm²)"],
+              rows: iterAs.map((it) => [String(it.k), fmt(it.a, 3), fmt(it.As, 3), fmt(it.delta, 4)]),
+            }
+          : undefined,
+      desarrollo:
+        metodoAs === "iteracion"
+          ? [
+              `Arranque (k=0): a(0) = 0 → As(0) = Mu/(φ fy d) = ${fmt(Mu_kgcm, 0)}/(0,9×${fmt(fy, 0)}×${fmt(d, 2)}) = ${fmt(asIter0, 3)} cm².`,
+              ...iterAs.map(
+                (it, i) =>
+                  `Iteración ${it.k}: a(${it.k}) = As(${it.k - 1})·fy/(0,85 f'c b) = ${fmt(it.a, 3)} cm  →  As(${it.k}) = Mu/[φ fy (d − a(${it.k})/2)] = ${fmt(it.As, 3)} cm²  (Δ = ${fmt(it.delta, 4)} cm², con As(${it.k - 1}) = ${fmt(i === 0 ? asIter0 : iterAs[i - 1].As, 3)} cm²).`,
+              ),
+              `Converge (ΔAs < 0,01 cm²) en ρ = As/(b d) = ${fmt(rhoReq, 5)}.`,
+            ]
+          : [
+              `Rn = Mu/(φ b d²) = ${fmt(Mu_kgcm, 0)}/(0,9×${fmt(b, 0)}×${fmt(d, 2)}²) = ${fmt(Rn, 2)} kg/cm².`,
+              `ρreq = (0,85×${fmt(fc, 0)}/${fmt(fy, 0)})×[1 − √(1 − 2×${fmt(Rn, 2)}/(0,85×${fmt(fc, 0)}))] = ${fmt(rhoReq, 5)} (cuantía que necesitaría un solo lecho de tracción para cubrir todo Mu).`,
+            ],
+      note: dobleArmada
+        ? `ρreq (${fmt(rhoReq, 5)}) supera ρmáx (${fmt(rhoMax, 5)}): un solo lecho de tracción no puede tomar este Mu sin perder ductilidad. Se diseña el lecho principal exactamente en ρmáx (paso siguiente) y el momento que falta (Mr) se cubre agregando acero de compresión más un segundo lecho de tracción.`
+        : `ρreq (${fmt(rhoReq, 5)}) no supera ρmáx: basta un solo lecho de tracción, con ρ usar = máx(ρreq, ρmín) = ${fmt(Math.max(rhoReq, rhoMin), 5)}. No se necesita acero de compresión.` },
+  ];
+
+  if (dobleArmada) {
+    steps.push(
       {
         n: "03",
-        title: "Acero de compresión y tracción adicional",
-        formula: "A's = Mr / [φ fy (d − d')]",
-        substitution: `A's = ${fmt(Mr, 2)}×1e5 / (0.9×${fy}×(${fmt(d, 1)}−${fmt(dp, 1)})) = ${fmt(Asp, 2)} cm²`,
-        result: `As = As1+A's = ${fmt(As, 2)} cm²`,
-      },
-    ],
-    [ok("Mu cubierto", `${fmt(Mu, 2)} t·m`, Mr > 0 ? "con doble armadura" : "con As simple", true)]
+        title: "Momento nominal a ρmáx (Mu1) y momento residual (Mr)",
+        formula: "As1 = ρmáx b d    ·    Mu1 = φ As1 fy (d − a1/2)    ·    Mr = Mu − Mu1",
+        formulaTex: String.raw`A_{s1}=\rho_{max}\,b\,d\qquad M_{u1}=\phi A_{s1} f_y\left(d-\dfrac{a_1}{2}\right)\qquad M_r=M_u-M_{u1}`,
+        substitution: `ρmáx = ${fmt(rhoMax, 5)}  ·  As1 = ${fmt(As1, 2)} cm²  ·  a1 = ${fmt(a1, 2)} cm`,
+        result: `Mu1 = ${fmt(Mu1, 2)} t·m  ·  Mr = ${fmt(Mr, 2)} t·m`,
+        desarrollo: [
+          `As1 = ρmáx×b×d = ${fmt(rhoMax, 5)}×${fmt(b, 0)}×${fmt(d, 2)} = ${fmt(As1, 2)} cm² (el máximo que puede llevar un solo lecho de tracción con ductilidad garantizada).`,
+          `a1 = As1×fy/(0,85 f'c b) = ${fmt(a1, 2)} cm.`,
+          `Mu1 = 0,9×${fmt(As1, 2)}×${fmt(fy, 0)}×(${fmt(d, 2)} − ${fmt(a1, 2)}/2)/100000 = ${fmt(Mu1, 2)} t·m — el máximo momento que la sección resiste como simplemente armada.`,
+          `Mr = Mu − Mu1 = ${fmt(Mu, 2)} − ${fmt(Mu1, 2)} = ${fmt(Mr, 2)} t·m — el momento que queda sin cubrir y que debe tomar el par acero de compresión / segundo lecho de tracción.`,
+        ] },
+      {
+        n: "04",
+        title: "Acero de compresión A's y acero total As",
+        formula: "A's = Mr / [φ fy (d − d')]    ·    As = As1 + A's    ·    verificar ε's ≥ εy (fluencia)",
+        formulaTex: String.raw`A'_s=\dfrac{M_r}{\phi f_y (d-d')}\qquad A_s=A_{s1}+A'_s\qquad \varepsilon'_s=0{,}003\,\dfrac{c_1-d'}{c_1}\ \overset{?}{\ge}\ \varepsilon_y=\dfrac{f_y}{E_s}`,
+        substitution: `Mr = ${fmt(Mr, 2)} t·m  ·  d = ${fmt(d, 1)} cm  ·  d' = ${fmt(dp, 1)} cm  ·  c1 = a1/β1 = ${fmt(c1, 2)} cm`,
+        result: `A's = ${fmt(Asp, 2)} cm²  →  As = As1+A's = ${fmt(As, 2)} cm²`,
+        ok: compFluye,
+        desarrollo: [
+          `Por equilibrio, el par acero de compresión / acero de tracción adicional debe generar un momento Mr con el mismo brazo (d − d'): A's = Mr/[φ fy (d−d')] = ${fmt(Mr, 2)}×1e5/(0,9×${fmt(fy, 0)}×(${fmt(d, 1)}−${fmt(dp, 1)})) = ${fmt(Asp, 2)} cm². El acero de tracción adicional es igual: As2 = A's = ${fmt(As2, 2)} cm².`,
+          `As total = As1 + A's = ${fmt(As1, 2)} + ${fmt(Asp, 2)} = ${fmt(As, 2)} cm².`,
+          `Verificación de fluencia del acero de compresión (la fórmula anterior asume f's = fy): profundidad del eje neutro c1 = a1/β1 = ${fmt(a1, 2)}/${fmt(b1, 3)} = ${fmt(c1, 2)} cm. Deformación del acero de compresión por semejanza de triángulos: ε's = 0,003×(c1−d')/c1 = 0,003×(${fmt(c1, 2)}−${fmt(dp, 1)})/${fmt(c1, 2)} = ${fmt(epsSp, 5)}.`,
+          `Deformación de fluencia εy = fy/Es = ${fmt(fy, 0)}/2 000 000 = ${fmt(epsY, 5)}. ${compFluye ? `Como ε's (${fmt(epsSp, 5)}) ≥ εy (${fmt(epsY, 5)}), el acero de compresión SÍ fluye (f's = fy): la fórmula de A's es válida tal como se aplicó.` : `Como ε's (${fmt(epsSp, 5)}) < εy (${fmt(epsY, 5)}), el acero de compresión NO fluye (f's < fy): A's calculada aquí queda subestimada. En ese caso corresponde resolver f's por compatibilidad de deformaciones (ecuación cúbica en c) o, más simple en la práctica, alejar d' del borde comprimido o aumentar peralte para que el acero sí fluya.`}`,
+        ] },
+    );
+  }
+
+  return out(
+    dobleArmada ? `Doble armadura  As = ${fmt(As, 2)}  A's = ${fmt(Asp, 2)} cm²` : `Armadura simple  As = ${fmt(As, 2)} cm²`,
+    dobleArmada ? `Inferior: ${inf.text}   ·   Superior: ${sup.text}` : `Inferior: ${inf.text}`,
+    steps,
+    [
+      ok("Mu cubierto", `${fmt(Mu, 2)} t·m`, dobleArmada ? "con doble armadura" : "con As simple", true),
+      ok("ρ del lecho principal ≤ ρmáx", fmt(dobleArmada ? rhoMax : Math.max(rhoReq, rhoMin), 5), `≤ ${fmt(rhoMax, 5)}`, true),
+      ...(dobleArmada ? [ok("Acero de compresión fluye (ε's ≥ εy)", fmt(epsSp, 5), `≥ ${fmt(epsY, 5)}`, compFluye)] : []),
+    ]
   );
 };
 
@@ -2231,52 +2462,159 @@ function losaContinua(kind: "aligerada" | "maciza"): Engine {
 export const viguetas: Engine = losaContinua("aligerada");
 export const losa1d: Engine = losaContinua("maciza");
 
-/* ───────── Losa 2 direcciones (coeficientes ACI) ───────── */
+/* ───────── Losa 2 direcciones (coeficientes ACI, grilla de paños) ───────── */
+function pickSlabBar(As: number) {
+  const s38 = spacingFor(As, 0.71, 100);
+  if (s38 >= 10 && s38 <= 25) return { bar: '3/8"', s: s38, asBar: 0.71 };
+  return { bar: '1/2"', s: spacingFor(As, 1.29, 100), asBar: 1.29 };
+}
+
+function slabAs(Mu: number, h: number, fc: number, fy: number) {
+  const rec = 2.5;
+  const d = Math.max(h - rec, 6);
+  const Asmin = 0.0018 * 100 * h;
+  if (Mu <= 1e-6) return { As: Asmin, d };
+  const phi = 0.9;
+  const Rn = (Mu * 100000) / (phi * 100 * d * d);
+  const disc = 1 - (2 * Rn) / (0.85 * Math.max(fc, 1));
+  const rho = disc > 0 ? (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, disc))) : 0.018;
+  return { As: Math.max(rho * 100 * d, Asmin), d };
+}
+
 export const losa2d: Engine = (raw) => {
-  const A = num(raw, "A", 4.0);
-  const B = num(raw, "B", 5.0);
+  const Adef = num(raw, "A", 4.0);
+  const Bdef = num(raw, "B", 5.0);
   const h = num(raw, "h", 15);
   const cm = num(raw, "cm", 500);
   const cv = num(raw, "cv", 250);
   const fy = num(raw, "fy", 4200);
-  const caso = str(raw, "caso", "cccc");
-  const ratio = Math.min(A, B) / Math.max(A, B);
-  const ca: Record<string, number> = { cccc: 0.033, cccd: 0.04, ccdd: 0.05, cddd: 0.06, dddd: 0.083 };
-  const coef = ca[caso] ?? 0.05;
+  const fc = num(raw, "fc", 210);
+  const caso0 = str(raw, "caso", "cccc");
+  const nx0 = Math.max(1, Math.round(num(raw, "nX", 1)));
+  const ny0 = Math.max(1, Math.round(num(raw, "nY", 1)));
+  const fallback: GridModel = {
+    axesX: Array.from({ length: nx0 + 1 }, (_, i) => i * Adef),
+    axesY: Array.from({ length: ny0 + 1 }, (_, i) => i * Bdef),
+    panes: Array.from({ length: ny0 }, () => Array.from({ length: nx0 }, () => true)),
+    cols: [],
+  };
+  const g = parseGrid(str(raw, "gridJson", ""), fallback);
   const wu = 1.4 * cm + 1.7 * cv;
-  const Mu = coef * (wu / 1000) * Math.min(A, B) ** 2;
-  const d = h - 2.5;
-  const As = (Mu * 100000) / (0.9 * fy * 0.9 * d);
-  const Asmin = 0.0018 * 100 * h;
-  const AsUse = Math.max(As, Asmin);
-  const s = spacingFor(AsUse, 0.71, 100);
+  const wuT = wu / 1000;
+  type PaneRow = { ix: number; iy: number; lx: number; ly: number; caso: string; mC: number; mL: number; MuCneg: number; MuCpos: number; MuLneg: number; MuLpos: number };
+  const panes: PaneRow[] = [];
+  let MuInfX = 0;
+  let MuInfY = 0;
+  let MuSupX = 0;
+  let MuSupY = 0;
+  for (let iy = 0; iy < g.panes.length; iy++) {
+    for (let ix = 0; ix < g.panes[iy].length; ix++) {
+      if (!paneOn(g, ix, iy)) continue;
+      const c = paneContinuity(g, ix, iy);
+      const caso = g.panes.length === 1 && g.panes[0].length === 1 ? caso0 : c.caso;
+      const k = coefAci3(caso);
+      const lx = c.lx;
+      const ly = c.ly;
+      const ln = Math.min(lx, ly);
+      const m = ln / Math.max(lx, ly, 0.5);
+      const MuCneg = k.nC * wuT * ln * ln;
+      const MuCpos = k.pC * wuT * ln * ln;
+      const MuLneg = k.nL * wuT * ln * ln;
+      const MuLpos = k.pL * wuT * ln * ln;
+      const xIsShort = lx <= ly + 1e-6;
+      if (xIsShort) {
+        MuInfX = Math.max(MuInfX, MuCpos);
+        MuSupX = Math.max(MuSupX, MuCneg);
+        MuInfY = Math.max(MuInfY, MuLpos);
+        MuSupY = Math.max(MuSupY, MuLneg);
+      } else {
+        MuInfX = Math.max(MuInfX, MuLpos);
+        MuSupX = Math.max(MuSupX, MuLneg);
+        MuInfY = Math.max(MuInfY, MuCpos);
+        MuSupY = Math.max(MuSupY, MuCneg);
+      }
+      panes.push({ ix, iy, lx, ly, caso, mC: m, mL: Math.max(lx, ly) / Math.max(ln, 0.5), MuCneg, MuCpos, MuLneg, MuLpos });
+    }
+  }
+  const nOn = panes.length;
+  const flexInfX = slabAs(MuInfX, h, fc, fy);
+  const flexInfY = slabAs(MuInfY, h, fc, fy);
+  const flexSupX = slabAs(MuSupX, h, fc, fy);
+  const flexSupY = slabAs(MuSupY, h, fc, fy);
+  const infX = pickSlabBar(flexInfX.As);
+  const infY = pickSlabBar(flexInfY.As);
+  const supX = pickSlabBar(flexSupX.As);
+  const supY = pickSlabBar(flexSupY.As);
+  const ratio = nOn ? Math.min(...panes.map((p) => Math.min(p.lx, p.ly) / Math.max(p.lx, p.ly))) : Math.min(Adef, Bdef) / Math.max(Adef, Bdef);
+  const extX = g.axesX[g.axesX.length - 1] - g.axesX[0];
+  const extY = g.axesY[g.axesY.length - 1] - g.axesY[0];
   return out(
-    `Mu = ${fmt(Mu, 3)} t·m/m  ·  Ø3/8" @ ${s} cm`,
-    `Método 3 ACI  ·  A/B = ${fmt(ratio, 2)}  ·  caso ${caso.toUpperCase()}  ·  α = ${coef}`,
+    `Losa 2 dir.  ${nOn} paños  ·  inf. Ø ${infX.bar} @ ${infX.s} / Ø ${infY.bar} @ ${infY.s} cm`,
+    `Método 3 ACI  ·  h=${fmt(h, 0)} cm  ·  wu=${fmt(wu, 0)} kg/m²  ·  malla inf. X/Y y sup. X/Y gobernantes`,
     [
       {
         n: "01",
-        title: "Relación de lados y caso de continuidad",
-        formula: "m = A/B   (A lado corto)   ·   c = continuo, d = discontinuo",
-        substitution: `A = ${fmt(A, 2)}  B = ${fmt(B, 2)}  →  m = ${fmt(ratio, 2)}  ·  caso ${caso}`,
-        result: `α = ${coef}`,
-        note: "Coeficientes del método 3 ACI (losas dos direcciones).",
+        title: "Grilla de paños techados y continuidad",
+        formula: "Cada paño: m = ℓcorto/ℓlargo    ·    c/d según paños vecinos techados",
+        substitution: `${g.axesX.length - 1}×${g.axesY.length - 1} paños    ·    ${nOn} techados    ·    planta ${fmt(extX, 2)}×${fmt(extY, 2)} m`,
+        result: nOn ? `Paño tipo: ${panes[0].lx.toFixed(2)}×${panes[0].ly.toFixed(2)} m  ·  caso ${panes[0].caso}` : "Sin paños techados",
+        note: "Un paño discontinuo en un borde usa el coeficiente de borde libre. No se arman los paños apagados (patio, hueco de escalera, vacío).",
       },
       {
         n: "02",
-        title: "Momento de diseño",
-        formula: "Mu = α wu ln²",
-        substitution: `wu = ${fmt(wu, 0)} kg/m²  ·  Mu = ${coef}×${fmt(wu / 1000, 3)}×${fmt(Math.min(A, B), 2)}²`,
-        result: `${fmt(Mu, 3)} t·m/m`,
+        title: "Carga última y momentos de paño (método 3)",
+        formula: "wu = 1.4 CM + 1.7 CV    ·    Mu = α wu ℓn²    (α de tabla según cccc…dddd)",
+        substitution: `CM=${fmt(cm, 0)}  CV=${fmt(cv, 0)}  →  wu=${fmt(wu, 0)} kg/m²    ·    α corto neg/pos y largo neg/pos`,
+        result: `Gobernantes: Mu+X=${fmt(MuInfX, 3)}  Mu−X=${fmt(MuSupX, 3)}  Mu+Y=${fmt(MuInfY, 3)}  Mu−Y=${fmt(MuSupY, 3)} t·m/m`,
+        note: "ℓn = lado corto del paño. El acero de planta es el envolvente: cada lecho y dirección toma el mayor Mu de todos los paños techados.",
       },
       {
         n: "03",
-        title: "Acero en franja de 1.00 m",
-        substitution: `As = ${fmt(AsUse, 2)} cm²/m`,
-        result: `Ø 3/8" @ ${s} cm`,
+        title: "Acero por metro — Whitney, Asmín = 0,0018 h",
+        formula: "As = Mu / (φ fy j d)    ·    Asmín = 0.0018 b h    ·    s ≤ 3h y ≤ 45 cm",
+        substitution: `h=${fmt(h, 0)} cm    d≈${fmt(flexInfX.d, 1)} cm    fy=${fmt(fy, 0)}    f'c=${fmt(fc, 0)}`,
+        result: `Inf X Ø ${infX.bar} @ ${infX.s} cm    ·    Inf Y Ø ${infY.bar} @ ${infY.s} cm    ·    Sup X Ø ${supX.bar} @ ${supX.s} cm    ·    Sup Y Ø ${supY.bar} @ ${supY.s} cm`,
+      },
+      {
+        n: "04",
+        title: "Despiece — una barra representativa por cálculo",
+        formula: "Cuatro lechos: inf. X, inf. Y, sup. X (apoyos), sup. Y (apoyos)",
+        substitution: `As inf X=${fmt(flexInfX.As, 2)}  Y=${fmt(flexInfY.As, 2)}    ·    As sup X=${fmt(flexSupX.As, 2)}  Y=${fmt(flexSupY.As, 2)} cm²/m`,
+        result: "Planta A1: un Ø y un s por lecho (acero gobernante de los paños techados)",
+        note: "No se dibuja la malla completa. En obra se coloca a la separación indicada en todo el paño techado; en apoyos el lecho superior cubre ℓn/4 a cada lado.",
       },
     ],
-    [ok("A/B ≥ 0.5 (válido método)", fmt(ratio, 2), "≥ 0.50", ratio >= 0.5)]
+    [
+      ok("A/B ≥ 0.5 (método 3)", fmt(ratio, 2), "≥ 0.50", ratio >= 0.5),
+      ok("Hay paños techados", String(nOn), "≥ 1", nOn >= 1),
+      ok("h ≥ 12 cm", `${fmt(h, 0)} cm`, "≥ 12 cm", h >= 12),
+    ],
+    [
+      {
+        title: "Paños techados — momentos de diseño",
+        rows: [
+          ["Paño", "ℓx (m)", "ℓy (m)", "caso", "Mu+ corto", "Mu− corto", "Mu+ largo", "Mu− largo"],
+          ...panes.map((p) => [
+            `${p.ix + 1},${p.iy + 1}`,
+            fmt(p.lx, 2),
+            fmt(p.ly, 2),
+            p.caso,
+            fmt(p.MuCpos, 3),
+            fmt(p.MuCneg, 3),
+            fmt(p.MuLpos, 3),
+            fmt(p.MuLneg, 3),
+          ]),
+        ],
+      },
+    ],
+    {
+      h: String(h),
+      asInfX: `Ø ${infX.bar} @ ${infX.s} cm`,
+      asInfY: `Ø ${infY.bar} @ ${infY.s} cm`,
+      asSupX: `Ø ${supX.bar} @ ${supX.s} cm`,
+      asSupY: `Ø ${supY.bar} @ ${supY.s} cm`,
+      gridJson: str(raw, "gridJson", ""),
+    }
   );
 };
 

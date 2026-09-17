@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Block, MemoriaDoc } from "../lib/memoria";
-import { Formula } from "../components/Formula";
+import { Formula, MathLine } from "../components/Formula";
+import { MetradoZonasFig } from "../components/MetradoZonas";
 
 type PhotoBlock = Extract<Block, { type: "photo" }>;
 type TableBlock = Extract<Block, { type: "table" }>;
@@ -180,9 +181,9 @@ function BlockView({
   if (b.type === "note") return <div className="note">{b.text}</div>;
   if (b.type === "eq")
     return (
-      <div className="eq">
-        {b.text}
-        {b.num ? <span>({b.num})</span> : null}
+      <div className="eq-wrap">
+        <Formula fallback={b.text} />
+        {b.num ? <span className="eq-num">({b.num})</span> : null}
       </div>
     );
   if (b.type === "kv") return <Kv rows={b.rows} edit={edit} />;
@@ -237,13 +238,19 @@ function BlockView({
           </tr>
         </thead>
         <tbody>
-          {b.rows.map((r, i) => (
-            <tr key={i} className={r[0] === "◀" ? "is-case" : /total|^Σ/i.test(r[0] ?? "") ? "is-total" : undefined}>
+          {b.rows.map((r, i) => {
+            const numbered = /^(n\.?º|n°|nº|#)$/i.test(b.headers[0] ?? "");
+            const isTotal = /total|^Σ/i.test(r[0] ?? "") || /total|^Σ/i.test(r[1] ?? "");
+            return (
+            <tr key={i} className={r[0] === "◀" ? "is-case" : isTotal ? "is-total" : undefined}>
               {r.map((c, j) => (
-                <td key={j}>{c}</td>
+                <td key={j} className={j === 0 && numbered ? "zona-n-cell" : undefined}>
+                  {j === 0 && numbered && /^(\d+|LS)$/i.test(c) ? <span className="zona-n">{c}</span> : c}
+                </td>
               ))}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>
@@ -268,7 +275,7 @@ function BlockView({
   }
   if (b.type === "paso") {
     const lineas = (b.sustituye ?? "")
-      .split(/\s*·\s*/)
+      .split(/\s+·\s+/)
       .map((t) => t.trim())
       .filter(Boolean);
     const multi = lineas.length > 1;
@@ -284,10 +291,12 @@ function BlockView({
         ) : null}
         {b.desarrollo && b.desarrollo.length ? (
           <div className="paso-row">
-            <span className="paso-lab">Desarrollo</span>
+            <span className="paso-lab">Cálculo</span>
             <ol className="paso-des">
               {b.desarrollo.map((ln, i) => (
-                <li key={i}>{ln}</li>
+                <li key={i}>
+                  <MathLine text={ln} />
+                </li>
               ))}
             </ol>
           </div>
@@ -298,17 +307,19 @@ function BlockView({
             {multi ? (
               <ul className="paso-des">
                 {lineas.map((ln, i) => (
-                  <li key={i}>{ln}</li>
+                  <li key={i}>
+                    <MathLine text={ln} />
+                  </li>
                 ))}
               </ul>
             ) : (
-              <p>{b.sustituye}</p>
+              <MathLine text={b.sustituye} />
             )}
           </div>
         ) : null}
         <div className="paso-row paso-res">
           <span className="paso-lab">Resultado</span>
-          <p>{b.resultado}</p>
+          <Formula fallback={b.resultado} />
         </div>
         {b.interpreta ? (
           <div className="paso-row">
@@ -321,6 +332,9 @@ function BlockView({
   }
   if (b.type === "figure") {
     return <>{renderFigure?.(b.part) ?? null}</>;
+  }
+  if (b.type === "metradoZonas") {
+    return <MetradoZonasFig spec={b.spec} />;
   }
   if (b.type === "photo") {
     return <PhotoFigure b={b} />;

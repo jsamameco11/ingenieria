@@ -1,6 +1,7 @@
-﻿import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   HIDRO_PACK_META,
+  LANE_CW,
   calcularAcueducto,
   calcularAliviadero,
   calcularBocatoma,
@@ -141,14 +142,14 @@ export function HidroPackModule({ kind }: { kind: HidroPackKind }) {
     extra = (
       <div className="croquis-board croquis-board-compact">
         <div className="croquis"><BocatomaSvg b={v.rBoc.bTotal} P={v.rBoc.P} /></div>
-        <Ficha code={info.code} adopt={`b = ${fmt(v.rBoc.bTotal, 2)} m · Cc = ${fmt(v.rBoc.Cc, 2)}`} rows={[["b total", fmt(v.rBoc.bTotal, 2), "m"], ["h ventana", fmt(v.rBoc.hOrif, 2), "m"], ["P azud", fmt(v.rBoc.P, 2), "m"], ["He", fmt(v.rBoc.He, 2), "m"], ["L remanso", fmt(v.rBoc.Lremanso, 1), "m"]]} />
+        <Ficha code={info.code} adopt={`b = ${fmt(v.rBoc.bTotal, 2)} m · Cc = ${fmt(v.rBoc.Cc, 2)}`} rows={[["b total", fmt(v.rBoc.bTotal, 2), "m"], ["h ventana", fmt(v.rBoc.hOrif, 2), "m"], ["P azud", fmt(v.rBoc.P, 2), "m"], ["He", fmt(v.rBoc.He, 2), "m"], ["L remanso", fmt(v.rBoc.Lremanso, 1), "m"], ["Socavación Hs", fmt(v.rBoc.Hs, 2), "m"], ["Prof. zapata", fmt(v.rBoc.profZapata, 2), "m"], ["FSd barraje", fmt(v.rBoc.FSdeslBarraje, 2), "—"], ["FSv barraje", fmt(v.rBoc.FSvoltBarraje, 2), "—"]]} />
       </div>
     );
   } else if (kind === "rapida") {
     extra = (
       <div className="croquis-board croquis-board-compact">
         <div className="croquis"><RapidaSvg y1={v.rRap.y1} y2={v.rRap.y2} L={v.rRap.Lres} /></div>
-        <Ficha code={info.code} adopt={`y2 = ${fmt(v.rRap.y2, 2)} m · Lr = ${fmt(v.rRap.Lres, 2)} m`} rows={[["yc", fmt(v.rRap.yc, 3), "m"], ["y1", fmt(v.rRap.y1, 3), "m"], ["Fr1", fmt(v.rRap.Fr1, 2), "—"], ["y2", fmt(v.rRap.y2, 3), "m"], ["Lr", fmt(v.rRap.Lres, 2), "m"]]} />
+        <Ficha code={info.code} adopt={`y2 = ${fmt(v.rRap.y2, 2)} m · Lr = ${fmt(v.rRap.Lres, 2)} m`} rows={[["yc", fmt(v.rRap.yc, 3), "m"], ["y1", fmt(v.rRap.y1, 3), "m"], ["Fr1", fmt(v.rRap.Fr1, 2), "—"], ["y2", fmt(v.rRap.y2, 3), "m"], ["L cuenco", fmt(v.rRap.LcuencoUSBR, 2), "m"], ["D50 enrocado", fmt(v.rRap.D50rip * 100, 1), "cm"]]} />
       </div>
     );
   } else if (kind === "aliviadero") {
@@ -242,6 +243,46 @@ export function HidroPackModule({ kind }: { kind: HidroPackKind }) {
             </div>
           </fieldset>
         )}
+        {kind === "bocatoma" && (
+          <fieldset className="fieldset">
+            <legend>Socavación (Lischtvan–Lebediev)</legend>
+            <div className="grid-2">
+              <Field label="Periodo de retorno Tr" unit="años"><Num value={boc.Tr} onChange={(v) => setBoc({ ...boc, Tr: v })} step="10" /></Field>
+              <Field label="Coef. de contracción μ"><Num value={boc.muContr} onChange={(v) => setBoc({ ...boc, muContr: v })} /></Field>
+            </div>
+          </fieldset>
+        )}
+        {kind === "bocatoma" && (
+          <fieldset className="fieldset">
+            <legend>Estabilidad del barraje</legend>
+            <div className="grid-2">
+              <Field label="Base del barraje B" unit="m"><Num value={boc.Bbarraje} onChange={(v) => setBoc({ ...boc, Bbarraje: v })} /></Field>
+              <Field label="Talud de descarga m (H:V)"><Num value={boc.mDescarga} onChange={(v) => setBoc({ ...boc, mDescarga: v })} /></Field>
+              <Field label="Dentellón aguas arriba" unit="m"><Num value={boc.cutoffUp} onChange={(v) => setBoc({ ...boc, cutoffUp: v })} /></Field>
+              <Field label="Dentellón aguas abajo" unit="m"><Num value={boc.cutoffDown} onChange={(v) => setBoc({ ...boc, cutoffDown: v })} /></Field>
+              <Field label="Suelo de cimentación">
+                <select value={boc.tipoSuelo} onChange={(e) => setBoc({ ...boc, tipoSuelo: e.target.value })}>
+                  {LANE_CW.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label} (Cw={s.Cw})</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="γ concreto" unit="t/m³"><Num value={boc.gammaConcreto} onChange={(v) => setBoc({ ...boc, gammaConcreto: v })} /></Field>
+              <Field label="φ cimentación" unit="°"><Num value={boc.phiCimentacion} onChange={(v) => setBoc({ ...boc, phiCimentacion: v })} /></Field>
+              <Field label="σ adm. cimentación" unit="kg/cm²"><Num value={boc.sigmaAdmBarraje} onChange={(v) => setBoc({ ...boc, sigmaAdmBarraje: v })} /></Field>
+            </div>
+          </fieldset>
+        )}
+        {kind === "bocatoma" && (
+          <fieldset className="fieldset">
+            <legend>Desripiador (purga de fondo)</legend>
+            <div className="grid-2">
+              <Field label="Ancho compuerta" unit="m"><Num value={boc.bDesrip} onChange={(v) => setBoc({ ...boc, bDesrip: v })} /></Field>
+              <Field label="Altura compuerta" unit="m"><Num value={boc.hDesrip} onChange={(v) => setBoc({ ...boc, hDesrip: v })} /></Field>
+              <Field label="Cd compuerta"><Num value={boc.CdDesrip} onChange={(v) => setBoc({ ...boc, CdDesrip: v })} /></Field>
+            </div>
+          </fieldset>
+        )}
         {kind === "rapida" && (
           <fieldset className="fieldset">
             <legend>Rápida / caída</legend>
@@ -263,6 +304,7 @@ export function HidroPackModule({ kind }: { kind: HidroPackKind }) {
               <Field label="S canal"><Num value={rap.Scanal} onChange={(v) => setRap({ ...rap, Scanal: v })} /></Field>
               <Field label="TW cola" unit="m"><Num value={rap.TW} onChange={(v) => setRap({ ...rap, TW: v })} /></Field>
               <Field label="e losa" unit="m"><Num value={rap.eLosa} onChange={(v) => setRap({ ...rap, eLosa: v })} /></Field>
+              <Field label="Gs enrocado (escollera)"><Num value={rap.GsRip} onChange={(v) => setRap({ ...rap, GsRip: v })} /></Field>
               {rap.tipo === "escalonada" ? (
                 <>
                   <Field label="h escalón" unit="m"><Num value={rap.hEscalon} onChange={(v) => setRap({ ...rap, hEscalon: v })} /></Field>

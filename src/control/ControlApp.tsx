@@ -214,7 +214,7 @@ export function ControlApp() {
   const [tab, setTab] = useState<DrawerTab>("cuenta");
   const [edit, setEdit] = useState<Listing | null>(null);
   const [invite, setInvite] = useState("");
-  const [draft, setDraft] = useState({ plan: "free", sku: "free", status: "active", device_limit: 1, expiration_at: "", phone: "" });
+  const [draft, setDraft] = useState({ plan: "free", sku: "free", status: "active", device_limit: 2, expiration_at: "", phone: "" });
   const [notice, setNotice] = useState({ title: "", body: "" });
   const [product, setProduct] = useState({ name: "", description: "", price_label: "", category: "Servicios", city: "", phone: "" });
   const [perfil, setPerfil] = useState<Record<string, unknown> | null>(null);
@@ -274,7 +274,7 @@ export function ControlApp() {
       plan: planVigente(sel) ? "pro" : "free",
       sku: sel.sku || "free",
       status: sel.status || "active",
-      device_limit: sel.device_limit || 1,
+      device_limit: sel.device_limit || 2,
       expiration_at: localUntil(sel.paid_until),
       phone: sel.phone || "",
     });
@@ -816,8 +816,8 @@ export function ControlApp() {
             ) : null}
             {tab === "pcs" ? (
               <div>
-                <p>Estado Ingeniería: {sel.device_id ? "Anclado" : "Libre / sin ancla"}</p>
-                <p>Equipo anclado: {sel.device_label || "—"}</p>
+                <p>Estado Ingeniería: {sel.device_id ? `Anclado (${sel.device_count || 1} de ${sel.device_limit} equipos)` : "Libre / sin ancla"}</p>
+                <p>Equipo(s) anclado(s): {sel.device_label || "—"}</p>
                 <p>Installs Folio: {sel.installCount} · PC↔cuenta: {snap.accounts.filter((a) => a.user_id === sel.user_id).length}</p>
                 <table className="ctl-table">
                   <thead><tr><th>App</th><th>Equipo</th><th>Red</th><th>Visto</th></tr></thead>
@@ -933,7 +933,11 @@ function UsersView({
           ))}
         </tbody>
       </table>
-      {filtered.length === 0 ? <p className="ctl-empty">Ninguna cuenta con ese filtro.</p> : null}
+      {filtered.length === 0 ? (
+        <p className="ctl-empty">
+          {users.length === 0 ? "No se pudo leer el inventario. Las cuentas no se han borrado." : "Ninguna cuenta con ese filtro."}
+        </p>
+      ) : null}
       <div className="ctl-invite">
         <h3>Invitar por correo</h3>
         <input value={invite} onChange={(e) => onInvite(e.target.value)} placeholder="cliente@correo.com" />

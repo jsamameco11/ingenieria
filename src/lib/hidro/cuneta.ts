@@ -130,6 +130,12 @@ export function calcularCuneta(inp: CunetaInput) {
   const Vmin = inp.n >= 0.022 ? 0.4 : 0.3;
   const Vmax = inp.n >= 0.022 ? 1.2 : 4.0;
 
+  /* ── Espaciamiento máximo entre puntos de descarga (aliviaderos/alcantarillas de alivio) ──
+     El caudal crece linealmente con la longitud tributaria (método racional, área ∝ L); se despeja
+     la longitud a la que el caudal acumulado alcanzaría la capacidad de la cuneta (Qcap). */
+  const Lmax = Qd > 1e-9 ? inp.Ltramo * (Qcap / Qd) : Infinity;
+  const cumpleLtramo = inp.Ltramo <= Lmax;
+
   return {
     a,
     Kfreq,
@@ -161,6 +167,8 @@ export function calcularCuneta(inp: CunetaInput) {
     cumpleVelMin: V >= Vmin,
     cumpleVelMax: V <= Vmax,
     cumpleSpread: spread <= inp.Tmax,
+    Lmax,
+    cumpleLtramo,
     zona: ZONAS_IILA.find((z) => z.id === inp.zonaId) ?? null,
   };
 }

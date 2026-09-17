@@ -147,6 +147,24 @@ export function calcularSifon(inp: SifonInput) {
   const inclinSal = thetaS > 0 ? 1 / Math.tan(thetaS) : Infinity;
   const cumpleIncl = inclinEnt >= 2 && inclinSal >= 2;
 
+  /* ── Válvulas de aire: en el punto alto de cada transición (entrada y salida) para evitar el
+     "airlock" que bloquea el flujo, más una cada ≈300 m de tramo horizontal en sifones largos ── */
+  const nAireReq = 2 + Math.floor(inp.Lhorizontal / 300);
+  const cumpleAire = inp.nAire >= nAireReq;
+
+  /* ── Válvula(s) de limpieza en el punto más bajo del sifón (cota4), donde decanta el sedimento ── */
+  const nLimpiaReq = 1;
+  const cumpleLimpia = inp.nLimpia >= nLimpiaReq;
+
+  /* ── Presión interna máxima (en el punto más bajo, cota4) y recubrimiento mínimo por carga externa.
+     La presión de trabajo debe quedar por debajo de la presión nominal de la clase de tubería
+     declarada (dato de catálogo del fabricante, no calculado aquí); el recubrimiento se compara
+     contra un mínimo usual para tránsito vehicular — verificar y aumentar si el sifón cruza una vía. */
+  const cabezaPresionMax = Math.max(0, cotaNA1 - cota4) * 1.2; // ×1.2: margen simplificado por golpe de ariete
+  const presionMaxKgcm2 = cabezaPresionMax / 10;
+  const recubMin = 1.0;
+  const cumpleRecub = inp.recubrimiento >= recubMin;
+
   return {
     y1, g1, Q1, V1, yc1, Sc1, Fr1, BL1,
     y6, g6, Q6, V6, yc6, Sc6, Fr6, BL6,
@@ -160,5 +178,7 @@ export function calcularSifon(inp: SifonInput) {
     Vok, inclinEnt, inclinSal, cumpleIncl,
     regimenEnt: Fr1 >= 1 ? "supercrítico (rápido)" : "subcrítico (lento)",
     regimenSal: Fr6 >= 1 ? "supercrítico (rápido)" : "subcrítico (lento)",
+    nAireReq, cumpleAire, nLimpiaReq, cumpleLimpia,
+    cabezaPresionMax, presionMaxKgcm2, recubMin, cumpleRecub,
   };
 }

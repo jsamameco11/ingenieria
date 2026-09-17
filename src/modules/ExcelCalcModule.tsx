@@ -8,6 +8,10 @@ import { FullSelect } from "../ui/FullSelect";
 import { CalcDirtyNote, CalcularButton, MemoriaPendiente, useMemoriaOnCalcular } from "../ui/calcular";
 import { Paper } from "../ui/Paper";
 import { Diagram, ColumnaPM } from "../components/Diagram";
+import { GridPaños } from "../components/GridPaños";
+import { CorridaColumnas } from "../components/CorridaColumnas";
+import { SteelSectionFig } from "../components/SteelSectionFig";
+import { specEstriboPantalla } from "../lib/steelEngine";
 import { PmExportPanel } from "../components/PmExportPanel";
 import { exportarWord } from "../lib/exportWord";
 import { printMemoria } from "../lib/printDoc";
@@ -377,6 +381,8 @@ function fichaVisible(f: FieldDef, values: Record<string, string>, slug: string)
 }
 
 function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme = false) {
+  if ((f.key === "wu" || f.key === "L") && values.metodoMu === "directo") return false;
+  if (f.key === "Mu" && values.metodoMu === "auto") return false;
   if (f.key === "wAz" && values.azotea === "no") return false;
   if (f.key === "LvolI" && values.voladoI === "no") return false;
   if (f.key === "LvolD" && values.voladoD === "no") return false;
@@ -442,6 +448,11 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
       }
     }
   }
+  if (values.tipoRefuerzo != null) {
+    const esGeomalla = values.tipoRefuerzo === "geomalla";
+    if (esGeomalla && ["fy", "wFleje", "Cu", "corr", "Vu"].includes(f.key)) return false;
+    if (!esGeomalla && ["Tult", "RFcr", "RFd", "RFid"].includes(f.key)) return false;
+  }
   if (values.tipo === "columnas" && ["tw", "eMuro"].includes(f.key)) return false;
   if (values.sistema === "elevado" && ["Lc", "Bc", "dias"].includes(f.key)) return false;
   if ((values.sistema === "cisterna" || values.sistema === "hidro") && f.key === "He") return true;
@@ -495,6 +506,7 @@ function CroquisBoard({
         onFocus={onFocus}
         onChange={onChange}
       />
+      {mod.diagram === "estribo" && sketch.asPant ? <SteelSectionFig spec={specEstriboPantalla(sketch)} /> : null}
       <aside className="ficha">
         <div className="ficha-head">
           <span>Datos del elemento</span>
@@ -627,8 +639,11 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   : []),
                 ...(mod.engine === "muroContencionSismo"
                   ? [
-                      "El croquis acota la pata, el alma, el talón, el peralte de zapata y el desplante D.",
+                      "El croquis acota la pata, el alma, el talón, el peralte de zapata y el desplante D. El alma se dibuja con talud (F en la base, B′ en coronación).",
                       "Tras la estabilidad se diseña el acero de pantalla, de la pata (inferior) y del talón (superior).",
+                      "Si el muro desliza, se prediseña un dentellón (taco) bajo el fuste (bk = F, hk por iteración de 5 cm) y se verifica FS_d, φMn y φVc.",
+                      "El sismo se dibuja con las posiciones de aplicación: Pa a H/3, ΔPae a 0,6 H (si existe) y PIR = Kh·W en el centro de gravedad.",
+                      "La deflexión de servicio se calcula paso a paso (Ec, Mcr, Ie de Branson y elástica del voladizo). Si δ > Hs/150, el espesor F se aumenta de 5 en 5 cm hasta cumplir, y se recalcula el muro.",
                       "Cada zona diseñada incluye el diagrama de momento flector, la fórmula de Mu y el acero adoptado.",
                     ]
                   : []),
@@ -657,10 +672,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
     ];
     const shownTables = new Set<string>();
     result.steps.forEach((s, i) => {
-      if (mod.engine === "vigaFlexion" && s.n === "06") {
+      if (mod.engine === "vigaFlexion" && s.n === "07") {
         blocks.push({ type: "h2", text: "3.b Cortante y estribos" });
       }
-      if (mod.engine === "vigaFlexion" && s.n === "12") {
+      if (mod.engine === "vigaFlexion" && s.n === "13") {
         blocks.push({ type: "h2", text: "3.c Despiece y metrado de estribos" });
       }
       if ((mod.engine === "columnaEsbeltez" && s.n === "10") || (mod.engine === "predColumnas" && s.n === "07")) {
@@ -669,16 +684,19 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.engine === "muroContencionSismo" && s.n === "07") {
         blocks.push({ type: "h2", text: "3.b Estabilidad del muro y de la cimentación" });
       }
+      if (mod.engine === "muroContencionSismo" && s.n === "07b") {
+        blocks.push({ type: "h2", text: "3.b.1 Predimensionamiento y verificación del dentellón" });
+      }
       if (mod.engine === "muroContencionSismo" && s.n === "11") {
         blocks.push({ type: "h2", text: "3.c Empuje sísmico Mononobe–Okabe" });
       }
       if (mod.engine === "muroContencionSismo" && s.n === "13") {
         blocks.push({ type: "h2", text: "3.d Diseño estructural de la pantalla — E.060" });
       }
-      if (mod.engine === "muroContencionSismo" && s.n === "16") {
+      if (mod.engine === "muroContencionSismo" && s.n === "17") {
         blocks.push({ type: "h2", text: "3.e Diseño de la zapata: pata y talón" });
       }
-      if (mod.engine === "muroContencionSismo" && s.n === "19") {
+      if (mod.engine === "muroContencionSismo" && s.n === "20") {
         blocks.push({ type: "h2", text: "3.f Cuadro de aceros" });
       }
       if (mod.engine === "reservorioApoyado") {
@@ -718,6 +736,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (s.table && s.table.headers.length) {
         const cap = s.table.caption || s.title;
         shownTables.add(cap);
+        if (s.table.zonas) {
+          blocks.push({ type: "metradoZonas", spec: s.table.zonas });
+        }
         blocks.push({
           type: "table",
           caption: cap,
@@ -749,6 +770,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "15") {
           blocks.push({ type: "figure", part: "mDirL" });
           blocks.push({ type: "figure", part: "mDirB" });
+          blocks.push({ type: "figure", part: "mSeccion" });
         }
       }
       if (mod.diagram === "zapataComb") {
@@ -756,8 +778,25 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "10") blocks.push({ type: "figure", part: "mTrans" });
       }
       if (mod.diagram === "zapataCorrida") {
-        if (s.n === "05") blocks.push({ type: "figure", part: "mTrans" });
-        if (s.n === "07" && values.tipo === "columnas") blocks.push({ type: "figure", part: "mLong" });
+        if (s.n === "05") {
+          blocks.push({ type: "figure", part: "mTrans" });
+          blocks.push({ type: "figure", part: "mSecTrans" });
+        }
+        if (s.n === "07" && values.tipo === "columnas") {
+          blocks.push({ type: "figure", part: "mLong" });
+          blocks.push({ type: "figure", part: "mSecLong" });
+        }
+        if (s.n === "01" && values.tipo === "columnas") blocks.push({ type: "figure", part: "mIso" });
+        if (s.n === "10") {
+          blocks.push({ type: "figure", part: "mSecTrans" });
+          blocks.push({ type: "figure", part: "mSecLong" });
+        }
+      }
+      if (mod.diagram === "losa2d") {
+        if (s.n === "04") blocks.push({ type: "figure", part: "mSteel" });
+      }
+      if (mod.diagram === "estribo") {
+        if (s.n === "38") blocks.push({ type: "figure", part: "mSeccion" });
       }
       if (mod.diagram === "platea") {
         if (s.n === "06") blocks.push({ type: "figure", part: "mIntX" });
@@ -766,16 +805,33 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "mIntY" });
           blocks.push({ type: "figure", part: "mEdgY" });
         }
+        if (s.n === "14") blocks.push({ type: "figure", part: "mSteel" });
       }
       if (mod.diagram === "escalera") {
         if (s.n === "04") blocks.push({ type: "figure", part: "mT1" });
         if (s.n === "06") blocks.push({ type: "figure", part: "mDesc" });
         if (s.n === "08") blocks.push({ type: "figure", part: "mT2" });
       }
+      if (mod.diagram === "vigaSeccion" || mod.diagram === "vigaEstribos") {
+        if (s.n === "02") {
+          blocks.push({ type: "figure", part: "mFlexM" });
+          blocks.push({ type: "figure", part: "mFlexV" });
+        }
+        if (s.n === "05") blocks.push({ type: "figure", part: "mFlexSec" });
+      }
       if (mod.diagram === "muroContencion") {
-        if (s.n === "14") blocks.push({ type: "figure", part: "mPantalla" });
-        if (s.n === "16") blocks.push({ type: "figure", part: "mPata" });
-        if (s.n === "17") blocks.push({ type: "figure", part: "mTalon" });
+        if (s.n === "01") blocks.push({ type: "figure", part: "mGeom" });
+        if (s.n === "03") blocks.push({ type: "figure", part: "mDCL" });
+        if (s.n === "07b") blocks.push({ type: "figure", part: "mDentellon" });
+        if (s.n === "11") blocks.push({ type: "figure", part: "mSismo" });
+        if (s.n === "14") {
+          blocks.push({ type: "figure", part: "mPantalla" });
+          blocks.push({ type: "figure", part: "mPantallaV" });
+          blocks.push({ type: "figure", part: "mSeccion" });
+        }
+        if (s.n === "16") blocks.push({ type: "figure", part: "mDeflex" });
+        if (s.n === "17") blocks.push({ type: "figure", part: "mPata" });
+        if (s.n === "18") blocks.push({ type: "figure", part: "mTalon" });
       }
       if (
         (mod.diagram === "reservorioApoyado" || mod.diagram === "reservorioCuadrado" ||
@@ -787,12 +843,21 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.diagram === "reservorioApoyado" && s.n === "12") {
         blocks.push({ type: "figure", part: "mMuro" });
       }
+      if (mod.diagram === "reservorioApoyado" && s.n === "13") {
+        blocks.push({ type: "figure", part: "mSecMuro" });
+      }
+      if (mod.diagram === "reservorioApoyado" && s.n === "14") {
+        blocks.push({ type: "figure", part: "mSecMuro" });
+      }
       if (mod.diagram === "reservorioCuadrado" && s.n === "10") {
         blocks.push({ type: "figure", part: "mMuroVert" });
       }
       if (mod.diagram === "reservorioCuadrado" && s.n === "11") {
         blocks.push({ type: "figure", part: "mMuroHorLy" });
         blocks.push({ type: "figure", part: "mMuroHorLx" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && s.n === "12") {
+        blocks.push({ type: "figure", part: "mSecMuro" });
       }
       if (mod.diagram === "reservorioCuadrado" && s.n === "14") {
         blocks.push({ type: "figure", part: "mTecho" });
@@ -808,6 +873,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "07") {
         blocks.push({ type: "figure", part: "mMuro" });
+        blocks.push({ type: "figure", part: "mSecMuro" });
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "08") {
         blocks.push({ type: "figure", part: "mSecDomo" });
@@ -934,6 +1000,11 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           </div>
         ) : null}
         {mod.slug === "espectro-e030" ? <E030Resumen values={values} /> : null}
+        {mod.slug === "losa-2dir" ? <GridPaños mode="losa" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
+        {mod.slug === "platea" ? <GridPaños mode="platea" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
+        {mod.slug === "zapata-corrida" && values.tipo === "columnas" ? (
+          <CorridaColumnas values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} />
+        ) : null}
         {groups.map(([group, fields]) => {
           if (mod.slug === "placa-muro" && /^[5-7]\. ETABS/.test(group)) return null;
           if (mod.slug === "placa-muro" && group === "4. ETABS CM (Dead)") {

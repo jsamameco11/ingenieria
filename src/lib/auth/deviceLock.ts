@@ -37,41 +37,46 @@ export function writeLocalEpoch(n: number) {
 
 export function isDeviceLockMissing(err: unknown) {
   const raw = err instanceof Error ? err.message : String(err ?? "");
-  return /does not exist|schema cache|42P01|PGRST|memorcalc_claim_device|memorcalc_device_lock|memorcalc_revoke/i.test(raw);
+  return /does not exist|schema cache|42P01|PGRST|memorcalc_claim_device|memorcalc_device_lock|memorcalc_revoke|Debe iniciar sesión/i.test(raw);
 }
 
 export async function claimThisDevice() {
   const deviceId = installId();
-  const { data, error } = await folio.rpc("memorcalc_claim_device", {
-    p_device_id: deviceId,
-    p_label: deviceLabel(),
-  });
-  if (error) {
-    const raw = error.message || "No se pudo anclar este equipo.";
-    if (/otro equipo|activa en otro/i.test(raw)) {
-      throw new Error(MSG_EQUIPO_OCUPADO);
+  let last: { data: unknown; error: { message?: string } | null } = { data: null, error: null };
+  for (let i = 0; i < 3; i++) {
+    const { data, error } = await folio.rpc("memorcalc_claim_device", {
+      p_device_id: deviceId,
+      p_label: deviceLabel(),
+    });
+    last = { data, error };
+    if (!error) {
+      const epoch = typeof data === "number" ? data : Number(data);
+      if (Number.isFinite(epoch)) writeLocalEpoch(epoch);
+      return { deviceId, epoch };
     }
-    throw new Error(raw);
+    if (!/Debe iniciar sesión/i.test(error.message || "") || i === 2) break;
+    await new Promise((r) => setTimeout(r, 350));
   }
-  const epoch = typeof data === "number" ? data : Number(data);
-  if (Number.isFinite(epoch)) writeLocalEpoch(epoch);
-  return { deviceId, epoch };
+  if (last.error) {
+    throw new Error(last.error.message || MSG_EQUIPO_OCUPADO);
+  }
+  return { deviceId, epoch: 0 };
 }
 
+/** Activo si ESTE equipo sigue entre los (hasta device_limit) equipos anclados a la cuenta. */
 export async function thisDeviceIsActive() {
   const { data: sessionData } = await folio.auth.getSession();
   const uid = sessionData.session?.user?.id;
   if (!uid) return true;
+  const mine = installId();
   const { data, error } = await folio
     .from("memorcalc_device_lock")
-    .select("device_id,session_epoch")
+    .select("device_id")
     .eq("user_id", uid)
+    .eq("device_id", mine)
     .maybeSingle();
-  if (error || !data) return true;
-  const mine = installId();
-  const remote = String(data.device_id || "");
-  if (!remote) return false;
-  return remote === mine;
+  if (error) return true;
+  return Boolean(data);
 }
 
 export async function revokeUserSessions(userId: string) {

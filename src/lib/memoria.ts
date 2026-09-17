@@ -1,3 +1,5 @@
+import type { MetradoLayout } from "./metradoZonas";
+
 export type Kv = { k: string; v: string; u?: string; hint?: string };
 
 export type Block =
@@ -19,14 +21,15 @@ export type Block =
       n: string;
       titulo: string;
       formula: string;
-      /** Versión en LaTeX de `formula`, renderizada con KaTeX. Si falta, se usa `formula` como texto plano. */
+      /** Versión en LaTeX de `formula`, renderizada con KaTeX. Si falta, se convierte el texto. */
       formulaTex?: string;
       sustituye: string;
       resultado: string;
       interpreta?: string;
       desarrollo?: string[];
     }
-  | { type: "figure"; part: string };
+  | { type: "figure"; part: string }
+  | { type: "metradoZonas"; spec: MetradoLayout };
 
 export interface MemoriaDoc {
   codigo: string;

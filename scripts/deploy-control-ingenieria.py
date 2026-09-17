@@ -13,7 +13,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 HOST = "161.132.51.100"
 USER = "root"
-PASSWORD = os.environ["VPS_PASS"]
+PASSWORD = os.environ.get("VPS_PASS") or None
 ROOT = Path(r"C:\Users\Renzo\Desktop\WEB MEMORIAS DESCRIPTIVAS")
 LOCAL_DIST = ROOT / "dist"
 LOCAL_SERVER = ROOT / "server" / "culqi-server.mjs"
@@ -38,6 +38,7 @@ VHOST = f"""<VirtualHost *:80>
     IncludeOptional snippets/ingenieria-culqi.conf
     IncludeOptional snippets/ingenieria-grok.conf
     IncludeOptional snippets/ingenieria-billing.conf
+    IncludeOptional snippets/ingenieria-control.conf
     IncludeOptional snippets/ingenieria-profile.conf
     ErrorLog ${{APACHE_LOG_DIR}}/control-ingenieria-error.log
     CustomLog ${{APACHE_LOG_DIR}}/control-ingenieria-access.log combined
@@ -50,11 +51,17 @@ BILLING_SNIPPET = """ProxyPreserveHost On
     ProxyPass http://127.0.0.1:8788/api/billing
     ProxyPassReverse http://127.0.0.1:8788/api/billing
 </Location>
+"""
+
+CONTROL_SNIPPET = """ProxyPreserveHost On
 <Location /api/control>
     FallbackResource disabled
     ProxyPass http://127.0.0.1:8788/api/control
     ProxyPassReverse http://127.0.0.1:8788/api/control
 </Location>
+"""
+
+PROFILE_SNIPPET = """ProxyPreserveHost On
 <Location /api/profile>
     FallbackResource disabled
     ProxyPass http://127.0.0.1:8788/api/profile
@@ -116,7 +123,10 @@ def main() -> None:
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print("Conectando al VPS…")
-    ssh.connect(HOST, username=USER, password=PASSWORD, timeout=25, allow_agent=False, look_for_keys=False)
+    if PASSWORD:
+        ssh.connect(HOST, username=USER, password=PASSWORD, timeout=25, allow_agent=False, look_for_keys=False)
+    else:
+        ssh.connect(HOST, username=USER, timeout=25, allow_agent=True, look_for_keys=True)
     sftp = ssh.open_sftp()
 
     print("Subiendo dist →", APP_CTRL)
@@ -141,6 +151,8 @@ def main() -> None:
     run(ssh, "a2enmod proxy proxy_http headers rewrite >/dev/null 2>&1 || true")
     run(ssh, "mkdir -p /etc/apache2/snippets")
     run(ssh, f"cat > /etc/apache2/snippets/ingenieria-billing.conf <<'EOF'\n{BILLING_SNIPPET}EOF")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-control.conf <<'EOF'\n{CONTROL_SNIPPET}EOF")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-profile.conf <<'EOF'\n{PROFILE_SNIPPET}EOF")
     run(ssh, f"cat > /etc/apache2/sites-available/{DOMAIN}.conf <<'EOF'\n{VHOST}EOF")
     run(ssh, f"cat > {APP_CTRL}/.htaccess <<'EOF'\n{HTACCESS}EOF")
     run(
@@ -185,11 +197,12 @@ EOF""",
         exists = run(ssh, f"test -f {vhost} && echo yes || true").strip()
         if not exists:
             continue
-        run(
-            ssh,
-            f"grep -q 'ingenieria-billing.conf' {vhost} || "
-            f"sed -i '/<\\/VirtualHost>/i\\    IncludeOptional snippets/ingenieria-billing.conf' {vhost}",
-        )
+        for snippet in ("ingenieria-billing.conf", "ingenieria-control.conf", "ingenieria-profile.conf"):
+            run(
+                ssh,
+                f"grep -q '{snippet}' {vhost} || "
+                f"sed -i '/<\\/VirtualHost>/i\\    IncludeOptional snippets/{snippet}' {vhost}",
+            )
     run(ssh, "apache2ctl configtest")
     run(ssh, "systemctl reload apache2")
 

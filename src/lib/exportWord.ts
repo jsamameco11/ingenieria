@@ -317,6 +317,16 @@ function blocksToParagraphs(blocks: Block[], graphics: CapturedGraphic[] = []): 
           })
         );
       }
+    } else if (b.type === "metradoZonas") {
+      const g =
+        byPart.get(b.spec.id) ??
+        unusedMain.find(
+          (x) =>
+            x.part === b.spec.id ||
+            x.caption.toLowerCase().includes(b.spec.caption.slice(0, 24).toLowerCase()) ||
+            x.caption.toLowerCase().includes("identificación de zonas")
+        );
+      if (g) out.push(...graphicParagraphs(g));
     } else if (b.type === "kpis") {
       out.push(
         new Table({

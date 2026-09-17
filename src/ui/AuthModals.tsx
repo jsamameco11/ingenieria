@@ -15,7 +15,6 @@ import {
   initGooglePicker,
   renderGoogleButton,
   startGoogleOAuthRedirect,
-  type GoogleIdentity,
 } from "../lib/auth/google";
 import { roleLabel } from "../lib/auth/engine";
 import { SOPORTE_LABEL, SOPORTE_WA } from "../lib/support";
@@ -36,23 +35,38 @@ function GoogleModal() {
   const { completeGoogle, closeModal, busy, error, session, setError, plansLive } = useAuth();
   const btnRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
-  const [pending, setPending] = useState<GoogleIdentity | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let tries = 0;
+    const paint = () => {
+      if (cancelled || !btnRef.current) return;
+      btnRef.current.innerHTML = "";
+      renderGoogleButton(btnRef.current);
+    };
     void (async () => {
       try {
         await loadGoogleIdentity();
         if (cancelled) return;
         initGooglePicker({
           onCredential: (id) => {
-            setPending(id);
             setError("");
+            void completeGoogle(id);
           },
           onError: (msg) => setError(msg),
         });
-        if (btnRef.current) renderGoogleButton(btnRef.current);
-        setReady(true);
+        const waitLayout = () => {
+          if (cancelled) return;
+          const w = btnRef.current?.getBoundingClientRect().width || 0;
+          if (w < 80 && tries < 12) {
+            tries += 1;
+            window.setTimeout(waitLayout, 50);
+            return;
+          }
+          paint();
+          setReady(true);
+        };
+        waitLayout();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Google no está disponible.");
       }
@@ -60,10 +74,9 @@ function GoogleModal() {
     return () => {
       cancelled = true;
     };
-  }, [setError]);
+  }, [completeGoogle, setError]);
 
   const chooseOther = () => {
-    setPending(null);
     setError("");
     startGoogleOAuthRedirect();
   };
@@ -75,46 +88,26 @@ function GoogleModal() {
           <p className="auth-kicker">MemoriaCalc</p>
           <h3 id="auth-google-title">Iniciar sesión</h3>
           <p>
-            Puede consultar las plantillas sin cuenta. Para modificar las plantillas debe iniciar sesión. Luego obtendrá
-            las plantillas{plansLive ? " gratuitamente" : ""}.
+            Use cualquier cuenta de Google. Puede consultar sin cuenta; para editar plantillas y guardar en la nube
+            inicie sesión{plansLive ? ". Luego las plantillas quedan disponibles" : ""}.
           </p>
         </header>
         <div className="auth-google-box">
-          {pending ? (
-            <div className="auth-who auth-google-pending">
-              {pending.picture ? (
-                <img src={pending.picture} alt="" />
-              ) : (
-                <span className="auth-avatar">{(pending.name || pending.email || "?")[0]}</span>
-              )}
-              <div>
-                <strong>{pending.name || "Cuenta Google"}</strong>
-                <small>{pending.email}</small>
-              </div>
-            </div>
+          {busy ? (
+            <button type="button" className="auth-google-btn" disabled>
+              <GoogleMark /> Abriendo sesión…
+            </button>
           ) : (
             <>
-              <div ref={btnRef} className="auth-gis" />
-              {!ready ? (
-                <button type="button" className="auth-google-btn" disabled>
-                  <GoogleMark /> Cargando Google…
-                </button>
-              ) : null}
+              <div ref={btnRef} className="auth-gis" hidden={!ready} />
+              <button type="button" className="auth-google-switch" disabled={busy} onClick={chooseOther}>
+                Elegir otra cuenta de Google
+              </button>
+              <button type="button" className="auth-google-btn auth-google-start" onClick={chooseOther}>
+                <GoogleMark /> Continuar con Google
+              </button>
             </>
           )}
-          {pending ? (
-            <button
-              type="button"
-              className="auth-google-btn auth-google-start"
-              disabled={busy}
-              onClick={() => void completeGoogle(pending)}
-            >
-              <GoogleMark /> {busy ? "Abriendo sesión…" : "Iniciar sesión"}
-            </button>
-          ) : null}
-          <button type="button" className="auth-google-switch" disabled={busy} onClick={chooseOther}>
-            Elegir otra cuenta de Google
-          </button>
         </div>
         {error ? <p className="auth-error">{error}</p> : null}
         {error && /977|otro equipo|sesiones/i.test(error) ? (
@@ -125,7 +118,7 @@ function GoogleModal() {
           </p>
         ) : null}
         <p className="auth-fine">
-          El inicio de sesión habilita la edición y la nube{plansLive ? ", y Plan Pro" : ""}. Una cuenta, un solo equipo.
+          El inicio de sesión habilita la edición y la nube{plansLive ? ", y Plan Pro" : ""}. Hasta 2 equipos por cuenta.
           Soporte WhatsApp 977 747 979.
         </p>
         <div className="auth-modal-actions">

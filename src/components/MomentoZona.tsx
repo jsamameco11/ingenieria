@@ -1,4 +1,17 @@
 import { DiagramaCuerpoLibreFig, ElementoDiagramaFig, FichaSeccionFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
+import { DclMuroVoladizo } from "./DclMuroVoladizo";
+import { SteelSectionFig } from "./SteelSectionFig";
+import { DentellonMuroFig, SismoMuroFig } from "./MuroDidactica";
+import { specFranja1m, specMuroVoladizo, specVigaRect } from "../lib/steelDraft";
+import {
+  specEstriboPantalla,
+  specLosaFromValues,
+  specPlateaFromValues,
+  specZapataCorridaLong,
+  specZapataCorridaTrans,
+} from "../lib/steelEngine";
+import { parseCorrida, parseGrid } from "../lib/layoutGrid";
+import { CorridaIsoFig } from "./CorridaColumnas";
 
 export function unpackMomentos(s: string) {
   return String(s || "")
@@ -157,14 +170,135 @@ function sv(v: Record<string, string>, k: string, fb = "") {
   return s || fb;
 }
 
+function sampleShearSimple(L: number, VA: number, n = 24) {
+  const pts: { x: number; M: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push({ x: t * L, M: VA * (1 - 2 * t) });
+  }
+  return pts;
+}
+
+function sampleShearCantilever(L: number, Vu: number, n = 24) {
+  const pts: { x: number; M: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    pts.push({ x: t * L, M: Vu * t * t });
+  }
+  return pts;
+}
+
+function VigaSeccionArmadaFig({ values }: { values: Record<string, string> }) {
+  return <SteelSectionFig spec={specVigaRect(values)} />;
+}
+
+function MuroSeccionArmadaFig({ values }: { values: Record<string, string> }) {
+  return <SteelSectionFig spec={specMuroVoladizo(values)} />;
+}
+
+function MuroDeflexFig({ values }: { values: Record<string, string> }) {
+  const Hs = nv(values, "Hs", nv(values, "H", 4));
+  const delta = nv(values, "deltaAlma", 0.5);
+  const deltaAdm = nv(values, "deltaAdm", 2.7);
+  const F = nv(values, "F", 0.4);
+  const Fuser = nv(values, "Fuser", F);
+  const ok = delta <= deltaAdm + 1e-9;
+  const Ht = 280;
+  const yTop = 40;
+  const yBot = 218;
+  const x0 = 88;
+  const amp = Math.min(78, 16 + Math.min(delta, deltaAdm * 2.2) * (52 / Math.max(deltaAdm, 0.4)));
+  const dPath = `M ${x0} ${yBot} Q ${x0 + amp * 0.35} ${(yTop + yBot) / 2} ${x0 + amp} ${yTop}`;
+  return (
+    <div className="croquis croquis-compact" data-fig-part="momento">
+      <div className="croquis-head">
+        <p>Deflexión de servicio de la pantalla</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 460 ${Ht}`} preserveAspectRatio="xMidYMid meet">
+          <rect x="0" y="0" width="460" height={Ht} fill="#fbf8f1" />
+          <text x="230" y="18" textAnchor="middle" fontSize="11" fill="#1a4473" fontWeight="600">
+            Voladizo empotrado — flecha en coronación
+          </text>
+          <line x1="46" y1={yBot} x2="210" y2={yBot} stroke="#8a7a55" strokeWidth="3" />
+          <rect x={x0 - 10} y={yTop} width="20" height={yBot - yTop} fill="#d9d2c3" stroke="#1a4473" strokeWidth="1.4" />
+          <path d={dPath} fill="none" stroke={ok ? "#1f6b3a" : "#8b1e1e"} strokeWidth="2" strokeDasharray="6,3" />
+          <line x1={x0 + 10} y1={yTop} x2={x0 + amp} y2={yTop} stroke={ok ? "#1f6b3a" : "#8b1e1e"} strokeWidth="1" />
+          <text x={x0 + amp / 2 + 16} y={yTop - 6} fontSize="9" fill={ok ? "#1f6b3a" : "#8b1e1e"} textAnchor="middle">
+            δ = {delta.toFixed(2)} cm
+          </text>
+          <text x="236" y="86" fontSize="9" fill="#1a4473">
+            {`Hs = ${Hs.toFixed(2)} m    ·    F = ${F.toFixed(2)} m`}
+          </text>
+          <text x="236" y="104" fontSize="9" fill="#1a4473">
+            {`δadm = Hs/150 = ${deltaAdm.toFixed(2)} cm`}
+          </text>
+          <text x="236" y="124" fontSize="10" fontWeight="700" fill={ok ? "#1f6b3a" : "#8b1e1e"}>
+            {ok ? "CUMPLE  ·  δ ≤ δadm" : "NO CUMPLE  ·  se engrosa F"}
+          </text>
+          {Math.abs(F - Fuser) > 0.02 ? (
+            <text x="236" y="142" fontSize="8.5" fill="#1a4473">
+              {`F ensayo ${Fuser.toFixed(2)} m → F adoptado ${F.toFixed(2)} m`}
+            </text>
+          ) : null}
+          <text x="16" y="258" fontSize="8" fill="#5a4a28">
+            Ie de Branson. Elástica M(x)/(Ec Ie). Si no cumple, F sube de 5 en 5 cm hasta δ ≤ Hs/150.
+          </text>
+        </svg>
+      </div>
+      <p className="croquis-cap">{`${ok ? "CUMPLE" : "NO CUMPLE"}   ·   δmáx = ${delta.toFixed(2)} cm   ·   δadm = ${deltaAdm.toFixed(2)} cm (Hs/150)   ·   F = ${F.toFixed(2)} m`}</p>
+    </div>
+  );
+}
+
 /** Figuras de momento por zona, según el croquis de la hoja. */
 export function figuraMomento(kind: string, part: string | undefined, values: Record<string, string>) {
   if (!part?.startsWith("m")) return null;
+  if (part === "mGeom") return null;
   if (part === "mDCL") {
     if (kind === "reservorioApoyado") return <DiagramaCuerpoLibreFig values={values} variant="cilindro" />;
     if (kind === "reservorioCuadrado") return <DiagramaCuerpoLibreFig values={values} variant="caja" />;
     if (kind === "tanqueElevadoColumnas") return <DiagramaCuerpoLibreFig values={values} variant="torreColumnas" />;
     if (kind === "tanqueElevadoFuste") return <DiagramaCuerpoLibreFig values={values} variant="torre" />;
+    if (kind === "muroContencion") return <DclMuroVoladizo values={values} />;
+  }
+  if (kind === "vigaSeccion" || kind === "vigaEstribos") {
+    if (part === "mFlexM") {
+      return (
+        <MomentoZonaFig
+          zona="Viga simplemente apoyada — momento flector M(x) que dimensiona el acero de tracción"
+          formula="M(x) = wu x (L − x)/2    ·    Mu = wu L²/8 (vano)"
+          L={nv(values, "L", 6)}
+          shape="simple"
+          MuPos={nv(values, "Mu")}
+          acero={sv(values, "asLong", "lecho inferior")}
+          As={sv(values, "As")}
+          cara="inferior · tracción en el vano"
+          unidad="t·m"
+          leftLabel="Apoyo A"
+          rightLabel="Apoyo B"
+          note="El pico Mu al centro es el momento que entra al cálculo de As (pasos 03–06). Tracción abajo."
+        />
+      );
+    }
+    if (part === "mFlexV") {
+      const L = nv(values, "L", 6);
+      const VA = nv(values, "VA", nv(values, "Vu", 0));
+      return (
+        <ElementoDiagramaFig
+          titulo="Viga simplemente apoyada — cortante V(x) que dimensiona los estribos"
+          formula="V(x) = wu (L/2 − x)    ·    VA = wu L/2    ·    Vu a distancia d del paño"
+          shape="franja"
+          dim1={nv(values, "h", 50)}
+          ejeLabel="Apoyo A → vano → apoyo B"
+          diagramas={[{ etiqueta: "Cortante V(x)", unidad: "t", pts: sampleShearSimple(L, Math.max(VA, 0.01)) }]}
+          aceroPrincipal={`Estribos Ø ${sv(values, "barEst", '3/8"')}  ·  ${sv(values, "arreglo", "—")}`}
+          aceroSecundario="El acero de corte no es el de flexión: se calcula con Vu, Vc y Vs (pasos 07–14)."
+          nota="V cambia de signo en el centro. La sección crítica a cortante está a una distancia d de la cara del apoyo."
+        />
+      );
+    }
+    if (part === "mFlexSec") return <VigaSeccionArmadaFig values={values} />;
   }
   if (kind === "zapata") {
     if (part === "mDirL") {
@@ -200,6 +334,20 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
           leftLabel="Borde libre"
           rightLabel="Cara de columna"
           note="Voladizo ortogonal. Tracción en la cara del suelo: malla inferior paralela a B."
+        />
+      );
+    }
+    if (part === "mSeccion") {
+      const hf = nv(values, "hf", 0.5);
+      return (
+        <SteelSectionFig
+          spec={specFranja1m({
+            title: "Zapata aislada — malla inferior, franja 1,00 m",
+            hCm: hf < 8 ? hf * 100 : hf,
+            recCm: nv(values, "rec", 7.5),
+            infText: sv(values, "asL", 'Ø 1/2" @ 15'),
+            distText: sv(values, "asB", 'Ø 1/2" @ 15'),
+          })}
         />
       );
     }
@@ -284,6 +432,31 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mSecTrans") return <SteelSectionFig spec={specZapataCorridaTrans(values)} />;
+    if (part === "mSecLong") {
+      const n = Math.max(1, Math.round(nv(values, "nTramos", 3)));
+      const s = nv(values, "sCol", 4);
+      const model = parseCorrida(sv(values, "corridaJson"), {
+        cols: Array.from({ length: n + 1 }, (_, i) => ({
+          id: `C${i + 1}`,
+          x: i * s,
+          ey: 0,
+          centered: true,
+          t1: nv(values, "t1", 0.3),
+          t2: nv(values, "t2", 0.4),
+          P1: 0,
+          P2: 0,
+          P3: 64,
+          M1: 0,
+          M2: 0,
+          M3: 0,
+        })),
+        hBeam: nv(values, "hBeam", 0.6),
+        bBeam: nv(values, "bBeam", 0.4),
+      });
+      return <SteelSectionFig spec={specZapataCorridaLong(values, model)} />;
+    }
+    if (part === "mIso") return <CorridaIsoFig values={values} />;
   }
   if (kind === "platea") {
     const map: Record<string, { zona: string; key: string; b: string }> = {
@@ -314,6 +487,21 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
           note="Método de fajas. El acero por metro se toma del mayor Mu de las cuatro franjas, en cada cara."
         />
       );
+    }
+    if (part === "mSteel") {
+      const nx = Math.max(1, Math.round(nv(values, "nBayX", 3)));
+      const ny = Math.max(1, Math.round(nv(values, "nBayY", 3)));
+      const Sx = nv(values, "Sx", 5);
+      const Sy = nv(values, "Sy", 5);
+      const ox = nv(values, "ox", 0.5);
+      const oy = nv(values, "oy", 0.5);
+      const grid = parseGrid(sv(values, "gridJson"), {
+        axesX: Array.from({ length: nx + 1 }, (_, i) => ox + i * Sx),
+        axesY: Array.from({ length: ny + 1 }, (_, i) => oy + i * Sy),
+        panes: Array.from({ length: ny }, () => Array.from({ length: nx }, () => true)),
+        cols: [],
+      });
+      return <SteelSectionFig spec={specPlateaFromValues(values, grid)} />;
     }
   }
   if (kind === "escalera") {
@@ -386,6 +574,27 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mPantallaV") {
+      const Hs = nv(values, "Hs", nv(values, "H", 4));
+      const Vu = nv(values, "VuStem", 1);
+      return (
+        <ElementoDiagramaFig
+          titulo="Pantalla — cortante V(y) que verifica el alma (no es el acero de flexión)"
+          formula="V(y) crece hacia la base    ·    Vu = máx(1,7 Vs ; Vs,sis)"
+          shape="franja"
+          dim1={nv(values, "F", 0.4) * 100}
+          ejeLabel="Coronación → base del alma"
+          diagramas={[{ etiqueta: "Cortante V(y)", unidad: "t/ml", pts: sampleShearCantilever(Hs, Math.max(Vu, 0.01)) }]}
+          aceroPrincipal={`Flexión: ${sv(values, "asAlma", "—")} (vertical, trasdós)`}
+          aceroSecundario="El concreto suele absorber Vu (φVc). Si no, aumente F."
+          nota="El diagrama de corte acompaña al de momento del voladizo. El acero vertical cubre M; el corte se verifica con φVc."
+        />
+      );
+    }
+    if (part === "mSeccion") return <MuroSeccionArmadaFig values={values} />;
+    if (part === "mSismo") return <SismoMuroFig values={values} />;
+    if (part === "mDentellon") return <DentellonMuroFig values={values} />;
+    if (part === "mDeflex") return <MuroDeflexFig values={values} />;
     if (part === "mPata") {
       return (
         <MomentoZonaFig
@@ -423,6 +632,24 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
       );
     }
   }
+  if (kind === "estribo") {
+    if (part === "mSeccion") return <SteelSectionFig spec={specEstriboPantalla(values)} />;
+  }
+  if (kind === "losa2d") {
+    if (part === "mSteel") {
+      const nx = Math.max(1, Math.round(nv(values, "nX", 1)));
+      const ny = Math.max(1, Math.round(nv(values, "nY", 1)));
+      const A = nv(values, "A", 4);
+      const B = nv(values, "B", 5);
+      const grid = parseGrid(sv(values, "gridJson"), {
+        axesX: Array.from({ length: nx + 1 }, (_, i) => i * A),
+        axesY: Array.from({ length: ny + 1 }, (_, i) => i * B),
+        panes: Array.from({ length: ny }, () => Array.from({ length: nx }, () => true)),
+        cols: [],
+      });
+      return <SteelSectionFig spec={specLosaFromValues(values, grid)} />;
+    }
+  }
   if (kind === "reservorioApoyado" || kind === "tanqueElevadoColumnas" || kind === "tanqueElevadoFuste") {
     const L = nv(values, kind === "reservorioApoyado" ? "HL" : "h1", 4);
     if (part === "mMuro") {
@@ -447,6 +674,19 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mSecMuro") {
+      return (
+        <SteelSectionFig
+          spec={specFranja1m({
+            title: "Pared de la cuba — franja 1,00 m (un Ø por cálculo)",
+            hCm: nv(values, "tMuro", 0.25) * 100,
+            recCm: nv(values, "rec", 4),
+            infText: sv(values, "asVert", 'Ø 1/2" @ 15'),
+            distText: sv(values, "asHoriz", 'Ø 1/2" @ 15'),
+          })}
+        />
+      );
+    }
     if (part === "mSecDomo") {
       return (
         <FichaSeccionFig
@@ -460,12 +700,14 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecLosa" && kind === "reservorioApoyado") {
       return (
-        <FichaSeccionFig
-          titulo="Losa de fondo"
-          shape="franja"
-          dim1={nv(values, "tLosa", 0.2) * 100}
-          aceroPrincipal={`Ambos sentidos: ${sv(values, "asLosa", "—")}`}
-          aceroSecundario="Apoyada sobre subrasante mejorada"
+        <SteelSectionFig
+          spec={specFranja1m({
+            title: "Losa de fondo — franja 1,00 m",
+            hCm: nv(values, "tLosa", 0.2) * 100,
+            recCm: nv(values, "rec", 4),
+            infText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
+            supText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
+          })}
         />
       );
     }
@@ -541,6 +783,19 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mSecMuro") {
+      return (
+        <SteelSectionFig
+          spec={specFranja1m({
+            title: "Muro rectangular — franja 1,00 m (un Ø por cálculo)",
+            hCm: nv(values, "tMuro", 0.25) * 100,
+            recCm: nv(values, "rec", 4),
+            infText: sv(values, "asVert", 'Ø 1/2" @ 15'),
+            distText: sv(values, "asHorVano", sv(values, "asHoriz", 'Ø 1/2" @ 15')),
+          })}
+        />
+      );
+    }
     if (part === "mTecho") {
       const ptsM = unpackMomentos(sv(values, "mPtsTecho"));
       const ptsV = unpackMomentos(sv(values, "vPtsTecho"));
@@ -563,12 +818,14 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecLosa") {
       return (
-        <FichaSeccionFig
-          titulo="Losa de fondo"
-          shape="franja"
-          dim1={nv(values, "tLosa", 0.2) * 100}
-          aceroPrincipal={`Ambos sentidos: ${sv(values, "asLosa", "—")}`}
-          aceroSecundario="Apoyada sobre subrasante mejorada"
+        <SteelSectionFig
+          spec={specFranja1m({
+            title: "Losa de fondo — franja 1,00 m",
+            hCm: nv(values, "tLosa", 0.2) * 100,
+            recCm: nv(values, "rec", 4),
+            infText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
+            supText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
+          })}
         />
       );
     }

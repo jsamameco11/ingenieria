@@ -242,10 +242,46 @@ h_codos = ${fmt(inp.nCodos, 0)} × ${fmt(inp.Kcodo, 2)} × ${fmt(r.ht, 4)} = ${f
             ? `H disponible (${fmt(r.hdisp, 3)} m) ≥ Σh (${fmt(r.hperd, 3)} m). El sifón descarga el caudal de diseño.`
             : `H disponible (${fmt(r.hdisp, 3)} m) < Σh (${fmt(r.hperd, 3)} m). Aumentar D, acortar L o elevar la carga.`,
         },
-        { type: "h2", text: "10. Conclusión" },
+        { type: "h2", text: "10. Válvulas de aire, cámaras de limpia y tubería" },
         {
           type: "p",
-          text: `Se proyecta sifón invertido de Ø ${r.Dpulg}\" (${fmt(r.D, 3)} m), transiciones de ${fmt(r.Lt, 2)} m, sello de ${fmt(r.sello, 3)} m y tubería de ${fmt(r.Ltotal, 1)} m. Velocidad ${fmt(r.Vt, 2)} m/s. ${r.cumpleEnergia && r.Vok && r.cumpleIncl ? "El diseño cumple capacidad, sello e inclinaciones." : "Revisar los ítems que no cumplen antes de proceder a planos."}`,
+          text: "El aire atrapado en los puntos altos del perfil bloquea el flujo (airlock) si no se purga; el sedimento decanta en el punto más bajo si no hay cómo lavarlo. La tubería, además de conducir el caudal de diseño, debe resistir la presión interna de trabajo y la carga externa del relleno y del tránsito sobre ella.",
+        },
+        { type: "eq", text: "n_aire,req = 2 (transiciones) + ⌊L_horizontal/300⌋     ·     P_trabajo ≈ 1.2 (cotaNA1 − cota4)", num: "6" },
+        paso(
+          "10.1",
+          "Válvulas de aire y cámaras de limpia",
+          "n_aire,req = 2 + ⌊Lhoriz/300⌋     ·     n_limpia,req = 1 (punto bajo)",
+          `Lhorizontal = ${fmt(inp.Lhorizontal, 1)} m`,
+          `n_aire = ${fmt(inp.nAire, 0)} (req. ${r.nAireReq}) · n_limpia = ${fmt(inp.nLimpia, 0)} (req. ${r.nLimpiaReq})`,
+          "Las válvulas de aire van en cada punto alto del perfil (las dos transiciones) y, en tramos horizontales largos, cada ≈300 m adicionales; la cámara de limpia va en el punto más bajo (cota4), donde se acumula el sedimento que el sifón no logra arrastrar a la velocidad de diseño.",
+        ),
+        {
+          type: "check",
+          ok: r.cumpleAire && r.cumpleLimpia,
+          text: r.cumpleAire && r.cumpleLimpia
+            ? "Válvulas de aire y cámaras de limpia suficientes según el perfil."
+            : `${!r.cumpleAire ? `Faltan válvulas de aire (mínimo ${r.nAireReq}). ` : ""}${!r.cumpleLimpia ? "Falta al menos una cámara de limpia en el punto bajo." : ""}`,
+        },
+        paso(
+          "10.2",
+          "Presión de trabajo y recubrimiento",
+          "P_trabajo ≈ 1.2·(cotaNA1−cota4)/10 (kg/cm², con margen simplificado por golpe de ariete)",
+          `cotaNA1=${fmt(r.cotaNA1, 2)} · cota4=${fmt(r.cota4, 2)} · recubrimiento=${fmt(inp.recubrimiento, 2)} m`,
+          `P trabajo ≈ ${fmt(r.presionMaxKgcm2, 2)} kg/cm² — verificar contra la presión nominal de «${inp.claseTubo}» · recubrimiento ${r.cumpleRecub ? "≥" : "<"} ${fmt(r.recubMin, 2)} m mínimo`,
+          "La presión de trabajo calculada aquí es la carga estática en el punto más bajo con un margen simplificado por transitorios; el fabricante de la clase de tubería declarada debe confirmar que su presión nominal (PN o clase) la cubre con su propio factor de seguridad. El recubrimiento mínimo asumido es para tránsito vehicular liviano — verificar y aumentar si el sifón cruza una vía con tránsito pesado.",
+        ),
+        {
+          type: "check",
+          ok: r.cumpleRecub,
+          text: r.cumpleRecub
+            ? "Recubrimiento suficiente para la carga externa asumida."
+            : `Recubrimiento de ${fmt(inp.recubrimiento, 2)} m < ${fmt(r.recubMin, 2)} m mínimo: la tubería queda expuesta a cargas de tránsito sin protección de relleno suficiente.`,
+        },
+        { type: "h2", text: "11. Conclusión" },
+        {
+          type: "p",
+          text: `Se proyecta sifón invertido de Ø ${r.Dpulg}\" (${fmt(r.D, 3)} m), transiciones de ${fmt(r.Lt, 2)} m, sello de ${fmt(r.sello, 3)} m y tubería de ${fmt(r.Ltotal, 1)} m. Velocidad ${fmt(r.Vt, 2)} m/s. Presión de trabajo ≈ ${fmt(r.presionMaxKgcm2, 2)} kg/cm², clase «${inp.claseTubo}», recubrimiento ${fmt(inp.recubrimiento, 2)} m. Se prevén ${inp.nAire} válvulas de aire y ${inp.nLimpia} cámara(s) de limpia. ${r.cumpleEnergia && r.Vok && r.cumpleIncl && r.cumpleAire && r.cumpleLimpia && r.cumpleRecub ? "El diseño cumple capacidad, sello, inclinaciones, ventilación, limpia y recubrimiento." : "Revisar los ítems que no cumplen antes de proceder a planos."}`,
         },
       ],
     }),

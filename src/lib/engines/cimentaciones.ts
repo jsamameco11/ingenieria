@@ -1,4 +1,14 @@
 import { type CalcCheck, type CalcOutput, type Engine, fmt, num, spacingFor, str } from "../types";
+import {
+  colLive,
+  defaultCorrida,
+  momentsAtFooting,
+  paneOn,
+  parseCorrida,
+  parseGrid,
+  puCol,
+  type GridModel,
+} from "../layoutGrid";
 
 function out(
   headline: string,
@@ -502,10 +512,22 @@ export const zapataCorrida: Engine = (raw) => {
   const fy = num(raw, "fy", 4200);
   const rec = num(raw, "rec", 7.5);
   const nTramos = Math.max(1, Math.round(num(raw, "nTramos", 3)));
-
   const isCols = tipo === "columnas";
-  const Psm = Pd + Pl;
-  const Pum = 1.4 * Pd + 1.7 * Pl;
+  const model = parseCorrida(
+    str(raw, "corridaJson", ""),
+    defaultCorrida(nTramos, sCol, t1, t2, (Pd + Pl) * sCol),
+  );
+  const cols = model.cols;
+  const Lbeam = isCols ? Math.max(cols[cols.length - 1].x - cols[0].x, sCol) : 0;
+  const bBeam = model.bBeam > 0.2 ? model.bBeam : num(raw, "bBeam", 0.4);
+  const hBeamIn = model.hBeam > 0.2 ? model.hBeam : num(raw, "hBeam", 0.6);
+
+  const PsmWall = Pd + Pl;
+  const PumWall = 1.4 * Pd + 1.7 * Pl;
+  const sumServ = isCols ? cols.reduce((s, c) => s + puCol(c).Pserv, 0) : PsmWall * Math.max(Lbeam, 1);
+  const sumPu = isCols ? cols.reduce((s, c) => s + puCol(c).Pu, 0) : PumWall * Math.max(Lbeam, 1);
+  const Psm = isCols ? sumServ / Math.max(Lbeam, 0.5) : PsmWall;
+  const Pum = isCols ? sumPu / Math.max(Lbeam, 0.5) : PumWall;
   const qn = qadm * 10 - gt * Df - 2.4 * hfIn - sc;
   let B = BIn > 0.4 ? round05(BIn) : round05(Math.max(isCols ? t1 + 0.6 : tw + 0.5, Psm / Math.max(qn, 0.3)));
   let qmed = Psm / B;
@@ -513,11 +535,12 @@ export const zapataCorrida: Engine = (raw) => {
     B = round05(Psm / Math.max(qn, 0.3) + 0.05);
     qmed = Psm / B;
   }
-  const e = isCols ? 0 : eMuro;
+  const eyMax = isCols ? Math.max(...cols.map((c) => Math.abs(c.centered ? 0 : c.ey))) : 0;
+  const e = isCols ? eyMax : eMuro;
   const qmax = qmed * (1 + (6 * Math.abs(e)) / B);
   const qmin = qmed * (1 - (6 * Math.abs(e)) / B);
   const inKern = Math.abs(e) <= B / 6 + 0.01;
-  const cWall = isCols ? t1 : tw;
+  const cWall = isCols ? Math.max(...cols.map((c) => c.t1), t1) : tw;
   const lvL = B / 2 - cWall / 2 + e;
   const lvR = B / 2 - cWall / 2 - e;
   const hNeed = Math.max(0.35, Math.max(lvL, lvR) / 2);
@@ -533,17 +556,29 @@ export const zapataCorrida: Engine = (raw) => {
   const sDist = spacingFor(AsDist, 0.71, 100);
   const sh = oneWay(qu, 1, Math.max(lvL, lvR), d, fc);
 
-  const Lbeam = isCols ? nTramos * sCol : 0;
-  const PuCol = isCols ? Pum * sCol : 0;
   const loads: PLoad[] = [];
   if (isCols) {
-    for (let i = 0; i <= nTramos; i++) loads.push({ x: i * sCol, P: 1.4 * Pd * sCol + 1.7 * Pl * sCol, label: `Col ${i + 1}` });
+    for (const c of cols) {
+      const p = puCol(c);
+      const m = momentsAtFooting(c, hf);
+      loads.push({ x: c.x - cols[0].x, P: p.Pu, M: m.M3, label: c.id });
+    }
   }
   const w = isCols ? qu * B : 0;
   const beam = isCols ? invertBeam(Lbeam, w, loads) : null;
-  const pun = isCols ? punch(PuCol, t1, t2, d, B, Math.max(sCol, t2 + 0.4), fc, sCol / 2, B / 2) : null;
-  const flexLong = beam ? asFlex(Math.max(beam.Mmax, -beam.Mmin), B * 100, d, fc, fy, rec) : null;
-  const sLong = flexLong ? spacingFor((flexLong.As / (B * 100)) * 100, 1.29, 100) : sDist;
+  const typ = isCols ? cols.reduce((a, c) => (puCol(c).Pu > puCol(a).Pu ? c : a), cols[0]) : null;
+  const pun = typ ? punch(puCol(typ).Pu, typ.t1, typ.t2, d, B, Math.max(sCol, typ.t2 + 0.4), fc, sCol / 2, B / 2) : null;
+  const hBeam = Math.max(hBeamIn, hf);
+  const dBeam = hBeam * 100 - rec;
+  const flexLong = beam ? asFlex(Math.max(beam.Mmax, -beam.Mmin), bBeam * 100, dBeam, fc, fy, rec) : null;
+  const sLong = flexLong ? spacingFor((flexLong.As / Math.max(bBeam * 100, 30)) * 100, 1.29, 100) : sDist;
+  const flexSup = beam ? asFlex(Math.max(beam.Mmax, 0), bBeam * 100, dBeam, fc, fy, rec) : null;
+  const sSup = flexSup ? spacingFor((flexSup.As / Math.max(bBeam * 100, 30)) * 100, 1.29, 100) : sLong;
+  const VuBeam = beam?.Vmax ?? 0;
+  const phiVcBeam = beam ? (0.85 * 0.53 * Math.sqrt(Math.max(fc, 1)) * bBeam * 100 * dBeam) / 1000 : 0;
+  const AvNeed = beam && VuBeam > phiVcBeam ? ((VuBeam - phiVcBeam) * 1000) / (0.85 * fy * dBeam) : 0.71 * 2 / 20;
+  const sEst = beam ? Math.min(dBeam / 2, Math.max(8, Math.floor(1.42 / Math.max(AvNeed, 0.02)))) : 20;
+  const eyDraw = typ && !typ.centered ? typ.ey : e;
 
   return out(
     isCols
@@ -555,14 +590,18 @@ export const zapataCorrida: Engine = (raw) => {
     [
       {
         n: "01",
-        title: isCols ? "Línea de columnas — carga por metro y por apoyo" : "Muro — carga por metro de corrida",
-        formula: isCols ? "p = PD + PL  (t/m de muro de carga)    ·    Pcol = p · s" : "p = PD + PL    ·    pu = 1.4 PD + 1.7 PL",
+        title: isCols ? "Línea de columnas — 6 GDL por apoyo" : "Muro — carga por metro de corrida",
+        formula: isCols
+          ? "P3 = FZ    ·    Pu = 1.5 P3    ·    M3c = M3 + P1·h    ·    ey,i si no está centrada"
+          : "p = PD + PL    ·    pu = 1.4 PD + 1.7 PL",
         substitution: isCols
-          ? `p=${fmt(Psm, 2)} t/m    s=${fmt(sCol, 2)} m    Pcol=${fmt(Psm * sCol, 1)} t    Pucol=${fmt(PuCol, 1)} t`
+          ? `${cols.length} columnas    L=${fmt(Lbeam, 2)} m    ΣP3=${fmt(sumServ, 1)} t    ΣPu=${fmt(sumPu, 1)} t    p=${fmt(Psm, 2)} t/m`
           : `PD=${fmt(Pd, 2)}  PL=${fmt(Pl, 2)} t/m    p=${fmt(Psm, 2)}    pu=${fmt(Pum, 2)} t/m`,
-        result: isCols ? `${nTramos} tramos  ·  ${nTramos + 1} columnas` : `Muro t = ${fmt(tw, 2)} m    ·    excentricidad e = ${fmt(e, 3)} m`,
+        result: isCols
+          ? `Gobernante ${typ?.id ?? "C1"}  P3=${fmt(typ ? puCol(typ).Pserv : 0, 1)} t    ey máx=${fmt(eyMax, 3)} m`
+          : `Muro t = ${fmt(tw, 2)} m    ·    excentricidad e = ${fmt(e, 3)} m`,
         note: isCols
-          ? "La corrida recibe la carga de la línea de columnas. El suelo reacciona en el ancho B; las columnas interactúan como viga invertida continua."
+          ? "Convenio ETABS: P1=FX, P2=FY, P3=FZ. Cada columna puede ir centrada o desplazada (ey). M3 entra como momento concentrado en la viga invertida."
           : "La zapata corrida se calcula por metro de longitud. Si el muro no está centrado (lindero), e desplaza la presión hacia un vuelo.",
       },
       {
@@ -614,22 +653,38 @@ export const zapataCorrida: Engine = (raw) => {
           ? `L=${fmt(Lbeam, 2)} m    w=${fmt(w, 2)} t/m    M+=${fmt(beam?.Mmax ?? 0, 2)}    M−=${fmt(beam?.Mmin ?? 0, 2)} t·m`
           : `As,dist = ${fmt(AsDist, 2)} cm²/m    h=${fmt(hf * 100, 0)} cm`,
         result: isCols
-          ? `Longitudinal Ø 1/2" @ ${sLong} cm  (As=${fmt(flexLong?.As ?? 0, 2)} cm² en el ancho B)`
+          ? `Viga ${fmt(bBeam, 2)}×${fmt(hBeam, 2)} m    inf. Ø 1/2" @ ${sLong} cm    sup. Ø 1/2" @ ${sSup} cm`
           : `Ø 3/8" @ ${sDist} cm paralelas al muro`,
         note: isCols
-          ? "Las columnas bajan cargas puntuales; el suelo las equilibra en el ancho B. M+ entre apoyos (acero inferior) y M− en vuelos de extremo si los hay."
+          ? "Las Pu y M3 de cada columna entran en la integración. M− (cara del suelo) arma el lecho inferior; M+ de vuelos el superior. El peralte de diseño es h de la viga de cimentación."
           : "La distribución controla fisuración y reparte la reacción del suelo a lo largo del muro.",
       },
       ...(isCols && pun
         ? [
             {
               n: "08",
-              title: "Punzonamiento en columna típica",
+              title: "Punzonamiento en la columna más cargada",
               formula: "Vu = Pucol − qu Acrit    ·    φVc = 0.85·1.06 √f'c b0 d",
-              substitution: `Pucol=${fmt(PuCol, 1)} t    Vu=${fmt(pun.Vu, 2)}    φVc=${fmt(pun.phiVc, 2)} t`,
+              substitution: `Pucol=${fmt(typ ? puCol(typ).Pu : 0, 1)} t    Vu=${fmt(pun.Vu, 2)}    φVc=${fmt(pun.phiVc, 2)} t`,
               result: pun.ok ? "CUMPLE" : "Aumentar h o B",
               ok: pun.ok,
-              note: "Cada columna perfora la corrida. Si el muro es de carga continua sin pedestales, este chequeo no gobierna.",
+              note: "Cada columna perfora la corrida. Si una está desplazada, el perímetro crítico se recorta hacia el borde cercano.",
+            },
+            {
+              n: "09",
+              title: "Estribos de la viga de cimentación",
+              formula: "φVc = 0.85·0.53 √f'c b d    ·    Av/s = Vs/(fy d)    ·    s ≤ d/2",
+              substitution: `Vu=${fmt(VuBeam, 1)} t    φVc=${fmt(phiVcBeam, 1)} t    b×h=${fmt(bBeam * 100, 0)}×${fmt(hBeam * 100, 0)} cm`,
+              result: `Estribos Ø 3/8" @ ${sEst.toFixed(0)} cm  (2 ramas)`,
+              ok: VuBeam <= 2.1 * phiVcBeam + 1e-6,
+              note: "Primer estribo a 5 cm de la cara de cada columna. Zona densa en d a cada lado del apoyo.",
+            },
+            {
+              n: "10",
+              title: "Cortes de despiece — una marca por cálculo",
+              formula: "Corte ⊥ al eje: acero de vuelo    ·    Corte longitudinal: lechos de la viga",
+              substitution: `ey dibujo=${fmt(eyDraw, 3)} m    ·    inf Ø 1/2" @ ${sLong}    sup Ø 1/2" @ ${sSup}`,
+              result: "Planos A1: perpendicular + longitudinal + isométrico de columnas",
             },
           ]
         : []),
@@ -643,6 +698,17 @@ export const zapataCorrida: Engine = (raw) => {
     ],
     isCols && beam
       ? [
+          {
+            title: "Columnas de la corrida (P3 axial, Pu=1.5 P3, M3c en la viga)",
+            rows: [
+              ["Col", "x (m)", "ey (m)", "P3 (t)", "Pu (t)", "M3c (t·m)", "eje"],
+              ...cols.map((c) => {
+                const p = puCol(c);
+                const m = momentsAtFooting(c, hf);
+                return [c.id, fmt(c.x, 2), fmt(c.centered ? 0 : c.ey, 3), fmt(p.Pserv, 1), fmt(p.Pu, 1), fmt(m.M3, 2), c.centered ? "centrada" : "excéntrica"];
+              }),
+            ],
+          },
           {
             title: "Estaciones de la viga invertida (línea de columnas)",
             rows: [
@@ -670,21 +736,27 @@ export const zapataCorrida: Engine = (raw) => {
       hAd: hf.toFixed(2),
       Df: Df.toFixed(2),
       tw: tw.toFixed(2),
-      t1: t1.toFixed(2),
-      t2: t2.toFixed(2),
+      t1: (typ?.t1 ?? t1).toFixed(2),
+      t2: (typ?.t2 ?? t2).toFixed(2),
       tipo,
       sCol: sCol.toFixed(2),
       lvL: lvL.toFixed(3),
       lvR: lvR.toFixed(3),
       MuCorr: Mu.toFixed(3),
       asPrin: `Ø 1/2" @ ${sPrin} cm`,
+      asDist: `Ø 3/8" @ ${sDist} cm`,
       AsPrin: flex.As.toFixed(2),
       Lbeam: Lbeam.toFixed(2),
       mPts: beam ? packPts(beam.pts) : "",
       Msoil: beam ? Math.max(-beam.Mmin, 0).toFixed(3) : "0",
       Mtop: beam ? Math.max(beam.Mmax, 0).toFixed(3) : "0",
       asLong: `Ø 1/2" @ ${sLong} cm`,
+      asBeamSup: `Ø 1/2" @ ${sSup} cm`,
       AsLong: flexLong ? flexLong.As.toFixed(2) : AsDist.toFixed(2),
+      bBeam: bBeam.toFixed(2),
+      hBeam: hBeam.toFixed(2),
+      eyDraw: eyDraw.toFixed(3),
+      corridaJson: str(raw, "corridaJson", ""),
     }
   );
 };
@@ -714,14 +786,34 @@ export const platea: Engine = (raw) => {
   const fy = num(raw, "fy", 4200);
   const rec = num(raw, "rec", 7.5);
 
-  const nColX = nBayX + 1;
-  const nColY = nBayY + 1;
-  const Lx = nBayX * Sx + 2 * ox;
-  const Ly = nBayY * Sy + 2 * oy;
+  const g = parseGrid(str(raw, "gridJson", ""), {
+    axesX: Array.from({ length: nBayX + 1 }, (_, i) => ox + i * Sx),
+    axesY: Array.from({ length: nBayY + 1 }, (_, i) => oy + i * Sy),
+    panes: Array.from({ length: nBayY }, () => Array.from({ length: nBayX }, () => true)),
+    cols: [],
+  });
+  const nBayXg = Math.max(1, g.axesX.length - 1);
+  const nBayYg = Math.max(1, g.axesY.length - 1);
+  const Lx = g.axesX[g.axesX.length - 1] - g.axesX[0];
+  const Ly = g.axesY[g.axesY.length - 1] - g.axesY[0];
+  const liveCols = g.cols.filter((c) => colLive(g, c.ix, c.iy));
+  const useGrid = liveCols.length > 0 && liveCols.some((c) => c.P3 > 0 || c.P1 !== 0 || c.M3 !== 0);
+
+  let A = 0;
+  for (let iy = 0; iy < g.panes.length; iy++) {
+    for (let ix = 0; ix < g.panes[iy].length; ix++) {
+      if (!paneOn(g, ix, iy)) continue;
+      A += (g.axesX[ix + 1] - g.axesX[ix]) * (g.axesY[iy + 1] - g.axesY[iy]);
+    }
+  }
+  if (A < 1) A = Lx * Ly;
+
+  const nColX = nBayXg + 1;
+  const nColY = nBayYg + 1;
   const nCor = 4;
   const nEdge = Math.max(0, 2 * (nColX - 2) + 2 * (nColY - 2));
   const nInt = Math.max(0, (nColX - 2) * (nColY - 2));
-  const nTot = nColX * nColY;
+  const nTot = useGrid ? liveCols.length : nColX * nColY;
 
   const PcorS = PdCor + PlCor;
   const PedS = PdEdge + PlEdge;
@@ -730,9 +822,8 @@ export const platea: Engine = (raw) => {
   const PedU = 1.4 * PdEdge + 1.7 * PlEdge;
   const PinU = 1.4 * PdInt + 1.7 * PlInt;
 
-  const PpColS = nCor * PcorS + nEdge * PedS + nInt * PinS;
-  const PpColU = nCor * PcorU + nEdge * PedU + nInt * PinU;
-  const A = Lx * Ly;
+  const PpColS = useGrid ? liveCols.reduce((s, c) => s + puCol(c).Pserv, 0) : nCor * PcorS + nEdge * PedS + nInt * PinS;
+  const PpColU = useGrid ? liveCols.reduce((s, c) => s + puCol(c).Pu, 0) : nCor * PcorU + nEdge * PedU + nInt * PinU;
   const Wslab = 2.4 * tIn * A;
   const Wfill = gt * Math.max(Df - tIn, 0) * A;
   const Wsc = sc * A;
@@ -765,26 +856,62 @@ export const platea: Engine = (raw) => {
     return outL;
   }
 
-  const bIntX = Sy;
-  const bEdgX = Sy / 2 + oy;
-  const bIntY = Sx;
-  const bEdgY = Sx / 2 + ox;
-  const loadsIntX = rowLoads("int", nColX, Sx, ox, PedU, PinU, PcorU);
-  const loadsEdgX = rowLoads("edge", nColX, Sx, ox, PedU, PinU, PcorU);
-  const loadsIntY = rowLoads("int", nColY, Sy, oy, PedU, PinU, PcorU);
-  const loadsEdgY = rowLoads("edge", nColY, Sy, oy, PedU, PinU, PcorU);
+  const bIntX = nBayYg > 1 ? (g.axesY[Math.floor(nBayYg / 2) + 1] - g.axesY[Math.floor(nBayYg / 2)]) : Sy;
+  const bEdgX = Math.max(0.4, (g.axesY[1] - g.axesY[0]) / 2);
+  const bIntY = nBayXg > 1 ? (g.axesX[Math.floor(nBayXg / 2) + 1] - g.axesX[Math.floor(nBayXg / 2)]) : Sx;
+  const bEdgY = Math.max(0.4, (g.axesX[1] - g.axesX[0]) / 2);
+
+  function stripX(iy: number): PLoad[] {
+    if (useGrid) {
+      return liveCols
+        .filter((c) => c.iy === iy)
+        .map((c) => {
+          const p = puCol(c);
+          const m = momentsAtFooting(c, t);
+          return { x: g.axesX[c.ix] - g.axesX[0], P: p.Pu, M: m.M3, label: `${c.ix},${c.iy}` };
+        });
+    }
+    const kind: "int" | "edge" = iy === 0 || iy === nColY - 1 ? "edge" : "int";
+    return rowLoads(kind, nColX, Sx, ox, PedU, PinU, PcorU);
+  }
+  function stripY(ix: number): PLoad[] {
+    if (useGrid) {
+      return liveCols
+        .filter((c) => c.ix === ix)
+        .map((c) => {
+          const p = puCol(c);
+          const m = momentsAtFooting(c, t);
+          return { x: g.axesY[c.iy] - g.axesY[0], P: p.Pu, M: m.M2, label: `${c.ix},${c.iy}` };
+        });
+    }
+    const kind: "int" | "edge" = ix === 0 || ix === nColX - 1 ? "edge" : "int";
+    return rowLoads(kind, nColY, Sy, oy, PedU, PinU, PcorU);
+  }
+
+  const loadsIntX = stripX(Math.floor(nColY / 2));
+  const loadsEdgX = stripX(0);
+  const loadsIntY = stripY(Math.floor(nColX / 2));
+  const loadsEdgY = stripY(0);
   const sumP = (ls: PLoad[]) => ls.reduce((s, p) => s + p.P, 0);
   const frIntX = invertBeam(Lx, sumP(loadsIntX) / Lx, loadsIntX);
   const frEdgX = invertBeam(Lx, sumP(loadsEdgX) / Lx, loadsEdgX);
   const frIntY = invertBeam(Ly, sumP(loadsIntY) / Ly, loadsIntY);
   const frEdgY = invertBeam(Ly, sumP(loadsEdgY) / Ly, loadsEdgY);
 
-  const Msoil = amp * Math.max(-frIntX.Mmin, -frEdgX.Mmin, -frIntY.Mmin, -frEdgY.Mmin, 0);
-  const Mtop = amp * Math.max(frIntX.Mmax, frEdgX.Mmax, frIntY.Mmax, frEdgY.Mmax, 0);
-  const flexPos = asFlex(Msoil / Math.max(bIntX, 1), 100, d, fc, fy, rec);
-  const flexNeg = asFlex(Mtop / Math.max(bIntX, 1), 100, d, fc, fy, rec);
+  const MsoilX = amp * Math.max(-frIntX.Mmin, -frEdgX.Mmin, 0);
+  const MtopX = amp * Math.max(frIntX.Mmax, frEdgX.Mmax, 0);
+  const MsoilY = amp * Math.max(-frIntY.Mmin, -frEdgY.Mmin, 0);
+  const MtopY = amp * Math.max(frIntY.Mmax, frEdgY.Mmax, 0);
+  const Msoil = Math.max(MsoilX, MsoilY);
+  const Mtop = Math.max(MtopX, MtopY);
+  const flexPos = asFlex(MsoilX / Math.max(bIntX, 1), 100, d, fc, fy, rec);
+  const flexNeg = asFlex(MtopX / Math.max(bIntX, 1), 100, d, fc, fy, rec);
+  const flexPosY = asFlex(MsoilY / Math.max(bIntY, 1), 100, d, fc, fy, rec);
+  const flexNegY = asFlex(MtopY / Math.max(bIntY, 1), 100, d, fc, fy, rec);
   const sPos = spacingFor(flexPos.As, 1.29, 100);
   const sNeg = spacingFor(flexNeg.As, 1.29, 100);
+  const sPosY = spacingFor(flexPosY.As, 1.29, 100);
+  const sNegY = spacingFor(flexNegY.As, 1.29, 100);
   const AsTemp = 0.0018 * 100 * t * 100;
   const sTemp = spacingFor(AsTemp, 0.71, 100);
 
@@ -822,7 +949,9 @@ export const platea: Engine = (raw) => {
         formula: "Lx = nX·Sx + 2 ox    ·    Ly = nY·Sy + 2 oy    ·    n col. = (nX+1)(nY+1)",
         substitution: `${nBayX}×${nBayY} paños    Sx=${fmt(Sx, 2)}  Sy=${fmt(Sy, 2)}    ox=${fmt(ox, 2)}  oy=${fmt(oy, 2)}`,
         result: `Lx=${fmt(Lx, 2)} m    Ly=${fmt(Ly, 2)} m    ·    ${nTot} columnas (${nCor} esquinas, ${nEdge} bordes, ${nInt} interiores)`,
-        note: "Los vuelos ox, oy sacan la resultante hacia el interior del núcleo y reducen el punzonamiento de esquina. La columna se toma cuadrada de lado c.",
+        note: useGrid
+          ? "Paños apagados no entran al área ni a las franjas. Cada columna viva aporta P3 (FZ) y M2/M3 trasladados al plano de contacto."
+          : "Los vuelos ox, oy sacan la resultante hacia el interior del núcleo y reducen el punzonamiento de esquina. La columna se toma cuadrada de lado c.",
       },
       {
         n: "02",
@@ -888,7 +1017,7 @@ export const platea: Engine = (raw) => {
         title: "Acero por metro — mallas inferior y superior",
         formula: "As = Mu/(φ fy j d) por metro    ·    Asmín = 0.0018 t",
         substitution: `Mu,suelo gob. = ${fmt(Msoil / Math.max(bIntX, 1), 2)} t·m/m    Mu,vuelo gob. = ${fmt(Mtop / Math.max(bIntX, 1), 2)} t·m/m    d=${fmt(d, 1)} cm`,
-        result: `Inferior Ø 1/2" @ ${sPos} cm  (As=${fmt(flexPos.As, 2)} cm²/m)    ·    Superior Ø 1/2" @ ${sNeg} cm  (As=${fmt(flexNeg.As, 2)} cm²/m)`,
+        result: `Inf X Ø 1/2" @ ${sPos} cm    ·    Inf Y Ø 1/2" @ ${sPosY} cm    ·    Sup X Ø 1/2" @ ${sNeg} cm    ·    Sup Y Ø 1/2" @ ${sNegY} cm`,
         note: "Ambas direcciones. En bandas de columna se puede densificar al s calculado; en el centro del paño no bajar de Asmín ni de Ø 3/8\" @ 25 cm.",
       },
       {
@@ -914,6 +1043,21 @@ export const platea: Engine = (raw) => {
         formula: "As,temp = 0.0018 t    ·    s ≤ 3t y ≤ 45 cm",
         substitution: `t=${fmt(t * 100, 0)} cm    As=${fmt(AsTemp, 2)} cm²/m`,
         result: `Ø 3/8" @ ${sTemp} cm en la cara que no gobierne por flexión`,
+      },
+      {
+        n: "13",
+        title: "Viga de cimentación bajo líneas de columnas",
+        formula: "b = c + 0.30 m    ·    Mu = M de franja interior / b    ·    estribos si Vu > φVc",
+        substitution: `b=${fmt(c + 0.3, 2)} m    Mu inf=${fmt(Msoil / Math.max(bIntX, 1), 2)} t·m/m    V=${fmt(frIntX.Vmax, 1)} t`,
+        result: `Lecho inf. Ø 1/2" @ ${sPos} cm    ·    lecho sup. Ø 1/2" @ ${sNeg} cm    ·    estribos Ø 3/8" @ 15 cm`,
+        note: "La viga es la franja de columna densificada. El resto del paño lleva la malla de losa de platea. Un acero representativo por lecho en la planta A1.",
+      },
+      {
+        n: "14",
+        title: "Despiece de mallas — una marca por cálculo",
+        formula: "Inf. X/Y = tracción hacia el suelo    ·    Sup. X/Y = vuelos y bordes",
+        substitution: `Ø 1/2" @ ${sPos} inf X    ·    Ø 1/2" @ ${sPosY} inf Y    ·    Ø 1/2" @ ${sNeg} / ${sNegY} sup.`,
+        result: "Planta A1 con un Ø representativo por lecho y dirección",
       },
     ],
     [
@@ -977,8 +1121,13 @@ export const platea: Engine = (raw) => {
       mIntYMneg: (amp * Math.max(-frIntY.Mmin, 0)).toFixed(2),
       mEdgYMpos: (amp * Math.max(frEdgY.Mmax, 0)).toFixed(2),
       mEdgYMneg: (amp * Math.max(-frEdgY.Mmin, 0)).toFixed(2),
-      asPos: `Ø 1/2" @ ${sPos} cm inf. · Ø 1/2" @ ${sNeg} cm sup.`,
+      asPos: `Ø 1/2" @ ${sPos} cm`,
+      asNeg: `Ø 1/2" @ ${sNeg} cm`,
+      asPosY: `Ø 1/2" @ ${sPos} cm`,
+      asNegY: `Ø 1/2" @ ${sNeg} cm`,
       AsPos: flexPos.As.toFixed(2),
+      AsNeg: flexNeg.As.toFixed(2),
+      gridJson: str(raw, "gridJson", ""),
     }
   );
 };

@@ -1,3 +1,5 @@
+import type { MetradoLayout } from "./metradoZonas";
+
 export type FieldKind = "number" | "select" | "text" | "textarea";
 
 export type FieldDef = {
@@ -28,7 +30,7 @@ export type CalcStep = {
   /** Líneas de desarrollo numérico (aritmética intermedia). */
   desarrollo?: string[];
   /** Cuadro de metrado o resumen, pegado al paso (estilo hoja de cálculo). */
-  table?: { caption?: string; headers: string[]; rows: string[][] };
+  table?: { caption?: string; headers: string[]; rows: string[][]; zonas?: MetradoLayout };
 };
 
 export type CalcCheck = {

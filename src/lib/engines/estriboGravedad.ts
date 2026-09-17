@@ -1,4 +1,5 @@
 import { type CalcCheck, type CalcOutput, type CalcStep, type Engine, fmt, num, rad, str } from "../types";
+import { layoutEstriboGravedadDC, layoutEstriboGravedadEV, type MetradoLayout } from "../metradoZonas";
 
 function out(
   headline: string,
@@ -26,11 +27,11 @@ function paso(
   return { n, title, formula, substitution, result, ...extra };
 }
 
-function bindTable(steps: CalcStep[], n: string, extra: { title: string; rows: string[][] } | undefined) {
+function bindTable(steps: CalcStep[], n: string, extra: { title: string; rows: string[][]; zonas?: MetradoLayout } | undefined) {
   if (!extra) return;
   const s = steps.find((x) => x.n === n);
   if (!s) return;
-  s.table = { caption: extra.title, headers: extra.rows[0] ?? [], rows: extra.rows.slice(1) };
+  s.table = { caption: extra.title, headers: extra.rows[0] ?? [], rows: extra.rows.slice(1), zonas: extra.zonas };
 }
 
 function nn(i: number) {
@@ -652,23 +653,23 @@ export const estriboGravedad: Engine = (raw) => {
       {
         title: "Cuerpos de concreto DC (franja 1.00 m)",
         rows: [
-          ["Cuerpo", "Volumen (m³/m)", "DC (t/m)", "x desde A (m)", "M (t·m/m)"],
-          ["1 alma triangular", fmt(V1, 3), t(DC1), fmt(x1, 3), tm(DC1 * x1)],
-          ["2 cajuela N", fmt(V2, 3), t(DC2), fmt(x2, 3), tm(DC2 * x2)],
-          ["3 asiento t", fmt(V3, 3), t(DC3), fmt(x3, 3), tm(DC3 * x3)],
-          ["4 zapata h·B", fmt(V4, 3), t(DC4), fmt(x4, 3), tm(DC4 * x4)],
-          ["DCestr", fmt(V1 + V2 + V3 + V4, 3), t(DCestr), fmt(XAestr, 3), tm(Mdc)],
-          ["DClosa = γc e,losa b", fmt(eLosa * bTalon, 3), t(DClosa), fmt(xLosa, 3), tm(DClosa * xLosa)],
+          ["N.º", "Cuerpo", "Volumen (m³/m)", "DC (t/m)", "x desde A (m)", "M (t·m/m)"],
+          ["1", "Alma triangular", fmt(V1, 3), t(DC1), fmt(x1, 3), tm(DC1 * x1)],
+          ["2", "Cajuela N", fmt(V2, 3), t(DC2), fmt(x2, 3), tm(DC2 * x2)],
+          ["3", "Asiento t", fmt(V3, 3), t(DC3), fmt(x3, 3), tm(DC3 * x3)],
+          ["4", "Zapata h·B", fmt(V4, 3), t(DC4), fmt(x4, 3), tm(DC4 * x4)],
+          ["Σ", "DCestr", fmt(V1 + V2 + V3 + V4, 3), t(DCestr), fmt(XAestr, 3), tm(Mdc)],
+          ["5", "DClosa = γc e,losa b", fmt(eLosa * bTalon, 3), t(DClosa), fmt(xLosa, 3), tm(DClosa * xLosa)],
         ],
       },
       {
         title: "Presión vertical EV por cuerpo",
         rows: [
-          ["Cuerpo", "Volumen (m³/m)", "EV (t/m)", "x desde A (m)", "M (t·m/m)"],
-          ["EV1 talón", fmt(EV1v, 3), t(EV1), fmt(xEV1, 3), tm(EV1 * xEV1)],
-          ["EV2 puntera", fmt(EV2v, 3), t(EV2), fmt(xEV2, 3), tm(EV2 * xEV2)],
-          ["EV3 cuña tan S", fmt(EV3v, 3), t(EV3), fmt(xEV3, 3), tm(EV3 * xEV3)],
-          ["EV", fmt(EV1v + EV2v + EV3v, 3), t(EV), fmt(XAEV, 3), tm(MEV)],
+          ["N.º", "Cuerpo", "Volumen (m³/m)", "EV (t/m)", "x desde A (m)", "M (t·m/m)"],
+          ["1", "EV1 talón", fmt(EV1v, 3), t(EV1), fmt(xEV1, 3), tm(EV1 * xEV1)],
+          ["2", "EV2 puntera", fmt(EV2v, 3), t(EV2), fmt(xEV2, 3), tm(EV2 * xEV2)],
+          ["3", "EV3 cuña tan S", fmt(EV3v, 3), t(EV3), fmt(xEV3, 3), tm(EV3 * xEV3)],
+          ["Σ", "EV", fmt(EV1v + EV2v + EV3v, 3), t(EV), fmt(XAEV, 3), tm(MEV)],
         ],
       },
       {
@@ -730,8 +731,14 @@ export const estriboGravedad: Engine = (raw) => {
         ],
       },
     ];
-      bindTable(steps, "13", extras[1]);
-      bindTable(steps, "19", extras[2]);
+      bindTable(steps, "13", {
+        ...extras[1],
+        zonas: layoutEstriboGravedadDC({ H, B, a, stem, N, tBack, bTalon, h, e, eLosa }),
+      });
+      bindTable(steps, "19", {
+        ...extras[2],
+        zonas: layoutEstriboGravedadEV({ H, B, a, bTalon, h, eLosa, hz, wSkew }),
+      });
       bindTable(steps, "23", extras[3]);
       bindTable(steps, "25", extras[6]);
       bindTable(steps, "26", extras[7]);

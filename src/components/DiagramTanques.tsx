@@ -246,7 +246,7 @@ export function ReservorioCuadradoCroquis({ values }: { values: Record<string, s
 
 /* ---------------- Cuba INTZE (compartida entre tanques elevados) ---------------- */
 
-function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record<string, string>) {
+function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record<string, string>, rApoyoPx?: number) {
   const D = nv(values, "D", 8);
   const rp = nv(values, "rp", D * 0.3);
   const h1 = nv(values, "h1", 4);
@@ -255,52 +255,94 @@ function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record
   const fSup = nv(values, "fSup", D / 5);
 
   const Rpx = (D / 2) * scale;
-  const rpPx = (rp / 2) * scale;
+  const rCamaraPx = Math.max(8, (rp / 2) * scale);
+  const rApoyo = rApoyoPx ?? Math.max(rCamaraPx + 10, (nv(values, "Dfuste", D * 0.55) / 2) * scale);
   const h1px = h1 * scale;
   const hConoPx = hCono * scale;
-  const fInfPx = Math.max(10, fInf * scale);
+  const fInfPx = Math.max(8, Math.min(hConoPx * 0.45, fInf * scale));
   const fSupPx = Math.max(14, fSup * scale);
+  const hCamaraPx = Math.max(16, Math.min(42, rCamaraPx * 1.15));
 
   const yAnilloInf = baseY;
   const yAnilloSup = yAnilloInf - hConoPx;
   const yTechoBase = yAnilloSup - h1px;
+  const yCamaraBot = yAnilloInf + hCamaraPx;
+  const yDomoFondo = yAnilloInf + fInfPx;
 
   const kApprox = 0.5523;
   const path = [
-    `M ${cx - rpPx} ${yAnilloInf}`,
-    `C ${cx - rpPx} ${yAnilloInf + fInfPx * kApprox * 2} ${cx + rpPx} ${yAnilloInf + fInfPx * kApprox * 2} ${cx + rpPx} ${yAnilloInf}`,
+    `M ${cx - Rpx} ${yTechoBase}`,
+    `C ${cx - Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx + Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx + Rpx} ${yTechoBase}`,
     `L ${cx + Rpx} ${yAnilloSup}`,
-    `L ${cx + Rpx} ${yTechoBase}`,
-    `C ${cx + Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx - Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx - Rpx} ${yTechoBase}`,
+    `L ${cx + rApoyo} ${yAnilloInf}`,
+    `L ${cx + rCamaraPx} ${yAnilloInf}`,
+    `L ${cx + rCamaraPx} ${yCamaraBot}`,
+    `L ${cx - rCamaraPx} ${yCamaraBot}`,
+    `L ${cx - rCamaraPx} ${yAnilloInf}`,
+    `L ${cx - rApoyo} ${yAnilloInf}`,
     `L ${cx - Rpx} ${yAnilloSup}`,
     `Z`,
   ].join(" ");
 
   const aguaTop = yAnilloSup - h1px * 0.92;
-  return { Rpx, rpPx, h1px, hConoPx, fInfPx, fSupPx, yAnilloInf, yAnilloSup, yTechoBase, path, aguaTop, D, rp, h1, hCono, fInf, fSup };
+  return {
+    Rpx, rCamaraPx, rApoyo, h1px, hConoPx, fInfPx, fSupPx, hCamaraPx,
+    yAnilloInf, yAnilloSup, yTechoBase, yCamaraBot, yDomoFondo, path, aguaTop,
+    D, rp, h1, hCono, fInf, fSup,
+  };
 }
 
-function CubaIntzeElevacion({ values, cx = 210, baseY = 250, scale }: { values: Record<string, string>; cx?: number; baseY?: number; scale: number }) {
-  const g = cubaIntzePaths(cx, baseY, scale, values);
+function CubaIntzeElevacion({
+  values,
+  cx = 210,
+  baseY = 250,
+  scale,
+  rApoyoPx,
+}: {
+  values: Record<string, string>;
+  cx?: number;
+  baseY?: number;
+  scale: number;
+  rApoyoPx?: number;
+}) {
+  const g = cubaIntzePaths(cx, baseY, scale, values, rApoyoPx);
+  const ringH = Math.max(5, g.rApoyo * 0.08);
+  const kApprox = 0.5523;
+  const fondo = `M ${cx - g.rApoyo + 2} ${g.yAnilloInf} C ${cx - g.rApoyo + 2} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx - g.rCamaraPx} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx - g.rCamaraPx} ${g.yAnilloInf}`;
+  const fondoR = `M ${cx + g.rCamaraPx} ${g.yAnilloInf} C ${cx + g.rCamaraPx} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx + g.rApoyo - 2} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx + g.rApoyo - 2} ${g.yAnilloInf}`;
   return (
     <g>
       <path d={g.path} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
-      <rect x={cx - g.Rpx} y={g.aguaTop} width={g.Rpx * 2} height={g.yAnilloSup - g.aguaTop} fill="url(#tq-water)" opacity="0.85" />
-      <line x1={cx - g.rpPx - 6} y1={g.yAnilloInf} x2={cx + g.rpPx + 6} y2={g.yAnilloInf} stroke={NAVY} strokeWidth="2.4" />
-      <line x1={cx - g.Rpx - 6} y1={g.yAnilloSup} x2={cx + g.Rpx + 6} y2={g.yAnilloSup} stroke={NAVY} strokeWidth="2.4" />
-      <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 5} fontSize="8" fill={INK} textAnchor="end">
+      <rect x={cx - g.Rpx + 2} y={g.aguaTop} width={g.Rpx * 2 - 4} height={Math.max(0, g.yAnilloSup - g.aguaTop)} fill="url(#tq-water)" opacity="0.85" />
+      <polygon
+        points={`${cx - g.Rpx},${g.yAnilloSup} ${cx + g.Rpx},${g.yAnilloSup} ${cx + g.rApoyo},${g.yAnilloInf} ${cx - g.rApoyo},${g.yAnilloInf}`}
+        fill="url(#tq-water)"
+        opacity="0.55"
+      />
+      <path d={fondo} fill="none" stroke={NAVY} strokeWidth="1.3" />
+      <path d={fondoR} fill="none" stroke={NAVY} strokeWidth="1.3" />
+      <rect x={cx - g.rApoyo - 6} y={g.yAnilloInf - ringH / 2} width={g.rApoyo * 2 + 12} height={ringH} fill={NAVY} opacity="0.92" />
+      <rect x={cx - g.Rpx - 6} y={g.yAnilloSup - 2} width={g.Rpx * 2 + 12} height="4" fill={NAVY} opacity="0.85" />
+      <rect x={cx - g.rCamaraPx} y={g.yAnilloInf} width={g.rCamaraPx * 2} height={g.hCamaraPx} fill="#fbf8f1" stroke={NAVY} strokeWidth="1.2" />
+      <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 6} fontSize="7.5" fill={INK} textAnchor="end">
         Anillo superior
       </text>
-      <text x={cx - g.rpPx - 8} y={g.yAnilloInf - 5} fontSize="8" fill={INK} textAnchor="end">
-        Anillo inferior
+      <text x={cx - g.rApoyo - 8} y={g.yAnilloInf - ringH - 3} fontSize="7.5" fill={INK} textAnchor="end">
+        Viga anillo inf. (inflexión)
       </text>
-      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="8" fill={INK} textAnchor="end">
+      <text x={cx + 4} y={g.yAnilloInf + g.hCamaraPx * 0.62} fontSize="7" fill={NAVY}>
+        Cámara de inspección
+      </text>
+      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yAnilloInf) / 2} fontSize="7.5" fill={INK} textAnchor="end">
         Fondo cónico
+      </text>
+      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="7.5" fill={INK} textAnchor="end">
+        Pared cilíndrica
       </text>
       <Cota x1={cx - g.Rpx} y1={g.yTechoBase - g.fSupPx * 2 - 20} x2={cx + g.Rpx} y2={g.yTechoBase - g.fSupPx * 2 - 20} text={`D=${g.D.toFixed(2)} m`} side={14} />
       <Cota x1={cx + g.Rpx + 44} y1={g.yTechoBase} x2={cx + g.Rpx + 44} y2={g.yAnilloSup} text={`h1=${g.h1.toFixed(2)}`} side={16} vertical />
       <Cota x1={cx + g.Rpx + 44} y1={g.yAnilloSup} x2={cx + g.Rpx + 44} y2={g.yAnilloInf} text={`hc=${g.hCono.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx - g.rpPx} y1={g.yAnilloInf + g.fInfPx * 2 + 16} x2={cx + g.rpPx} y2={g.yAnilloInf + g.fInfPx * 2 + 16} text={`r'=${(g.rp).toFixed(2)} m`} side={12} />
+      <Cota x1={cx - g.rCamaraPx} y1={g.yCamaraBot + 14} x2={cx + g.rCamaraPx} y2={g.yCamaraBot + 14} text={`Ø cámara=${g.rp.toFixed(2)} m`} side={10} />
     </g>
   );
 }
@@ -402,7 +444,7 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
           })}
         </g>
       ))}
-      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
+      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} rApoyoPx={RcolPx} />
       <Cota x1={colXPorNivel[0][0]} y1={baseY + 24} x2={colXPorNivel[0][nVisible - 1]} y2={baseY + 24} text={`2·Rcol,base=${(2 * RcolBase).toFixed(2)} m`} side={14} />
       <Cota x1={cx + RcolBasePx + 44} y1={baseY - 16} x2={cx + RcolBasePx + 44} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
       <Cota x1={cx - RcolBasePx - 44} y1={yBase} x2={cx - RcolBasePx - 44} y2={nivelesY[1] ?? yTop} text={`h=${hEntreCalc.toFixed(2)}`} side={-16} vertical />
@@ -493,15 +535,15 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
     <g>
       <rect x={cx - DcimPx / 2 - 30} y={baseY} width={DcimPx + 60} height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
       <rect x={cx - DcimPx / 2} y={fusteBotY} width={DcimPx} height="18" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
-      {/* Fuste: pared cilíndrica de concreto con sombreado de borde (efecto tubo) */}
-      <rect x={cx - DfustePx / 2} y={fusteTopY} width={DfustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
-      <rect x={cx - DfustePx / 2} y={fusteTopY} width={DfustePx * 0.12} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
-      <rect x={cx + DfustePx / 2 - DfustePx * 0.12} y={fusteTopY} width={DfustePx * 0.12} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      {/* Fuste hueco: las paredes llegan a la viga del anillo inferior (punto más bajo de la cuba). */}
+      <rect x={cx - DfustePx / 2} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+      <rect x={cx + DfustePx / 2 - eFustePx} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+      <rect x={cx - DfustePx / 2 + eFustePx} y={fusteTopY} width={DfustePx - 2 * eFustePx} height={fusteBotY - fusteTopY} fill="#efe8d8" opacity="0.55" />
+      <rect x={cx - DfustePx / 2} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      <rect x={cx + DfustePx / 2 - eFustePx * 0.45} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
       {costillasX.map((x, i) => (
-        <line key={`rib-${i}`} x1={x} y1={fusteTopY + 3} x2={x} y2={fusteBotY - 3} stroke="#8a7d63" strokeWidth="0.5" opacity="0.55" />
+        <line key={`rib-${i}`} x1={x} y1={fusteTopY + 3} x2={x} y2={fusteBotY - 3} stroke="#8a7d63" strokeWidth="0.5" opacity="0.4" />
       ))}
-      <line x1={cx - DfustePx / 2 + eFustePx} y1={fusteTopY + 4} x2={cx - DfustePx / 2 + eFustePx} y2={fusteBotY} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
-      <line x1={cx + DfustePx / 2 - eFustePx} y1={fusteTopY + 4} x2={cx + DfustePx / 2 - eFustePx} y2={fusteBotY} stroke="#8a7d63" strokeWidth="0.8" strokeDasharray="2,2" />
       {/* Escalera lateral exterior típica de fuste */}
       <line x1={cx + DfustePx / 2 + 6} y1={fusteTopY + 10} x2={cx + DfustePx / 2 + 6} y2={fusteBotY - 10} stroke={INK} strokeWidth="0.9" />
       {(() => {
@@ -521,7 +563,7 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
           </text>
         </g>
       ))}
-      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
+      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} rApoyoPx={DfustePx / 2} />
       <Cota x1={cx - DfustePx / 2} y1={baseY + 24} x2={cx + DfustePx / 2} y2={baseY + 24} text={`Ø fuste=${Dfuste.toFixed(2)} m`} side={14} />
       <Cota x1={cx + DfustePx / 2 + 40} y1={fusteBotY} x2={cx + DfustePx / 2 + 40} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
       {nVigas > 1 && (
@@ -1101,11 +1143,24 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
     hSismoY = cubaTopY + (yTop - cubaTopY) * 0.5;
     structure = (
       <g>
-        <line x1={cx - halfW * 0.6} y1={yTop} x2={cx - halfW} y2={baseY} stroke={NAVY} strokeWidth="2.6" />
-        <line x1={cx + halfW * 0.6} y1={yTop} x2={cx + halfW} y2={baseY} stroke={NAVY} strokeWidth="2.6" />
-        <path d={`M ${cx - halfW * 0.85} ${yTop - 4} Q ${cx} ${cubaTopY} ${cx + halfW * 0.85} ${yTop - 4} L ${cx + halfW * 1.15} ${yTop + 18} Q ${cx} ${yTop + 34} ${cx - halfW * 1.15} ${yTop + 18} Z`}
-          fill="url(#tq-water)" stroke={NAVY} strokeWidth="1.3" />
-        <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
+        {/* Fuste hueco isométrico: elipse base + paredes + corona */}
+        <ellipse cx={cx} cy={baseY} rx={halfW} ry={halfW * 0.32} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+        <line x1={cx - halfW} y1={yTop} x2={cx - halfW} y2={baseY} stroke={NAVY} strokeWidth="2.2" />
+        <line x1={cx + halfW} y1={yTop} x2={cx + halfW} y2={baseY} stroke={NAVY} strokeWidth="2.2" />
+        <line x1={cx - halfW + 8} y1={yTop + 8} x2={cx - halfW + 8} y2={baseY - 6} stroke={NAVY} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
+        <line x1={cx + halfW - 8} y1={yTop + 8} x2={cx + halfW - 8} y2={baseY - 6} stroke={NAVY} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
+        <ellipse cx={cx} cy={yTop} rx={halfW} ry={halfW * 0.32} fill="#efe8d8" stroke={NAVY} strokeWidth="1.4" />
+        {/* Cuba INTZE: pared, cono y anillo inferior apoyado en la corona del fuste */}
+        <path
+          d={`M ${cx - cubaHalfW} ${yTop - 8} C ${cx - cubaHalfW} ${cubaTopY} ${cx + cubaHalfW} ${cubaTopY} ${cx + cubaHalfW} ${yTop - 8} L ${cx + cubaHalfW} ${yTop - 8 + (yTop - cubaTopY) * 0.55} L ${cx + halfW * 0.95} ${yTop + 4} L ${cx - halfW * 0.95} ${yTop + 4} L ${cx - cubaHalfW} ${yTop - 8 + (yTop - cubaTopY) * 0.55} Z`}
+          fill="url(#tq-water)"
+          stroke={NAVY}
+          strokeWidth="1.4"
+        />
+        <line x1={cx - halfW * 1.05} y1={yTop + 2} x2={cx + halfW * 1.05} y2={yTop + 2} stroke={NAVY} strokeWidth="3.2" />
+        <ellipse cx={cx} cy={yTop + 10} rx={halfW * 0.35} ry={halfW * 0.12} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
+        <text x={cx + halfW + 8} y={yTop + 5} fontSize="7.5" fill={INK}>Anillo inf.</text>
+        <circle cx={cx} cy={(cubaTopY + yTop) / 2 - 4} r="2.2" fill={NAVY} />
       </g>
     );
   } else {

@@ -367,6 +367,7 @@ export default function App() {
     const applyHash = () => {
       const h = decodeURIComponent(window.location.hash.replace(/^#/, "")).trim();
       if (!h) return;
+      if (/(?:^|&)id_token=/.test(h) || h.includes("id_token=")) return;
       go(h);
     };
     applyHash();

@@ -22,13 +22,58 @@ export type GoogleIdentity = {
   sub: string;
 };
 
+const NONCE_KEY = "mcd-g-nonce";
+const RETURN_KEY = "mcd-g-return";
+
 let gisReady: Promise<void> | null = null;
+let pendingOAuthToken: string | null = null;
+
+function decodeJwt(token: string): Record<string, string> {
+  const part = token.split(".")[1];
+  if (!part) return {};
+  try {
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const bin = atob(pad);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function stealOAuthHash() {
+  if (typeof window === "undefined") return;
+  const raw = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+  if (!raw.includes("id_token=")) return;
+  const params = new URLSearchParams(raw);
+  const token = String(params.get("id_token") || "").trim();
+  if (token && token.split(".").length === 3) {
+    const expected = sessionStorage.getItem(NONCE_KEY) || "";
+    const nonce = String(params.get("nonce") || decodeJwt(token).nonce || "");
+    if (!expected || !nonce || nonce === expected) pendingOAuthToken = token;
+  }
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+
+stealOAuthHash();
+
+export function takePendingGoogleToken(): string | null {
+  const token = pendingOAuthToken;
+  pendingOAuthToken = null;
+  return token;
+}
 
 export function loadGoogleIdentity(): Promise<void> {
   if (window.google?.accounts?.id) return Promise.resolve();
   if (gisReady) return gisReady;
   gisReady = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-gis="1"]');
+    const existing = document.querySelector<HTMLScriptElement>('script[data-gis="1"], script[src*="accounts.google.com/gsi/client"]');
+    if (existing && window.google?.accounts?.id) {
+      resolve();
+      return;
+    }
     if (existing) {
       existing.addEventListener("load", () => resolve());
       existing.addEventListener("error", () => reject(new Error("No se pudo cargar Google Identity.")));
@@ -47,21 +92,6 @@ export function loadGoogleIdentity(): Promise<void> {
     document.head.appendChild(s);
   });
   return gisReady;
-}
-
-function decodeJwt(token: string): Record<string, string> {
-  const part = token.split(".")[1];
-  if (!part) return {};
-  try {
-    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-    const bin = atob(pad);
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    const json = new TextDecoder().decode(bytes);
-    return JSON.parse(json) as Record<string, string>;
-  } catch {
-    return {};
-  }
 }
 
 export function identityFromCredential(credential: string): GoogleIdentity {
@@ -106,12 +136,13 @@ export function initGooglePicker(opts: {
 }
 
 export function promptGoogleAccounts(): void {
-  /* One Tap dispara «origin no registrado» en este dominio. El botón GIS basta. */
+  window.google?.accounts?.id?.prompt?.();
 }
 
 export function startGoogleOAuthRedirect() {
   const nonce = crypto.randomUUID();
-  sessionStorage.setItem("mcd-g-nonce", nonce);
+  sessionStorage.setItem(NONCE_KEY, nonce);
+  sessionStorage.setItem(RETURN_KEY, `${window.location.pathname}${window.location.search}`);
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", FOLIO_GOOGLE_WEB_CLIENT_ID);
   u.searchParams.set("redirect_uri", `${window.location.origin}/`);
@@ -122,7 +153,17 @@ export function startGoogleOAuthRedirect() {
   window.location.assign(u.toString());
 }
 
+export function consumeGoogleReturnPath() {
+  const back = sessionStorage.getItem(RETURN_KEY) || "";
+  sessionStorage.removeItem(RETURN_KEY);
+  sessionStorage.removeItem(NONCE_KEY);
+  if (!back || back === `${window.location.pathname}${window.location.search}`) return;
+  if (!back.startsWith("/") || back.startsWith("//")) return;
+  window.location.replace(`${window.location.origin}${back}`);
+}
+
 export function renderGoogleButton(el: HTMLElement): void {
+  const width = Math.max(240, Math.min(360, Math.floor(el.getBoundingClientRect().width) || el.clientWidth || 320));
   window.google?.accounts?.id?.renderButton(el, {
     theme: "outline",
     size: "large",
@@ -130,7 +171,7 @@ export function renderGoogleButton(el: HTMLElement): void {
     text: "continue_with",
     shape: "rectangular",
     logo_alignment: "left",
-    width: Math.min(360, el.clientWidth || 320),
+    width,
     locale: "es",
   });
 }
@@ -138,8 +179,8 @@ export function renderGoogleButton(el: HTMLElement): void {
 function publicSessionError(raw: string): string {
   const text = raw.trim();
   if (!text) return "No se pudo abrir la sesión con Google.";
-  if (/autorizada para esa cuenta|cliente Google|No se pudo validar|aún no abrió la sesión|Folio aún no|session_not_found|Refresh Token/i.test(text)) {
-    return "Google entregó la cuenta, pero aún no se pudo abrir la sesión. Pulse «Iniciar sesión» de nuevo.";
+  if (/autorizada para esa cuenta|cliente Google|No se pudo validar|aún no abrió la sesión|Folio aún no|session_not_found|Refresh Token|invalid_grant|validation_failed/i.test(text)) {
+    return "Google entregó la cuenta, pero aún no se pudo abrir la sesión. Pulse «Continuar con Google» de nuevo.";
   }
   return text.replace(/\bFolio\b/gi, "MemoriaCalc");
 }

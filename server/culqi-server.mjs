@@ -196,7 +196,10 @@ function cors(req, res) {
   const origin = String(req.headers.origin || "");
   if (ALLOW.has(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version",
+  );
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
 }
 
@@ -555,6 +558,7 @@ async function handleGrok(req, res) {
 }
 
 const GOOGLE_CLIENT_IDS = new Set([
+  "554728885093-k342oglgdti8he0ljb3k132t7afppfi3.apps.googleusercontent.com",
   "554728885093-5f9q8een65smi1bfg5hnchvl433v1c4t.apps.googleusercontent.com",
   "554728885093-2hovflq9cs9cdk30o1s5i3tk437pmg2l.apps.googleusercontent.com",
   "554728885093-jnn9ibrh5jl7f5nfth67cabipo4i4bd6.apps.googleusercontent.com",
@@ -754,6 +758,31 @@ function byKey(rows, key) {
   return m;
 }
 
+/** Como byKey, pero agrupa TODAS las filas por clave (hay varios equipos anclados por usuario). */
+function groupByKey(rows, key) {
+  const m = new Map();
+  for (const row of rows) {
+    const id = String(row[key] || "");
+    if (!id) continue;
+    const list = m.get(id) || [];
+    list.push(row);
+    m.set(id, list);
+  }
+  return m;
+}
+
+/** Resume las filas de memorcalc_device_lock de un usuario en un solo objeto para el censo admin. */
+function summarizeLocks(rows) {
+  const list = (rows || []).slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+  const primary = list[0] || {};
+  return {
+    device_id: primary.device_id || "",
+    device_label: list.map((r) => r.device_label || r.device_id).filter(Boolean).join(" · "),
+    updated_at: primary.updated_at || null,
+    device_count: list.length,
+  };
+}
+
 function rubrosOf(profile, insight) {
   const fromProfile = Array.isArray(profile.inferred_rubros) ? profile.inferred_rubros.map(String) : [];
   const raw = insight?.rubros;
@@ -838,7 +867,7 @@ function mergeCensus({
   for (const row of authUsers) if (row.id) ids.add(String(row.id));
   const mc = byKey(profilesMc, "user_id");
   const pl = byKey(plans, "user_id");
-  const lk = byKey(locks, "user_id");
+  const lkGroups = groupByKey(locks, "user_id");
   const fp = byKey(folioProfiles, "id");
   const mu = byKey(masterUsers || [], "id");
   const mp = byKey(masterProfiles || [], "user_id");
@@ -922,7 +951,7 @@ function mergeCensus({
   return [...ids].map((user_id) => {
     const p = mc.get(user_id) || {};
     const plan = pl.get(user_id) || {};
-    const lock = lk.get(user_id) || {};
+    const lock = summarizeLocks(lkGroups.get(user_id));
     const folio = fp.get(user_id) || {};
     const masterU = mu.get(user_id) || {};
     const masterP = mp.get(user_id) || {};
@@ -995,11 +1024,12 @@ function mergeCensus({
       paid_until: until,
       sku: sku.startsWith("mc-") || sku.startsWith("pro") ? sku : live ? "mc-monthly" : "free",
       status,
-      device_limit: Number(folio.device_limit || 1) || 1,
+      device_limit: Number(folio.device_limit || 2) || 2,
       phone: masterP.phone || p.phone || folio.phone || "",
       device_id: lock.device_id || "",
       device_label: lock.device_label || inst.hostname || inst.install_id || "",
       device_updated_at: lock.updated_at || null,
+      device_count: lock.device_count || 0,
       listings: listN.get(user_id) || 0,
       ads: adN.get(user_id) || 0,
       budgets: budN.get(user_id) || 0,
@@ -1350,19 +1380,9 @@ async function controlSaveUser(userId, patch) {
     }),
   });
   if (status === "revoked") {
-    const prev = await tableRows(`/rest/v1/memorcalc_device_lock?user_id=eq.${encodeURIComponent(userId)}&select=session_epoch`);
-    const epoch = Number(prev[0]?.session_epoch || 0) + 1;
-    await adminFetch("/rest/v1/memorcalc_device_lock?on_conflict=user_id", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify({
-        user_id: userId,
-        device_id: "",
-        session_epoch: epoch,
-        device_label: "",
-        updated_at: new Date().toISOString(),
-      }),
-    });
+    // Ya no es una sola fila por usuario (puede haber hasta device_limit equipos
+    // anclados): se borran todas para dejar la cuenta sin ningún equipo activo.
+    await adminFetch(`/rest/v1/memorcalc_device_lock?user_id=eq.${encodeURIComponent(userId)}`, { method: "DELETE" });
   }
   return { ok: true, plan: planBody.plan, paid_until: until, status, sku };
 }
@@ -1387,7 +1407,7 @@ async function findAuthUserId(email) {
     const hit = rows.find((row) => String(row.email || "").toLowerCase() === mail);
     if (hit?.id) return hit.id;
   }
-  for (let page = 1; page <= 8; page++) {
+  for (let page = 1; page <= 25; page++) {
     const { data } = await adminFetch(`/auth/v1/admin/users?page=${page}&per_page=200`);
     const rows = data.users || [];
     const hit = rows.find((row) => String(row.email || "").toLowerCase() === mail);
@@ -1477,25 +1497,29 @@ async function mintGoogleSession(body) {
       body: JSON.stringify({
         password,
         email_confirm: true,
+        ban_duration: "none",
         user_metadata: { full_name: name, name, avatar_url: claims.picture || "", google_sub: sub },
       }),
     });
   }
   if (!userId) return { status: 500, payload: { message: "No se pudo crear la cuenta." } };
 
-  await adminFetch("/rest/v1/profiles", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify({
-      id: userId,
-      email,
-      role: "customer",
-      plan: "free",
-      plan_id: "free",
-      status: "active",
-      device_limit: 1,
-    }),
-  }).catch(() => undefined);
+  const existingProfile = await adminFetch(`/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=id`);
+  const profileRows = Array.isArray(existingProfile.data) ? existingProfile.data : [];
+  if (!profileRows.length) {
+    await adminFetch("/rest/v1/profiles", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        id: userId,
+        email,
+        role: "customer",
+        plan: "free",
+        plan_id: "free",
+        status: "active",
+      }),
+    }).catch(() => undefined);
+  }
 
   // Password primero (estable). Magic link como respaldo.
   // NUNCA rotar la contraseña después: invalida el session_id del JWT.
@@ -1724,18 +1748,9 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req);
       const userId = String(body.user_id || "").trim();
       if (!userId) throw new Error("Falta el usuario.");
-      const prev = await tableRows(`/rest/v1/memorcalc_device_lock?user_id=eq.${encodeURIComponent(userId)}&select=session_epoch`);
-      const epoch = Number(prev[0]?.session_epoch || 0) + 1;
-      const { ok, data } = await adminFetch("/rest/v1/memorcalc_device_lock?on_conflict=user_id", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify({
-          user_id: userId,
-          device_id: "",
-          session_epoch: epoch,
-          device_label: "",
-          updated_at: new Date().toISOString(),
-        }),
+      // Puede haber varios equipos anclados (hasta device_limit): se borran todos.
+      const { ok, data } = await adminFetch(`/rest/v1/memorcalc_device_lock?user_id=eq.${encodeURIComponent(userId)}`, {
+        method: "DELETE",
       });
       if (!ok) throw new Error(data?.message || "No se pudieron cerrar las sesiones.");
       send(req, res, 200, { ok: true });

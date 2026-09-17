@@ -10,6 +10,7 @@ import {
   spacingFor,
   str,
 } from "../types";
+import { layoutEstriboPantallaDC, layoutEstriboPantallaEV, type MetradoLayout } from "../metradoZonas";
 
 function out(
   headline: string,
@@ -37,10 +38,10 @@ function paso(
   return { n, title, formula, substitution, result, ...extra };
 }
 
-function bindTable(steps: CalcStep[], n: string, extra: { title: string; rows: string[][] }) {
+function bindTable(steps: CalcStep[], n: string, extra: { title: string; rows: string[][]; zonas?: MetradoLayout }) {
   const s = steps.find((x) => x.n === n);
   if (!s) return;
-  s.table = { caption: extra.title, headers: extra.rows[0] ?? [], rows: extra.rows.slice(1) };
+  s.table = { caption: extra.title, headers: extra.rows[0] ?? [], rows: extra.rows.slice(1), zonas: extra.zonas };
 }
 
 function coulombKa(phi: number, delta: number, beta: number, theta: number) {
@@ -692,7 +693,7 @@ export const estriboPantalla: Engine = (raw) => {
   const tabDC = {
     title: "Cuadro de metrado DC — elementos 1 a 7 (franja 1.00 m, xA desde la puntera A)",
     rows: [
-      ["N°", "Elemento", "Ai (m²/m)", "γ (t/m³)", "Wi (t/m)", "xA (m)", "Mi (t·m/m)"],
+      ["N.º", "Elemento", "Ai (m²/m)", "γ (t/m³)", "Wi (t/m)", "xA (m)", "Mi (t·m/m)"],
       ["1", "Parapeto bparap × hparap", fmt(V1, 3), fmt(gc, 2), fmt(W1, 2), fmt(xa1, 3), fmt(W1 * xa1, 2)],
       ["2", "Cajuela e1 × (bparap+N)", fmt(V2, 3), fmt(gc, 2), fmt(W2, 2), fmt(xa2, 3), fmt(W2 * xa2, 2)],
       ["3", "Chaflán talón e2·t2/2", fmt(V3, 3), fmt(gc, 2), fmt(W3, 2), fmt(xa3, 3), fmt(W3 * xa3, 2)],
@@ -702,16 +703,18 @@ export const estriboPantalla: Engine = (raw) => {
       ["7", "Zapata B × D", fmt(V7, 3), fmt(gc, 2), fmt(W7, 2), fmt(xa7, 3), fmt(W7 * xa7, 2)],
       ["Σ", "DC estribo", fmt(Vdc, 3), "—", fmt(DC, 2), fmt(DCxa, 3), fmt(DC * DCxa, 2)],
     ],
+    zonas: layoutEstriboPantallaDC({ H, B, D, Lp, tsup, tinf, N, hparap, bparap, e1, e2, t1, t2 }),
   };
   const tabEV = {
     title: "Cuadro de metrado EV — relleno sobre el talón (elementos 8 y 9)",
     rows: [
-      ["N°", "Elemento", "Ai (m²/m)", "γ (t/m³)", "Wi (t/m)", "xA (m)", "Mi (t·m/m)"],
+      ["N.º", "Elemento", "Ai (m²/m)", "γ (t/m³)", "Wi (t/m)", "xA (m)", "Mi (t·m/m)"],
       ["8", "Relleno talón Ltalón × (H−D)", fmt(V8, 3), fmt(gs, 3), fmt(W8, 2), fmt(xa8, 3), fmt(W8 * xa8, 2)],
       ["9", "Cuña chaflán t2·e2/2", fmt(V9, 3), fmt(gs, 3), fmt(W9, 2), fmt(xa9, 3), fmt(W9 * xa9, 2)],
       ["Σ", "EV relleno", fmt(V8 + V9, 3), "—", fmt(EV, 2), fmt(EVxa, 3), fmt(EV * EVxa, 2)],
-      ["LS1", "Sobrecarga h' × Ltalón × γs", fmt(hp * Ltalon, 3), fmt(gs, 3), fmt(LSy, 2), fmt(LSyxa, 3), fmt(LSy * LSyxa, 2)],
+      ["LS", "Sobrecarga h' × Ltalón × γs", fmt(hp * Ltalon, 3), fmt(gs, 3), fmt(LSy, 2), fmt(LSyxa, 3), fmt(LSy * LSyxa, 2)],
     ],
+    zonas: layoutEstriboPantallaEV({ H, B, D, Lp, tinf, t2, e2, hp }),
   };
   const tabSup = {
     title: "Cuadro de metrado — superestructura y losa de acercamiento",
@@ -849,6 +852,12 @@ export const estriboPantalla: Engine = (raw) => {
       eLosa: String(eLosa),
       ka: String(ka),
       sBatter: String(sBatter),
+      asPant: `Ø 3/4" @ ${sPant} cm`,
+      asPun: `Ø 3/4" @ ${sPun} cm`,
+      asTal: `Ø 3/4" @ ${sTal} cm`,
+      asTemp: `Ø 1/2" @ ${sTemp} cm`,
+      rec: String(rec),
+      recZap: String(recZap),
     }
   );
 };

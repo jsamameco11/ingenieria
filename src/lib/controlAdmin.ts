@@ -34,6 +34,7 @@ export type AdminUser = {
   device_id: string;
   device_label: string;
   device_updated_at: string | null;
+  device_count: number;
   listings: number;
   ads: number;
   budgets: number;
@@ -219,11 +220,12 @@ function asUser(row: Record<string, unknown>): AdminUser {
     paid_until: until,
     sku: String(row.sku || row.plan_id || (live ? "mc-monthly" : "free")),
     status: String(row.status || row.folio_status || "active"),
-    device_limit: Number(row.device_limit || 1) || 1,
+    device_limit: Number(row.device_limit || 2) || 2,
     phone: String(row.phone || ""),
     device_id: String(row.device_id || ""),
     device_label: String(row.device_label || ""),
     device_updated_at: row.device_updated_at ? String(row.device_updated_at) : null,
+    device_count: Number(row.device_count || (row.device_id ? 1 : 0)),
     listings: Number(row.listings || 0),
     ads: Number(row.ads || 0),
     budgets: Number(row.budgets || 0),
@@ -370,6 +372,22 @@ function asNotice(row: Record<string, unknown>): AdminNotice {
   };
 }
 
+function parseControlJson(res: Response, raw: string, path: string): Record<string, unknown> {
+  const trimmed = raw.trim();
+  const ctype = (res.headers.get("content-type") || "").toLowerCase();
+  const looksHtml = ctype.includes("text/html") || /^</.test(trimmed);
+  if (looksHtml) {
+    throw new Error(
+      "El inventario no llegó: el servidor web está devolviendo la página del panel en lugar de /api/control. El censo de cuentas no se ha borrado.",
+    );
+  }
+  try {
+    return JSON.parse(trimmed || "{}") as Record<string, unknown>;
+  } catch {
+    throw new Error(`No se pudo leer /api/control/${path}.`);
+  }
+}
+
 async function controlFetch(path: string, init: RequestInit = {}) {
   const token = readControlToken();
   const res = await fetch(`/api/control/${path}`, {
@@ -381,7 +399,7 @@ async function controlFetch(path: string, init: RequestInit = {}) {
       ...(init.headers || {}),
     },
   });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const data = parseControlJson(res, await res.text(), path);
   if (!res.ok) throw new Error(String(data.message || `No se pudo hablar con /api/control/${path}.`));
   return data;
 }
@@ -404,7 +422,10 @@ const EMPTY: AdminSnapshot = {
 export async function adminSnapshot(): Promise<AdminSnapshot> {
   try {
     const data = await controlFetch("snapshot");
-    const users = ((data.users as Record<string, unknown>[]) ?? []).map(asUser);
+    if (!Array.isArray(data.users)) {
+      throw new Error("La API de control no devolvió el censo de cuentas.");
+    }
+    const users = (data.users as Record<string, unknown>[]).map(asUser);
     return {
       users,
       listings: ((data.listings as Record<string, unknown>[]) ?? []).map((row) => asListing(row)),

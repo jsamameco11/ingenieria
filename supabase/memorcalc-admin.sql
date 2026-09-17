@@ -73,7 +73,16 @@ begin
   from ids i
   left join public.memorcalc_profiles p on p.user_id = i.uid
   left join public.memorcalc_plans pl on pl.user_id = i.uid
-  left join public.memorcalc_device_lock d on d.user_id = i.uid
+  -- Puede haber varios equipos activos por usuario (hasta profiles.device_limit):
+  -- se toma solo el más reciente para esta fila de resumen, no un join directo
+  -- (que duplicaría al usuario una vez por cada equipo anclado).
+  left join lateral (
+    select dl.device_id, dl.device_label, dl.updated_at
+      from public.memorcalc_device_lock dl
+     where dl.user_id = i.uid
+     order by dl.updated_at desc
+     limit 1
+  ) d on true
   order by coalesce(p.full_name, pl.email, i.uid::text);
 end;
 $$;
@@ -224,6 +233,13 @@ $$;
 
 grant execute on function public.memorcalc_admin_delete_listing(text) to authenticated;
 
+-- Nota: la definición canónica y con permisos correctos de esta función vive en
+-- memorcalc-device-lock.sql (cualquier usuario puede cerrar SUS PROPIAS sesiones,
+-- o el titular puede cerrar las de cualquier cuenta). Esta versión reemplazada
+-- exigía ser el titular incluso para uno mismo y usaba el esquema antiguo de una
+-- sola fila por usuario (ya no existe tras la migración a varias filas por
+-- equipo); se mantiene aquí solo para no romper el orden de aplicación de los
+-- scripts, delegando en memorcalc_is_owner() para el caso de administración.
 create or replace function public.memorcalc_revoke_sessions(p_user_id uuid)
 returns void
 language plpgsql
@@ -231,20 +247,17 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.memorcalc_is_owner() then
-    raise exception 'Solo el titular cierra sesiones.';
+  if auth.uid() is null then
+    raise exception 'Debe iniciar sesión.';
   end if;
   if p_user_id is null then
     raise exception 'Falta el usuario.';
   end if;
+  if p_user_id <> auth.uid() and not public.memorcalc_is_owner() then
+    raise exception 'Solo el titular cierra sesiones de otra cuenta.';
+  end if;
 
-  insert into public.memorcalc_device_lock (user_id, device_id, session_epoch, device_label, updated_at)
-  values (p_user_id, '', 1, '', now())
-  on conflict (user_id) do update
-    set device_id = '',
-        session_epoch = public.memorcalc_device_lock.session_epoch + 1,
-        device_label = '',
-        updated_at = now();
+  delete from public.memorcalc_device_lock where user_id = p_user_id;
 end;
 $$;
 

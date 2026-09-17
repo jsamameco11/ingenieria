@@ -1,6 +1,7 @@
 import { type CalcCheck, type CalcOutput, type CalcStep, type Engine, barByName, fmt, num, str } from "../types";
 import { CATEGORIAS, SISTEMAS, Z_FACTOR, SUELOS, e030C, paramsSitio, type SueloId } from "../e030/tablas";
 import { solveFrame3D, type Node3D, type Element3D } from "./frame3d";
+import { layoutTanqueCircular, layoutTanqueIntze, layoutTanqueRect } from "../metradoZonas";
 
 function out(headline: string, adoption: string, steps: CalcStep[], checks: CalcCheck[], dims?: Record<string, string>, extras?: CalcOutput["extras"]): CalcOutput {
   return { headline, adoption, steps, checks, dims, extras };
@@ -446,13 +447,13 @@ export const reservorioApoyado: Engine = (raw) => {
       note: "Predimensionamiento por esbeltez; el diseño final del muro lo gobiernan la tracción de anillo y la flexión (Sn, ACI 350-06 Tabla 4.1), no este espesor por sí solo. Si el acero de anillo resulta congestionado se reparte en dos capas (ver acero de la pared) en vez de forzar un espesor cada vez mayor." },
     { n: "04", title: "Metrado de pesos propios", formula: "Ww=γc·π[(R+e)²−R²]·H  ·  Wr (domo)  ·  Wf (losa)  ·  Wa=γw·(πD²/4)·HL",
       formulaTex: String.raw`\begin{gathered}W_w=\gamma_c\,\pi\!\left[(R+e)^2-R^2\right]H\\[4pt]W_r\ (\text{domo})\qquad W_f\ (\text{losa})\\[4pt]W_a=\gamma_w\,\dfrac{\pi D^2}{4}\,H_L\end{gathered}`,
-      table: { headers: ["Elemento", "Peso (t)"], rows: [
-        ["Muro cilíndrico", fmt(pesoMuro, 2)],
-        ["Cúpula de techo", fmt(pesoDomo, 2)],
-        ["Losa de fondo", fmt(pesoLosa, 2)],
-        ["Agua almacenada", fmt(pesoAgua, 2)],
-        ["Total", fmt(Wtotal, 2)],
-      ] },
+      table: { headers: ["N.º", "Elemento", "Peso (t)"], rows: [
+        ["1", "Muro cilíndrico", fmt(pesoMuro, 2)],
+        ["2", "Cúpula de techo", fmt(pesoDomo, 2)],
+        ["3", "Losa de fondo", fmt(pesoLosa, 2)],
+        ["4", "Agua almacenada", fmt(pesoAgua, 2)],
+        ["Σ", "Total", fmt(Wtotal, 2)],
+      ], zonas: layoutTanqueCircular({ D, HL, H: Htotal, tMuro: tMuroRound, tLosa, tDomo, fDomo }) },
       result: `W total = ${fmt(Wtotal, 2)} t` },
     { n: "05", title: "Presión hidrostática sobre el muro", formula: "p(y) = γw·(HL − y)",
       formulaTex: String.raw`p(y)=\gamma_w\,(H_L-y)`,
@@ -770,15 +771,15 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
       ] },
     { n: nn(2), title: "Metrado de pesos de la cuba", formula: "Ww + Wcono + Wdomo,sup + Wdomo,inf + Wanillos",
       formulaTex: String.raw`W_{cuba}=W_w+W_{cono}+W_{domo,sup}+W_{domo,inf}+W_{anillos}`,
-      table: { headers: ["Elemento", "Peso (t)"], rows: [
-        ["Pared cilíndrica", fmt(pesoMuro, 2)],
-        ["Fondo cónico (tronco de cono)", fmt(pesoCono, 2)],
-        ["Cúpula superior (techo)", fmt(pesoDomoSup, 2)],
-        ["Cúpula inferior (fondo)", fmt(pesoDomoInf, 2)],
-        ["Anillos circulares (sup. + inf.)", fmt(pesoAnillos, 2)],
-        ["Total cuba (sin agua)", fmt(Wcuba, 2)],
-        ["Agua almacenada", fmt(Vreal, 2)],
-      ] },
+      table: { headers: ["N.º", "Elemento", "Peso (t)"], rows: [
+        ["1", "Pared cilíndrica", fmt(pesoMuro, 2)],
+        ["2", "Fondo cónico (tronco de cono)", fmt(pesoCono, 2)],
+        ["3", "Cúpula superior (techo)", fmt(pesoDomoSup, 2)],
+        ["4", "Cúpula inferior (fondo)", fmt(pesoDomoInf, 2)],
+        ["5", "Anillos circulares (sup. + inf.)", fmt(pesoAnillos, 2)],
+        ["Σ", "Total cuba (sin agua)", fmt(Wcuba, 2)],
+        ["6", "Agua almacenada", fmt(Vreal, 2)],
+      ], zonas: layoutTanqueIntze({ R, rp, h1, hCono, fInf, tMuro, HL }) },
       result: `W cuba=${fmt(Wcuba, 2)} t · W agua=${fmt(Vreal, 2)} t`,
       desarrollo: [
         `Pared: W=γc·π[(R+e)²−R²]·h1=${fmt(gammaC, 2)}·π[(${fmt(R + tMuro, 2)})²−${fmt(R, 2)}²]·${fmt(h1, 2)}=${fmt(pesoMuro, 2)} t.`,
@@ -1775,13 +1776,13 @@ export const reservorioCuadrado: Engine = (raw) => {
       note: "A diferencia de los tanques circulares, aquí el espesor SÍ se resuelve directamente para que el cortante Vu≤φVc quede satisfecho (forma cerrada, sin iterar), porque en muros planos la capacidad de corte crece más rápido que la demanda al aumentar el espesor." },
     { n: "04", title: "Metrado de pesos propios", formula: "Wm=γc·perímetro·e_muro·H · Wt=γc·Lx·Ly·e_techo · Wf=γc·Lx·Ly·e_losa · Wa=γw·Lx·Ly·HL",
       formulaTex: String.raw`\begin{gathered}W_m=\gamma_c\,P\,e_{muro}\,H\qquad W_t=\gamma_c L_x L_y e_{techo}\\[4pt]W_f=\gamma_c L_x L_y e_{losa}\qquad W_a=\gamma_w L_x L_y H_L\end{gathered}`,
-      table: { headers: ["Elemento", "Peso (t)"], rows: [
-        ["Muros perimetrales", fmt(pesoMuro, 2)],
-        ["Losa de techo", fmt(pesoTecho, 2)],
-        ["Losa de fondo", fmt(pesoLosa, 2)],
-        ["Agua almacenada", fmt(pesoAgua, 2)],
-        ["Total", fmt(Wtotal, 2)],
-      ] },
+      table: { headers: ["N.º", "Elemento", "Peso (t)"], rows: [
+        ["1", "Muros perimetrales", fmt(pesoMuro, 2)],
+        ["2", "Losa de techo", fmt(pesoTecho, 2)],
+        ["3", "Losa de fondo", fmt(pesoLosa, 2)],
+        ["4", "Agua almacenada", fmt(pesoAgua, 2)],
+        ["Σ", "Total", fmt(Wtotal, 2)],
+      ], zonas: layoutTanqueRect({ Lx, Ly, HL, H: Htotal, tMuro, tTecho, tLosa }) },
       result: `W total = ${fmt(Wtotal, 2)} t` },
     { n: "05", title: "Presión hidrostática sobre los muros", formula: "p(y) = γw·(HL − y)",
       formulaTex: String.raw`p(y)=\gamma_w\,(H_L-y)`,

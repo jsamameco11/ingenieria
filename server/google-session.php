@@ -26,6 +26,7 @@ $anon = (string) ($env["SUPABASE_PUBLISHABLE_KEY"] ?? "");
 $allowed = array_values(array_filter(array_map("trim", preg_split("/[\s,]+/", (string) ($env["GOOGLE_CLIENT_IDS"] ?? "")) ?: [])));
 if (!$allowed) {
     $allowed = [
+        "554728885093-k342oglgdti8he0ljb3k132t7afppfi3.apps.googleusercontent.com",
         "554728885093-5f9q8een65smi1bfg5hnchvl433v1c4t.apps.googleusercontent.com",
         "554728885093-2hovflq9cs9cdk30o1s5i3tk437pmg2l.apps.googleusercontent.com",
         "554728885093-jnn9ibrh5jl7f5nfth67cabipo4i4bd6.apps.googleusercontent.com",
@@ -98,6 +99,10 @@ if (!$userId) {
     exit;
 }
 
+// device_limit se deja fuera a propósito: al no ir en el cuerpo, PostgREST no lo
+// toca en cada login (si ya existe, conserva lo que haya fijado el panel Control;
+// si la fila es nueva, toma el DEFAULT de la columna en la base — ver
+// supabase/memorcalc-device-lock.sql).
 supabase_json("POST", $url . "/rest/v1/profiles", $service, [
     "id" => $userId,
     "email" => $email,
@@ -105,17 +110,12 @@ supabase_json("POST", $url . "/rest/v1/profiles", $service, [
     "plan" => "free",
     "plan_id" => "free",
     "status" => "active",
-    "device_limit" => 1,
 ], ["Prefer: resolution=merge-duplicates,return=minimal"], false);
 
 $signed = supabase_json("POST", $url . "/auth/v1/token?grant_type=password", $anon, [
     "email" => $email,
     "password" => $password,
 ]);
-
-supabase_json("PUT", $url . "/auth/v1/admin/users/" . rawurlencode($userId), $service, [
-    "password" => bin2hex(random_bytes(16)) . "Aa1!",
-], [], false);
 
 $session = $signed["access_token"] ?? null;
 $refresh = $signed["refresh_token"] ?? null;
