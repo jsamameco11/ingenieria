@@ -19,20 +19,23 @@ Abre http://localhost:5173
 
 ## Publicar (build + VPS + GitHub)
 
-Un solo comando compila, sube a producción y empuja a `origin`:
+Un solo comando: identifica lo que cambió respecto de HEAD, compila, sube al VPS y hace commit + push en GitHub.
 
 ```powershell
-python scripts/publicar.py -m "Por qué cambia esto"
+python scripts/publicar.py
 ```
 
-Equivalente: `npm run publicar -- -m "Por qué cambia esto"` o `.\scripts\publicar.ps1 -m "…"`.
+Equivalente: `npm run publicar` o `.\scripts\publicar.ps1`.
+
+El script imprime **ANTES** (commit actual + archivos sucios + diff) y **DESPUÉS** (commit nuevo, VPS y GitHub). Si no pasas `-m`, arma el mensaje a partir de los archivos cambiados.
 
 | Flag | Efecto |
 | --- | --- |
+| `-m "…"` | Mensaje de commit propio (el porqué) |
 | `--sin-vps` | Solo build + GitHub |
 | `--sin-git` | Solo build + VPS |
 | `--solo-build` | Solo `npm run build` |
-| `--dry-run` | Muestra el plan |
+| `--dry-run` | Muestra el antes y el plan |
 
 El VPS usa `VPS_PASS` (o la llave SSH del agente). El sitio público es siempre `ingenieria.miacademiapreu.com`. Tras el deploy: Ctrl+F5.
 
