@@ -89,16 +89,19 @@ def step_vps() -> None:
     )
 
 
-def git_has_changes() -> bool:
-    staged = subprocess.run(
-        ["git", "status", "--porcelain"],
+def git_has_index_changes() -> bool:
+    """True si hay algo que commitear (staged, unstaged o untracked)."""
+    cached = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT)
+    work = subprocess.run(["git", "diff", "--quiet"], cwd=ROOT)
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
         cwd=ROOT,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
     )
-    return bool(staged.stdout.strip())
+    return cached.returncode != 0 or work.returncode != 0 or bool(untracked.stdout.strip())
 
 
 def current_branch() -> str:
@@ -116,7 +119,7 @@ def current_branch() -> str:
 
 def step_github(message: str) -> None:
     git(["add", "-A"], title="Git: indexar cambios")
-    if not git_has_changes():
+    if not git_has_index_changes():
         print("  Working tree limpio: no hay commit nuevo.")
     else:
         git(["commit", "-m", message], title="Git: commit")
