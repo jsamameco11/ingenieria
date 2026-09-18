@@ -125,6 +125,44 @@ export function sampleSphereCrown(r: number, f: number, yRing: number, n = 80): 
   return pts;
 }
 
+/** Cáscara esférica de espesor radial uniforme t (mismo centro, Rs y Rs+t). Polo abajo. */
+export function sphereBowlShell(r: number, f: number, t: number, n = 72): { inner: Pt[]; outer: Pt[]; closed: Pt[] } {
+  const sag = Math.max(f, 1e-4);
+  const thick = Math.max(t, 1e-4);
+  const Rs = (r * r + sag * sag) / (2 * sag);
+  const yc = Rs;
+  const inner: Pt[] = [];
+  const outer: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const x = (i / n) * r;
+    const yin = yc - Math.sqrt(Math.max(0, Rs * Rs - x * x));
+    inner.push([x, yin]);
+    const ux = x / Rs;
+    const uy = (yin - yc) / Rs;
+    outer.push([x + thick * ux, yin + thick * uy]);
+  }
+  return { inner, outer, closed: [...inner, ...outer.slice().reverse()] };
+}
+
+/** Cáscara esférica de espesor radial uniforme t. Polo arriba. */
+export function sphereCrownShell(r: number, f: number, yRing: number, t: number, n = 72): { inner: Pt[]; outer: Pt[]; closed: Pt[] } {
+  const sag = Math.max(f, 1e-4);
+  const thick = Math.max(t, 1e-4);
+  const Rs = (r * r + sag * sag) / (2 * sag);
+  const yc = yRing + f - Rs;
+  const inner: Pt[] = [];
+  const outer: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const x = (i / n) * r;
+    const yin = yc + Math.sqrt(Math.max(0, Rs * Rs - x * x));
+    inner.push([x, yin]);
+    const ux = x / Rs;
+    const uy = (yin - yc) / Rs;
+    outer.push([x + thick * ux, yin + thick * uy]);
+  }
+  return { inner, outer, closed: [...inner, ...outer.slice().reverse()] };
+}
+
 /* ─── Muro en voladizo ─── */
 
 /** Geometría común (metros, y positivo hacia arriba, origen en la arista delantera de la pata a la cara inferior de la zapata). */
@@ -571,71 +609,91 @@ export function layoutTanqueIntze(p: {
   fInf: number;
   fSup?: number;
   tMuro: number;
+  tDomoInf?: number;
+  tDomoSup?: number;
   HL: number;
 }): MetradoLayout {
   const { R, rp, h1, hCono, fInf, tMuro, HL } = p;
   const fSup = p.fSup ?? R / 6;
-  const tInf = Math.max(0.1, tMuro * 0.55);
+  const tInf = p.tDomoInf ?? Math.max(0.12, tMuro * 0.4);
+  const tSup = p.tDomoSup ?? Math.max(0.08, tMuro * 0.25);
   const yCono = fInf;
   const yCil = fInf + hCono;
   const yTop = yCil + h1;
   const yWater = yCil + Math.min(Math.max(HL - hCono * 0.35, h1 * 0.92), h1);
-  const lowerInner = sampleSphereBowl(rp, fInf, 80);
-  const lowerOuter = sampleSphereBowl(rp + tInf * 0.35, fInf + tInf, 80).map(([x, y]) => [x, y - tInf] as Pt);
-  const upper = sampleSphereCrown(R, fSup, yTop, 80);
-  const upperOuter = sampleSphereCrown(R + tMuro * 0.45, fSup + tMuro * 0.35, yTop, 80);
-  const waterBowl = sampleSphereBowl(rp * 0.98, fInf * 0.98, 80);
-  const nCono = 12;
-  const waterCono: Pt[] = Array.from({ length: nCono }, (_, i) => {
-    const t = (i + 1) / nCono;
-    return [rp * 0.98 + (R * 0.985 - rp * 0.98) * t, fInf * 0.98 + (yCil - fInf * 0.98) * t] as Pt;
-  });
-  const water: Pt[] = [...waterBowl, ...waterCono, [R * 0.985, yWater], [0, yWater]];
+
+  const bowl = sphereBowlShell(rp, fInf, tInf, 72);
+  const crown = sphereCrownShell(R, fSup, yTop, tSup, 72);
+
+  const Ls = Math.hypot(R - rp, hCono) || 1;
+  const nx = hCono / Ls;
+  const ny = -(R - rp) / Ls;
+  const cone: Pt[] = [
+    [rp, yCono],
+    [R, yCil],
+    [R + tMuro, yCil],
+    [rp + tMuro * nx, yCono + tMuro * ny],
+  ];
+
+  const bAn = 0.3;
+  const hAn = 0.4;
+  const anilloInf: Pt[] = [
+    [rp - 0.04, yCono - hAn * 0.35],
+    [rp + bAn, yCono - hAn * 0.35],
+    [rp + bAn, yCono + hAn * 0.65],
+    [rp - 0.04, yCono + hAn * 0.65],
+  ];
+  const anilloSup: Pt[] = rect(R - 0.04, yCil - 0.1, tMuro + 0.22, 0.26);
+
+  const water: Pt[] = [
+    ...bowl.inner,
+    [R, yCil],
+    [R, yWater],
+    [0, yWater],
+  ];
+
+  const ringOuter = bowl.outer[bowl.outer.length - 1];
   return {
     id: "metrado-tanque-intze",
     title: "Identificación de zonas — pesos de la cuba INTZE",
     caption:
-      "Media sección de la cuba tipo INTZE. Cúpulas y agua se dibujan como casquetes esféricos (no polígonos). Cada número identifica el elemento del metrado.",
+      "Media sección de la cuba tipo INTZE. La cúpula inferior es un casquete esférico de espesor radial uniforme e_domo,inf (cáscara concéntrica); el nudo de inflexión se cierra con el anillo inferior. Cada número identifica el elemento del metrado.",
     origin: "Eje de la cuba",
+    dims: [
+      {
+        x1: ringOuter[0],
+        y1: ringOuter[1],
+        x2: rp,
+        y2: yCono,
+        label: `e inf.=${(tInf * 100).toFixed(0)} cm`,
+      },
+    ],
     zones: [
       { n: 1, label: "Pared cilíndrica", material: "concreto", pts: rect(R, yCil, tMuro, h1) },
-      {
-        n: 2,
-        label: "Fondo cónico",
-        material: "concreto",
-        pts: [
-          [rp, yCono],
-          [R, yCil],
-          [R + tMuro, yCil],
-          [rp + tMuro * 0.55, yCono],
-        ],
-      },
+      { n: 2, label: "Fondo cónico", material: "concreto", pts: cone },
       {
         n: 3,
         label: "Cúpula superior",
         material: "concreto",
-        pts: [...upper, ...upperOuter.slice().reverse()],
-        smooth: true,
+        pts: crown.closed,
+        badge: [R * 0.45, yTop + fSup * 0.55],
       },
       {
         n: 4,
         label: "Cúpula inferior",
         material: "concreto",
-        pts: [...lowerInner, ...lowerOuter.slice().reverse()],
-        smooth: true,
+        pts: bowl.closed,
+        badge: [rp * 0.42, fInf * 0.38],
       },
-      {
-        n: 5,
-        label: "Anillos circulares",
-        material: "concreto",
-        pts: rect(R - 0.04, yCil - 0.1, tMuro + 0.22, 0.26),
-      },
+      { n: 5, label: "Anillo inf. (inflexión)", material: "concreto", pts: anilloInf, badge: [rp + bAn + 0.15, yCono + 0.12] },
+      { n: 5, label: "Anillo superior", material: "concreto", pts: anilloSup, badge: [R + tMuro + 0.35, yCil + 0.18] },
       {
         n: 6,
         label: "Agua almacenada",
         material: "agua",
         pts: water,
         badge: [R * 0.42, yCil + Math.min(h1, yWater - yCil) * 0.45],
+        smooth: true,
       },
     ],
   };

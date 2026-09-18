@@ -47,6 +47,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("scripts/deploy-", "despliegue VPS"),
     ("funcionalidades/", "catálogo de funcionalidades"),
     ("server/culqi-server.mjs", "pagos Culqi"),
+    ("README.md", "documentación"),
 )
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -119,10 +120,14 @@ def porcelain_files() -> list[tuple[str, str]]:
     raw = git_out(["status", "--porcelain"], check=False)
     rows: list[tuple[str, str]] = []
     for line in raw.splitlines():
-        if len(line) < 4:
-            continue
-        code = line[:2].strip() or line[:2]
-        path = line[3:].strip()
+        if len(line) >= 4 and line[2] in " \t":
+            code, path = line[:2], line[3:].strip()
+        else:
+            parts = line.split(None, 1)
+            if len(parts) != 2:
+                continue
+            code, path = parts
+        code = code.strip() or code
         if " -> " in path:
             path = path.split(" -> ", 1)[1]
         rows.append((code, path))
