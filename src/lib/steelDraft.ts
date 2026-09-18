@@ -17,6 +17,12 @@ export type SteelLayer = {
   nReal: number;
   asProv: number;
   asUnit: "cm²" | "cm²/m";
+  /** As requerido por el cálculo de flexión / mín. (cm²/m o cm²). */
+  asReq?: number;
+  /** Longitud de desarrollo ℓd (cm). */
+  ldCm?: number;
+  /** Recubrimiento libre de esa cara (cm). */
+  recCm?: number;
   color: string;
   side: LeaderSide;
   /** Cortes (círculos) o barra longitudinal en el plano de la sección. */
@@ -70,6 +76,12 @@ export type SteelDraftSpec = {
   dims: SteelDim[];
   layers: SteelLayer[];
   annos?: SteelAnno[];
+  /** Polígonos extra (paños techo / huecos) en planta. */
+  regions?: { points: string; fill?: string; stroke?: string; dash?: string; hatch?: boolean }[];
+  /** Ejes o guías de planta. */
+  guides?: { x1: number; y1: number; x2: number; y2: number; color?: string; dash?: string; width?: number }[];
+  /** Oculta llamadas laterales (el cuadro de marcas basta). */
+  hideCallouts?: boolean;
 };
 
 export const STEEL_FLEX = "#8b1e1e";
@@ -186,11 +198,68 @@ function sampleArc(cx: number, cy: number, r: number, a0: number, a1: number, n 
   return pts;
 }
 
-/** Polilínea con gancho 90° (radio interior tipo 6Ø, ramal 12Ø) muestreada para el plano. */
-export function pathHook90(
+/** ℓd simplificado E.060 / ACI (cm): k·fy·db/√f'c, k=0,1508 (Ø≤3/4") ó 0,1885. */
+export function steelLdCm(fy: number, fc: number, dbCm: number) {
+  const k = dbCm > 1.91 ? 0.1885 : 0.1508;
+  return Math.max(30, (k * fy * dbCm) / Math.max(Math.sqrt(Math.max(fc, 1)), 1));
+}
+
+/** Offset de polilínea abierta: `left`/`right` según el sentido de recorrido. */
+export function offsetOpenPolyline(pts: SteelBarPt[], dist: number, side: "left" | "right"): SteelBarPt[] {
+  if (pts.length < 2) return pts.map((p) => ({ ...p }));
+  const sign = side === "left" ? 1 : -1;
+  const nrm = (a: SteelBarPt, b: SteelBarPt) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const L = Math.hypot(dx, dy) || 1;
+    return { x: (sign * -dy) / L, y: (sign * dx) / L };
+  };
+  return pts.map((p, i) => {
+    const n1 = nrm(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i === 0 ? 1 : i)]);
+    const n2 = i === 0 || i === pts.length - 1 ? n1 : nrm(pts[i], pts[i + 1]);
+    let nx = n1.x + n2.x;
+    let ny = n1.y + n2.y;
+    const L = Math.hypot(nx, ny) || 1;
+    nx /= L;
+    ny /= L;
+    const miter = dist / Math.max(0.42, nx * n1.x + ny * n1.y);
+    const d = Math.min(Math.abs(miter), dist * 2.4) * Math.sign(miter || 1);
+    return { x: p.x + nx * d, y: p.y + ny * d };
+  });
+}
+
+/** Recorta el arranque de una polilínea una distancia (recubrimiento de extremo). */
+export function trimPolylineStart(pts: SteelBarPt[], dist: number): SteelBarPt[] {
+  if (pts.length < 2 || dist <= 0) return pts;
+  let left = dist;
+  const out: SteelBarPt[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (seg < 1e-6) continue;
+    if (left <= 0) {
+      if (!out.length) out.push(a);
+      out.push(b);
+      continue;
+    }
+    if (seg <= left) {
+      left -= seg;
+      continue;
+    }
+    const t = left / seg;
+    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    out.push(b);
+    left = 0;
+  }
+  return out.length >= 2 ? out : pts;
+}
+
+/** Polilínea con gancho 90° (radio interior tipo 6Ø, ramal 12Ø) según vector de gancho. */
+export function pathHook90Vec(
   from: SteelBarPt,
   corner: SteelBarPt,
-  toward: "right" | "left" | "up" | "down",
+  hook: SteelBarPt,
   r: number,
   hookLen: number,
 ): SteelBarPt[] {
@@ -199,8 +268,10 @@ export function pathHook90(
   const len = Math.hypot(ux, uy) || 1;
   const ix = ux / len;
   const iy = uy / len;
-  const [ox, oy] = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] }[toward];
-  const rad = Math.min(r, len * 0.42, hookLen * 0.85);
+  const hl = Math.hypot(hook.x, hook.y) || 1;
+  const ox = hook.x / hl;
+  const oy = hook.y / hl;
+  const rad = Math.min(r, len * 0.42, Math.max(hookLen, 1) * 0.85);
   const pEnter = { x: corner.x + ix * rad, y: corner.y + iy * rad };
   const pExit = { x: corner.x + ox * rad, y: corner.y + oy * rad };
   const cx = corner.x + (ix + ox) * rad;
@@ -214,6 +285,72 @@ export function pathHook90(
   return [from, pEnter, ...sampleArc(cx, cy, rad, a0, a0 + da, 14).slice(1), pEnd];
 }
 
+/** Polilínea con gancho 90° (radio interior tipo 6Ø, ramal 12Ø) muestreada para el plano. */
+export function pathHook90(
+  from: SteelBarPt,
+  corner: SteelBarPt,
+  toward: "right" | "left" | "up" | "down",
+  r: number,
+  hookLen: number,
+): SteelBarPt[] {
+  const d = { right: { x: 1, y: 0 }, left: { x: -1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } }[toward];
+  return pathHook90Vec(from, corner, d, r, hookLen);
+}
+
+/** Polilínea que termina en gancho 90° sobre el último vértice. */
+export function pathWithEndHook(
+  pts: SteelBarPt[],
+  toward: "right" | "left" | "up" | "down",
+  r: number,
+  hookLen: number,
+): SteelBarPt[] {
+  if (pts.length < 2) return pts;
+  const hooked = pathHook90(pts[pts.length - 2], pts[pts.length - 1], toward, r, hookLen);
+  return [...pts.slice(0, -1), ...hooked.slice(1)];
+}
+
+/** Continúa una polilínea (fuste) hasta un rincón interior y gancha 90°. */
+export function appendHook90(
+  pts: SteelBarPt[],
+  corner: SteelBarPt,
+  toward: "right" | "left" | "up" | "down",
+  r: number,
+  hookLen: number,
+): SteelBarPt[] {
+  if (!pts.length) return pathHook90(corner, { x: corner.x, y: corner.y + 8 }, toward, r, hookLen);
+  const from = pts[pts.length - 1];
+  if (Math.hypot(from.x - corner.x, from.y - corner.y) < 1.4) {
+    return pts.length < 2 ? pathHook90(from, corner, toward, r, hookLen) : pathWithEndHook([...pts.slice(0, -1), corner], toward, r, hookLen);
+  }
+  return pathWithEndHook([...pts, corner], toward, r, hookLen);
+}
+
+/** Barra recta con gancho 90° en ambos extremos (lechos de zapata). */
+export function pathBothHooks90(
+  a: SteelBarPt,
+  b: SteelBarPt,
+  startToward: "right" | "left" | "up" | "down",
+  endToward: "right" | "left" | "up" | "down",
+  r: number,
+  hookLen: number,
+): SteelBarPt[] {
+  const start = pathHook90(b, a, startToward, r, hookLen).reverse();
+  const end = pathHook90(a, b, endToward, r, hookLen);
+  return [...start.slice(0, -1), ...end.slice(1)];
+}
+
+/** Caja de marca pegada al acero, al lado indicado. */
+export function calloutBeside(
+  attach: SteelBarPt,
+  side: "left" | "right" | "top" | "bottom",
+  gap = 18,
+): NonNullable<SteelLayer["callout"]> {
+  if (side === "left") return { x: attach.x - gap, y: attach.y, anchor: "end" };
+  if (side === "right") return { x: attach.x + gap, y: attach.y, anchor: "start" };
+  if (side === "top") return { x: attach.x, y: attach.y - gap, anchor: "middle" };
+  return { x: attach.x, y: attach.y + gap, anchor: "middle" };
+}
+
 /** Corte T del muro en voladizo: alma con talud, longitudinal en el plano, temperatura en corte. */
 export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec {
   const H = nv(values, "H", 4);
@@ -223,7 +360,7 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const e = nv(values, "esp", 0.4);
   const Bp = nv(values, "Bp", 0.2);
   const beta = nv(values, "beta", 10);
-  const hk = nv(values, "hk", 0);
+  const hk = Math.min(0.6, Math.max(0, nv(values, "hk", 0)));
   const bkIn = nv(values, "bk", F);
   const D = nv(values, "D", 0.8);
   const rec = nv(values, "rec", 5);
@@ -242,10 +379,10 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const hkUse = g.hk;
   const bkUse = g.bk;
 
-  const padL = 228;
-  const padR = 248;
+  const padL = 300;
+  const padR = 300;
   const padT = 88;
-  const padB = 148;
+  const padB = 200;
   const spanY = H + Math.max(hkUse, 0.02);
   const sc = Math.min(1180 / Math.max(B, 1.05), 1320 / Math.max(spanY, 2.2));
   const W = Math.ceil(padL + B * sc + padR);
@@ -276,14 +413,10 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const rDist = Math.max(1.6, (dbDist / 100) * sc * 0.5);
   const bendAlma = Math.max(8, 6 * (dbAlma / 100) * sc);
   const bendIntra = Math.max(7, 6 * (dbIntra / 100) * sc);
-  const bendPata = Math.max(7, 6 * (dbPata / 100) * sc);
-  const bendTalon = Math.max(7, 6 * (dbTalon / 100) * sc);
-  const bendDist = Math.max(7, 6 * (dbDist / 100) * sc);
   const hookAlma = Math.max(22, 12 * (dbAlma / 100) * sc);
   const hookIntra = Math.max(20, 12 * (dbIntra / 100) * sc);
   const hookPata = Math.max(20, 12 * (dbPata / 100) * sc);
   const hookTalon = Math.max(20, 12 * (dbTalon / 100) * sc);
-  const hookDist = Math.max(18, 12 * (dbDist / 100) * sc);
 
   const pTopF = xy(xTopF, H);
   const pTopB = xy(xTopB, H);
@@ -309,41 +442,55 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const backT = (t: number) => xyAt(pTopB.x - inBTemp, pTopB.y + recS + rTemp, pBaseB.x - inBTemp, pBaseB.y - recZ * 0.2, t);
 
   const topBack = back(0.02);
-  const botBack = back(0.97);
-  const yHeelBar = pH.y + recZ + rAlma;
-  const pathAlma = pathHook90(topBack, { x: botBack.x, y: yHeelBar }, "right", bendAlma, Math.min(hookAlma, A * sc * 0.38));
-
-  const ySoffit = xy(0, 0).y;
-  const yPataInf = ySoffit - recZ - rPata;
-  const yPataSup = pP.y + recZ + rDist;
-  const xPata0 = pP0.x + recZ + rPata;
-  const xPata1 = pSF0.x + recS * 0.2;
-  const pathPata = pathHook90({ x: xPata0, y: yPataInf }, { x: xPata1, y: yPataInf }, "up", bendPata, Math.min(hookPata, (H - e) * sc * 0.1));
-  const pathPataSup = pathHook90(
-    { x: pSF0.x - recS * 0.15, y: yPataSup },
-    { x: xPata0, y: yPataSup },
-    "down",
-    bendDist,
-    Math.min(hookDist, e * sc * 0.45),
-  );
-
-  const yTalonSup = pH.y + recZ + rTalon;
-  const yTalonInf = ySoffit - recZ - rDist;
-  const xTal0 = pH0.x - recZ - rTalon;
-  const xTal1 = pSB0.x + recS * 0.15;
-  const pathTalon = pathHook90({ x: xTal1, y: yTalonSup }, { x: xTal0, y: yTalonSup }, "down", bendTalon, hookTalon);
-  const pathTalonInf = pathHook90(
-    { x: pSB0.x + recS * 0.2, y: yTalonInf },
-    { x: xTal0, y: yTalonInf },
-    "up",
-    bendDist,
-    Math.min(hookDist, e * sc * 0.45),
-  );
-
-  const yIntraHook = yPataSup + rIntra + rDist + 2;
   const topFront = front(0.02);
-  const botFront = front(0.97);
-  const pathIntra = pathHook90(topFront, { x: botFront.x, y: yIntraHook }, "left", bendIntra, Math.min(hookIntra, C * sc * 0.42));
+  const ySoffit = xy(0, 0).y;
+  const yBotMat = ySoffit - recZ - rPata;
+  const yTopMat = pP.y + recZ + rDist;
+  const yHeelSteel = pP.y + recZ + rAlma;
+  const intoBack: SteelBarPt = { x: pBaseB.x - inB, y: yHeelSteel };
+  const intoFrontBot: SteelBarPt = { x: pBaseF.x + inF, y: yBotMat - (rPata + rIntra + 4) };
+  const ldAlmaPx = Math.min(
+    (steelLdCm(nv(values, "fy", 4200), nv(values, "fc", 210), dbAlma) / 100) * sc,
+    Math.max(hookAlma, A * sc * 0.72),
+  );
+  const ldIntraPx = Math.min(
+    (steelLdCm(nv(values, "fy", 4200), nv(values, "fc", 210), dbIntra) / 100) * sc,
+    Math.max(hookIntra, C * sc * 0.55),
+  );
+  const pathAlma = appendHook90(
+    [topBack, { x: pBaseB.x - inB, y: pBaseB.y + recZ * 0.2 }],
+    intoBack,
+    "right",
+    bendAlma,
+    ldAlmaPx,
+  );
+  const pathIntra = appendHook90(
+    [topFront, { x: pBaseF.x + inF, y: pBaseF.y + recZ * 0.2 }],
+    intoFrontBot,
+    "left",
+    bendIntra,
+    ldIntraPx,
+  );
+
+  const xFootL = pP0.x + recZ + rPata;
+  const xFootR = pH0.x - recZ - rTalon;
+  const hookFoot = Math.min(Math.max(hookPata, hookTalon), Math.max(14, e * sc - 2 * recZ - rPata * 2));
+  const pathFootBot = pathBothHooks90(
+    { x: xFootL, y: yBotMat },
+    { x: xFootR, y: yBotMat },
+    "up",
+    "up",
+    Math.max(6, 6 * (dbPata / 100) * sc),
+    hookFoot,
+  );
+  const pathFootTop = pathBothHooks90(
+    { x: xFootL, y: yTopMat },
+    { x: xFootR, y: yTopMat },
+    "down",
+    "down",
+    Math.max(6, 6 * (dbDist / 100) * sc),
+    hookFoot,
+  );
 
   const coverPts: SteelBarPt[] = [
     { x: pTopF.x + recS, y: pTopF.y + recS },
@@ -358,10 +505,10 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     const kLb = xy(xKeyL, -hkUse);
     const kL0 = xy(xKeyL, 0);
     coverPts.push(
-      { x: kR0.x - recZ * 0.2, y: kR0.y - recZ },
-      { x: kRb.x - recZ * 0.2, y: kRb.y + recZ },
-      { x: kLb.x + recZ * 0.2, y: kLb.y + recZ },
-      { x: kL0.x + recZ * 0.2, y: kL0.y - recZ },
+      { x: kR0.x - recZ, y: kR0.y - recZ },
+      { x: kRb.x - recZ, y: kRb.y - recZ },
+      { x: kLb.x + recZ, y: kLb.y - recZ },
+      { x: kL0.x + recZ, y: kL0.y - recZ },
     );
   }
   coverPts.push(
@@ -389,6 +536,23 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const nTempDraw = nDraw(nAlong(Math.max(H - e, 0.5) * 100, sTemp), 11);
   const tempFront = placeLine(frontT(0.06).x, frontT(0.06).y, frontT(0.9).x, frontT(0.9).y, nTempDraw);
   const tempBack = placeLine(backT(0.1).x, backT(0.1).y, backT(0.88).x, backT(0.88).y, Math.max(2, nTempDraw - 1));
+  const nFootT = nDraw(nAlong(B * 100, sDist), 11);
+  const transGap = Math.max(5.2, rDist * 2.2);
+  const transTop = placeLine(xFootL + 14, yTopMat + transGap, xFootR - 14, yTopMat + transGap, nFootT);
+  const transBot = placeLine(xFootL + 14, yBotMat - transGap, xFootR - 14, yBotMat - transGap, nFootT);
+  const fyS = nv(values, "fy", 4200);
+  const fcS = nv(values, "fc", 210);
+  const ldAlma = steelLdCm(fyS, fcS, dbAlma);
+  const ldIntra = steelLdCm(fyS, fcS, dbIntra);
+  const ldPata = steelLdCm(fyS, fcS, dbPata);
+  const ldTalon = steelLdCm(fyS, fcS, dbTalon);
+  const ldTemp = steelLdCm(fyS, fcS, dbTemp);
+  const asAlmaReq = nv(values, "AsAlma", asProvCm2m(barByName(barAlma).as, sAlma));
+  const asIntraReq = nv(values, "AsIntra", asProvCm2m(barByName(barIntraN).as, sIntra));
+  const asPataReq = nv(values, "AsPata", asProvCm2m(barByName(barPata).as, sPata));
+  const asTalonReq = nv(values, "AsTalon", asProvCm2m(barByName(barTalon).as, sTalon));
+  const asTempReq = nv(values, "AsTemp", asProvCm2m(barByName(barTemp).as, sTemp));
+  const asDistReq = nv(values, "AsDist", asProvCm2m(barByName(barDistN).as, sDist));
 
   const temp: SteelLayer = {
     ...layerFromBar({
@@ -406,8 +570,11 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     }),
     bars: [...tempFront, ...tempBack],
     draw: "dots",
-    attach: tempFront[Math.min(4, tempFront.length - 1)] ?? tempFront[0],
-    callout: { x: 22, y: 198, anchor: "start" },
+    attach: tempFront[Math.min(6, tempFront.length - 1)] ?? tempFront[0],
+      callout: calloutBeside(tempFront[Math.min(6, tempFront.length - 1)] ?? tempFront[0], "left", 22),
+    asReq: asTempReq,
+    ldCm: ldTemp,
+    recCm: rec,
   };
 
   const attachLong = back(0.26);
@@ -416,13 +583,16 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     {
       mark: 1,
       name: "Longitudinal trasdós",
-      face: "trasdós (tierra)",
+      face: "trasdós · ancla en la zapata",
       bar: barByName(barAlma).name,
       dbCm: dbAlma,
       sCm: sAlma,
       nReal: nAlma,
       asProv: asProvCm2m(barByName(barAlma).as, sAlma),
       asUnit: "cm²/m",
+      asReq: asAlmaReq,
+      ldCm: ldAlma,
+      recCm: rec,
       color: FLEX,
       side: "right",
       draw: "bar",
@@ -430,18 +600,21 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
       barPath: pathAlma,
       barPaths: [pathAlma],
       attach: attachLong,
-      callout: { x: W - 22, y: 72, anchor: "end" },
+      callout: calloutBeside(attachLong, "right", 20),
     },
     {
       mark: 2,
       name: "Longitudinal intradós",
-      face: "intradós (desmonte)",
+      face: "intradós · ancla en la zapata",
       bar: barByName(barIntraN).name,
       dbCm: dbIntra,
       sCm: sIntra,
       nReal: nIntra,
       asProv: asProvCm2m(barByName(barIntraN).as, sIntra),
       asUnit: "cm²/m",
+      asReq: asIntraReq,
+      ldCm: ldIntra,
+      recCm: rec,
       color: DIST,
       side: "left",
       draw: "bar",
@@ -449,116 +622,210 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
       barPath: pathIntra,
       barPaths: [pathIntra],
       attach: attachIntra,
-      callout: { x: 22, y: 64, anchor: "start" },
+      callout: calloutBeside(attachIntra, "left", 20),
     },
     temp,
     {
       mark: 4,
-      name: "Puntera inferior",
-      face: "cara del suelo",
+      name: "Zapata lecho inferior",
+      face: "continuo puntera–talón, ⊥ al alma",
       bar: barByName(barPata).name,
       dbCm: dbPata,
       sCm: sPata,
       nReal: nPata,
       asProv: asProvCm2m(barByName(barPata).as, sPata),
       asUnit: "cm²/m",
+      asReq: asPataReq,
+      ldCm: ldPata,
+      recCm: recZap,
       color: FLEX,
       side: "left",
       draw: "bar",
-      bars: [{ x: (xPata0 + xPata1) / 2, y: yPataInf }],
-      barPath: pathPata,
-      attach: { x: xPata0 + (xPata1 - xPata0) * 0.38, y: yPataInf },
-      callout: { x: 22, y: Ht - 118, anchor: "start" },
+      bars: [{ x: (xFootL + xFootR) / 2, y: yBotMat }],
+      barPath: pathFootBot,
+      attach: { x: xFootL + 12, y: yBotMat },
+      callout: calloutBeside({ x: xFootL + 8, y: yBotMat }, "left", 22),
     },
     {
       mark: 5,
-      name: "Puntera superior",
-      face: "cara superior de la pata",
+      name: "Zapata lecho superior",
+      face: "continuo puntera–talón, ⊥ al alma",
       bar: barByName(barDistN).name,
       dbCm: dbDist,
       sCm: sDist,
       nReal: nDist,
       asProv: asProvCm2m(barByName(barDistN).as, sDist),
       asUnit: "cm²/m",
+      asReq: asDistReq,
+      ldCm: steelLdCm(fyS, fcS, dbDist),
+      recCm: recZap,
       color: DIST,
       side: "left",
       draw: "bar",
-      bars: [{ x: (xPata0 + pSF0.x) / 2, y: yPataSup }],
-      barPath: pathPataSup,
-      attach: { x: xPata0 + 36, y: yPataSup },
-      callout: { x: 22, y: pP.y - 8, anchor: "start" },
+      bars: [{ x: (xFootL + xFootR) / 2, y: yTopMat }],
+      barPath: pathFootTop,
+      attach: { x: xFootR - 28, y: yTopMat },
+      callout: { x: xFootR - 12, y: yTopMat - 58, anchor: "end" },
     },
     {
       mark: 6,
-      name: "Talón superior",
-      face: "cara del relleno",
+      name: "Transversal de zapata",
+      face: "⊥ a la franja, lechos inf. y sup.",
       bar: barByName(barTalon).name,
       dbCm: dbTalon,
       sCm: sTalon,
       nReal: nTalon,
       asProv: asProvCm2m(barByName(barTalon).as, sTalon),
       asUnit: "cm²/m",
+      asReq: asTalonReq,
+      ldCm: ldTalon,
+      recCm: recZap,
       color: FLEX,
       side: "right",
-      draw: "bar",
-      bars: [{ x: (xTal0 + xTal1) / 2, y: yTalonSup }],
-      barPath: pathTalon,
-      attach: { x: xTal1 + (xTal0 - xTal1) * 0.55, y: yTalonSup },
-      callout: { x: W - 22, y: pH.y - 6, anchor: "end" },
-    },
-    {
-      mark: 7,
-      name: "Talón inferior",
-      face: "cara del suelo",
-      bar: barByName(barDistN).name,
-      dbCm: dbDist,
-      sCm: sDist,
-      nReal: nDist,
-      asProv: asProvCm2m(barByName(barDistN).as, sDist),
-      asUnit: "cm²/m",
-      color: DIST,
-      side: "right",
-      draw: "bar",
-      bars: [{ x: (xTal0 + xTal1) / 2, y: yTalonInf }],
-      barPath: pathTalonInf,
-      attach: { x: xTal0 - 24, y: yTalonInf },
-      callout: { x: W - 22, y: ySoffit + 18, anchor: "end" },
+      draw: "dots",
+      bars: [...transTop, ...transBot],
+      attach: transTop[Math.floor(transTop.length * 0.82)] ?? transTop[0],
+      callout: { x: xFootR + 18, y: (yTopMat + yBotMat) / 2, anchor: "start" },
     },
   ];
   if (hkUse > 0.02) {
     const dbKey = barByName(sv(values, "barLlave", barPata)).db;
     const rKey = Math.max(1.7, (dbKey / 100) * sc * 0.5);
     const recK = recZ + rKey;
-    const pathKey: SteelBarPt[] = [
-      { x: xy(xKeyL, e * 0.55).x + recK, y: xy(xKeyL, e * 0.55).y },
-      { x: xy(xKeyL, -hkUse).x + recK, y: xy(xKeyL, -hkUse).y - recK },
-      { x: xy(xKeyR, -hkUse).x - recK, y: xy(xKeyR, -hkUse).y - recK },
-      { x: xy(xKeyR, e * 0.55).x - recK, y: xy(xKeyR, e * 0.55).y },
-    ];
+    const kLbot = xy(xKeyL, -hkUse);
+    const kRbot = xy(xKeyR, -hkUse);
     const sKey = nv(values, "sLlave", sPata);
-    layers.push({
-      mark: 8,
-      name: "Dentellón (taco)",
-      face: "voladizo corto bajo el fuste",
-      bar: barByName(sv(values, "barLlave", barPata)).name,
-      dbCm: dbKey,
-      sCm: sKey,
-      nReal: nAlong(100, sKey),
-      asProv: asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey),
-      asUnit: "cm²/m",
-      color: FLEX,
-      side: "right",
-      draw: "bar",
-      bars: [pathKey[1]],
-      barPath: pathKey,
-      barPaths: [pathKey],
-      attach: pathKey[2],
-      callout: { x: W - 22, y: Ht - 78, anchor: "end" },
-    });
+    const ldKeyPx = Math.min(
+      (steelLdCm(fyS, fcS, dbKey) / 100) * sc,
+      Math.max(0.4, (H - e) * 0.2) * sc,
+    );
+    const xFaceL = kLbot.x + recK;
+    const xFaceR = kRbot.x - recK;
+    const yKeyBotSteel = kLbot.y - recK;
+    const gapBar = Math.max(11, rIntra + rKey + sc * 0.03);
+    const xMidKey = (xFaceL + xFaceR) / 2;
+    let xInnerKey = Math.min(xFaceR, pBaseB.x - inB - gapBar);
+    const sepKey = rKey * 2 + rTemp * 2 + Math.max(6, sc * 0.022);
+    if (xInnerKey - xFaceL < sepKey) xInnerKey = xFaceL + sepKey;
+    const xStemIntraAt = (y: number) => {
+      const yA = pTopF.y + recS + rIntra;
+      const yB = pBaseF.y;
+      const t = (y - yA) / Math.max(yB - yA, 1);
+      return pTopF.x + inF + Math.max(0, Math.min(1, t)) * (pBaseF.x - pTopF.x);
+    };
+    const yDowelTop = Math.max(pBaseF.y - ldKeyPx, pTopF.y + recS + 28);
+    const xDowelTop = xStemIntraAt(yDowelTop) + gapBar;
+    const xDowelBase = xStemIntraAt(pBaseF.y) + gapBar;
+    const yInnerHook = yBotMat - (rPata + rKey + Math.max(3.2, sc * 0.012));
+    const bendKey = Math.max(7, 6 * (dbKey / 100) * sc);
+    const hookKeyBot = Math.min(recK * 2.1, Math.max(10, (xInnerKey - xFaceL) * 0.28));
+    const hookKeyFoot = Math.min(hookTalon, Math.max(16, e * sc * 0.38), A * sc * 0.26);
+    const pathKeySoil = pathWithEndHook(
+      [
+        { x: xDowelTop, y: yDowelTop },
+        { x: xDowelBase, y: pBaseF.y + recZ * 0.15 },
+        { x: xFaceL, y: ySoffit - 2 },
+        { x: xFaceL, y: yKeyBotSteel },
+      ],
+      "right",
+      bendKey,
+      hookKeyBot,
+    );
+    const pathKeyBend = pathWithEndHook(
+      [
+        { x: xInnerKey, y: yKeyBotSteel },
+        { x: xInnerKey, y: yInnerHook },
+      ],
+      "right",
+      bendKey,
+      hookKeyFoot,
+    );
+    const insetDot = rKey + rTemp + Math.max(2.8, sc * 0.012);
+    const xDotL = xFaceL + insetDot;
+    const xDotR = xInnerKey - insetDot;
+    const yDotBot = yKeyBotSteel - insetDot;
+    const yDotTop = ySoffit - recK;
+    const yDotMid = (yDotBot + yDotTop) / 2;
+    const transKey =
+      xDotR > xDotL + 2
+        ? [
+            { x: xDotL, y: yDotBot },
+            { x: xDotR, y: yDotBot },
+            { x: xDotL, y: yDotMid },
+            { x: xDotR, y: yDotMid },
+            { x: xDotL, y: yDotTop },
+            { x: xDotR, y: yDotTop },
+          ]
+        : placeLine(xMidKey, yDotBot, xMidKey, yDotTop, 3);
+    layers.push(
+      {
+        mark: 7,
+        name: "Dentellón cara suelo",
+        face: "pasivo · dowel al alma (capa interior)",
+        bar: barByName(sv(values, "barLlave", barPata)).name,
+        dbCm: dbKey,
+        sCm: sKey,
+        nReal: nAlong(100, sKey),
+        asProv: asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey),
+        asUnit: "cm²/m",
+        asReq: nv(values, "AsLlave", asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey)),
+        ldCm: steelLdCm(fyS, fcS, dbKey),
+        recCm: recZap,
+        color: FLEX,
+        side: "right",
+        draw: "bar",
+        bars: [pathKeySoil[0]],
+        barPath: pathKeySoil,
+        barPaths: [pathKeySoil],
+        attach: { x: xDowelBase, y: (yDowelTop + pBaseF.y) / 2 },
+        callout: calloutBeside({ x: xDowelBase, y: (yDowelTop + pBaseF.y) / 2 }, "right", 22),
+      },
+      {
+        mark: 8,
+        name: "Dentellón con doblez",
+        face: "cara interior · gancho 90° en zapata",
+        bar: barByName(sv(values, "barLlave", barPata)).name,
+        dbCm: dbKey,
+        sCm: sKey,
+        nReal: nAlong(100, sKey),
+        asProv: asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey),
+        asUnit: "cm²/m",
+        asReq: nv(values, "AsLlave", asProvCm2m(barByName(sv(values, "barLlave", barPata)).as, sKey)),
+        ldCm: steelLdCm(fyS, fcS, dbKey),
+        recCm: recZap,
+        color: DIST,
+        side: "right",
+        draw: "bar",
+        bars: [pathKeyBend[0]],
+        barPath: pathKeyBend,
+        attach: { x: xInnerKey, y: (yKeyBotSteel + yInnerHook) / 2 },
+        callout: calloutBeside({ x: xInnerKey, y: (yKeyBotSteel + yInnerHook) / 2 }, "right", 20),
+      },
+      {
+        mark: 9,
+        name: "Longitudinal dentellón",
+        face: "∥ al muro · jaula interior del taco",
+        bar: barByName(barTemp).name,
+        dbCm: dbTemp,
+        sCm: sTemp,
+        nReal: nAlong(Math.max(bkUse, 0.25) * 100, sTemp),
+        asProv: asProvCm2m(barByName(barTemp).as, sTemp),
+        asUnit: "cm²/m",
+        asReq: asTempReq,
+        ldCm: ldTemp,
+        recCm: recZap,
+        color: TEMP,
+        side: "left",
+        draw: "dots",
+        bars: transKey,
+        attach: transKey[Math.floor(transKey.length / 2)] ?? transKey[0],
+        callout: { x: xFaceL - 18, y: yKeyBotSteel + 8, anchor: "end" },
+      },
+    );
   }
 
   const yDim = ySoffit + 56 + (hkUse > 0.02 ? hkUse * sc + 10 : 0);
-  const xHdim = Math.max(48, pP0.x - 72);
+  const xHdim = pP0.x - 40;
   const dims: SteelDim[] = [
     { x1: pP0.x, y1: yDim, x2: pSF0.x, y2: yDim, label: `C = ${C.toFixed(2)} m`, side: "bottom" },
     { x1: pSF0.x, y1: yDim, x2: pSB0.x, y2: yDim, label: `F = ${F.toFixed(2)} m`, side: "top" },
@@ -588,8 +855,8 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   return {
     title: "Corte de sección — despiece de aceros",
     subtitle: "Muro en voladizo · corte A-A · franja de 1,00 m · una marca por lecho",
-    caption: `Trasdós Ø ${barAlma} @ ${sAlma.toFixed(0)} · Intradós Ø ${barIntraN} @ ${sIntra.toFixed(0)} · Puntera inf. Ø ${barPata} @ ${sPata.toFixed(0)} · Puntera sup. Ø ${barDistN} @ ${sDist.toFixed(0)} · Talón sup. Ø ${barTalon} @ ${sTalon.toFixed(0)} · Talón inf. Ø ${barDistN} @ ${sDist.toFixed(0)} · Temp. Ø ${barTemp} @ ${sTemp.toFixed(0)}${hkUse > 0.02 ? ` · Dentellón ${bkUse.toFixed(2)}×${hkUse.toFixed(2)} m` : ""}`,
-    note: "Lechos a recubrimiento. Verticales en el plano (trasdós e intradós); temperatura en corte, interior a los verticales. Zapata con malla inf. y sup. El dentellón (taco) solo aparece si el muro desliza.",
+    caption: `Trasdós Ø ${barAlma} @ ${sAlma.toFixed(0)} · Intradós Ø ${barIntraN} @ ${sIntra.toFixed(0)} · Zapata inf. Ø ${barPata} @ ${sPata.toFixed(0)} · Zapata sup. Ø ${barDistN} @ ${sDist.toFixed(0)} · Transv. zapata Ø ${barTalon} @ ${sTalon.toFixed(0)} · Temp. Ø ${barTemp} @ ${sTemp.toFixed(0)}${hkUse > 0.02 ? ` · Dentellón ${bkUse.toFixed(2)}×${hkUse.toFixed(2)} m` : ""}`,
+    note: "Verticales del alma anclan en la zapata con gancho 90° y no bajan al dentellón. El taco lleva armadura propia: la cara de suelo entra al alma por una capa interior (sin coincidir con el intradós) y la cara interior se queda en la zapata con gancho 90°. Longitudinales del dentellón en corte, dentro del recubrimiento y desfasados de los verticales. hk típico 0,30–0,60 m.",
     W,
     H: Ht,
     outline,

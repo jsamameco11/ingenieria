@@ -6,9 +6,22 @@ El parque de cuentas vive en Supabase (`public.users` + Auth). El panel **no bor
 
 1. El navegador pide `GET /api/control/snapshot` con la clave de titular.
 2. Apache debe proxyar esa ruta a Node (`127.0.0.1:8788`).
-3. El servidor arma el censo (Auth + `public.users` + perfiles + equipos).
+3. El servidor arma el censo (Auth + `public.users` + perfiles + equipos + **`user_platforms` + `user_sessions`**).
 
 Si Apache no tiene el proxy, `FallbackResource` (o `try_files` en nginx) devuelve el HTML del panel con HTTP 200. Antes el cliente interpretaba ese HTML como JSON vacío y mostraba **«Supabase conectado · 0 cuentas»**. Eso era un fallo de lectura, no un parque vacío.
+
+## Sesiones de todas las páginas
+
+El inventario de Ingeniería lee la **misma base** que Folio Control. Cada cuenta muestra pastillas (sí / no) para Folio PDF, Android, Ingeniería, Contrataciones, Odontomedic, Casa de la Palabra, LinkedIn, CV, MiAcademia, Drive Me y MercaGo.
+
+La fuente es concatenada:
+
+- `user_platforms` (login anclado con `touch_platform`)
+- `user_sessions` (sesión viva por página)
+- `installs` (pulsos de Folio / Android)
+- perfiles y anclas de Ingeniería
+
+Cada panel de administrador conserva su estilo (papel/latón en Ingeniería, oscuro en Folio, tipografía de Casa). Todos leen el mismo USER_ID.
 
 ## Qué no debe volver a pasar
 

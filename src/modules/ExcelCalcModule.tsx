@@ -8,8 +8,9 @@ import { FullSelect } from "../ui/FullSelect";
 import { CalcDirtyNote, CalcularButton, MemoriaPendiente, useMemoriaOnCalcular } from "../ui/calcular";
 import { Paper } from "../ui/Paper";
 import { Diagram, ColumnaPM } from "../components/Diagram";
-import { GridPaños } from "../components/GridPaños";
-import { CorridaColumnas } from "../components/CorridaColumnas";
+import { MaeCatalogHost } from "../components/maestria/MaeCanvas";
+import { dumpBoth } from "../lib/engines/maestria/drawCommon";
+import { exampleModel } from "../lib/engines/maestria/types";
 import { SteelSectionFig } from "../components/SteelSectionFig";
 import { specEstriboPantalla } from "../lib/steelEngine";
 import { PmExportPanel } from "../components/PmExportPanel";
@@ -120,6 +121,36 @@ function puenteH3(slug: string, n: string): string | null {
       "03": "Tanda de una bolsa y rendimiento",
       "04": "Pedido por 1 m³ de concreto",
       "05": "Pedido total del vaciado",
+    },
+    "losa-2dir": {
+      "01": "Identificación de paños, huecos y franjas",
+      "02": "Peso propio maciza o aligerada",
+      "03": "Combinación 1,4 D + 1,7 L",
+      "05": "Momentos por paño — ACI-3 y Marcus",
+      "06": "Pórtico equivalente por franja",
+      "07": "Whitney: As, ρ y Ø por paño",
+      "08": "Colocación, ℓd y temperatura",
+    },
+    "zapata-corrida": {
+      "01": "Geometría — área, baricentro e inercias",
+      "02": "Cargas P1–P3 y M1–M3 por columna",
+      "03": "Esfuerzo neto E.050 y q = P/A ± Mc/I",
+      "04": "Prediseño de espesor h",
+      "05": "Flexión de vuelo y As transversal",
+      "07": "Punzonamiento E.060 11.12",
+      "08": "Viga invertida — Mu, Vu y As",
+      "09": "Desarrollo y anclaje ℓd",
+    },
+    platea: {
+      "01": "Geometría y columnas 6 GDL",
+      "03": "Presión media y esfuerzo neto E.050",
+      "04": "Westergaard — rígida o flexible",
+      "05": "Iteración del espesor t",
+      "06": "Método de fajas — franjas X",
+      "08": "Franjas Y y momentos por cara",
+      "09": "Mallas de acero",
+      "10": "Punzonamiento Vu y φVn",
+      "12": "Desarrollo y anclaje",
     },
   };
   return map[slug]?.[n] ?? null;
@@ -381,6 +412,7 @@ function fichaVisible(f: FieldDef, values: Record<string, string>, slug: string)
 }
 
 function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme = false) {
+  if (["sAli", "bwAli", "hfAli", "relleno"].includes(f.key) && values.tipoLosa !== "aligerada") return false;
   if ((f.key === "wu" || f.key === "L") && values.metodoMu === "directo") return false;
   if (f.key === "Mu" && values.metodoMu === "auto") return false;
   if (f.key === "wAz" && values.azotea === "no") return false;
@@ -466,6 +498,15 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
   if (["Pcocina", "sisCocina"].includes(f.key) && values.hayCocina === "no") return false;
   if (["Pcalent", "sisCalent"].includes(f.key) && values.hayCalent === "no") return false;
   if (f.key === "expo" && values.aire === "no") return false;
+  if (values.nApoyos != null && values.flota != null && values.efecto != null) {
+    const nA = Math.max(2, Math.min(7, Math.round(Number(String(values.nApoyos).replace(",", ".")) || 2)));
+    if (/^L[2-6]$/.test(f.key) && Number(f.key.slice(1)) >= nA) return false;
+    if (f.key === "apoyoR" && (values.efecto || "M") !== "R") return false;
+    if (f.key === "P" && values.flota !== "puntual") return false;
+    if (f.key === "gapMult" && values.flota !== "multiple" && values.flota !== "hl93" && values.nVeh !== "2" && values.nVeh !== "auto") return false;
+    if (/^ejeP[1-8]$/.test(f.key) && values.flota !== "especial") return false;
+    if (/^ejeD[2-8]$/.test(f.key) && values.flota !== "especial") return false;
+  }
   if (paraInforme) {
     if (["hayCalef", "hayAa", "hayCocina", "hayCalent"].includes(f.key)) return false;
     for (const i of [1, 2, 3, 4] as const) {
@@ -497,7 +538,7 @@ function CroquisBoard({
 }) {
   const sketch = mod.slug === "diagrama-interaccion" ? { ...values } : { ...values, ...dims };
   return (
-    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
+    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.diagram === "lineaInf" ? " croquis-board-lineaInf" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
       <Diagram
         kind={mod.diagram}
         part={mod.slug === "diagrama-interaccion" ? "informe" : mod.diagram === "aligerado" ? "intro" : mod.diagram === "dotacion" ? "esquema" : undefined}
@@ -554,16 +595,24 @@ function CroquisBoard({
   );
 }
 
+function seedMaeValues(mod: ModuleDef, base: Record<string, string>): Record<string, string> {
+  if (base.studioJson?.trim()) return base;
+  if (mod.slug === "losa-2dir") return { ...base, ...dumpBoth(exampleModel("losa")) };
+  if (mod.slug === "platea") return { ...base, ...dumpBoth(exampleModel("platea")) };
+  if (mod.slug === "zapata-corrida" && base.tipo !== "muro") return { ...base, ...dumpBoth(exampleModel("zapata")) };
+  return base;
+}
+
 export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
   const { track } = useAuth();
   const [values, setValues] = useState<Record<string, string>>(() =>
-    mod.slug === "espectro-e030" ? syncE030({ ...mod.defaults }) : { ...mod.defaults }
+    seedMaeValues(mod, mod.slug === "espectro-e030" ? syncE030({ ...mod.defaults }) : { ...mod.defaults }),
   );
   const [active, setActive] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState("");
 
   useEffect(() => {
-    setValues(mod.slug === "espectro-e030" ? syncE030({ ...mod.defaults }) : { ...mod.defaults });
+    setValues(seedMaeValues(mod, mod.slug === "espectro-e030" ? syncE030({ ...mod.defaults }) : { ...mod.defaults }));
     setActive(null);
     setSaveMsg("");
   }, [mod.slug, mod.defaults]);
@@ -603,6 +652,12 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
               ? `Esta memoria desarrolla el ${nombreProcedimiento(mod.title)} según ${mod.norma}. Cada paso reproduce la hoja de cálculo: fórmula, desarrollo numérico, tabla intermedia y dosificación en peso.`
             : mod.slug === "muro-contencion-sismo"
               ? "Esta memoria desarrolla el muro de contención en voladizo por metro lineal: geometría de la pantalla y de la zapata (pata, alma y talón), empujes Rankine y de agua, sobrecarga de franja, estabilidad estática y sísmica (Mononobe–Okabe) y el diseño estructural E.060 de cada parte."
+            : mod.slug === "losa-2dir"
+              ? "Esta memoria desarrolla la losa en dos direcciones como expediente técnico: identificación de cada paño (ℓx, ℓy, bordes y huecos), peso propio de losa maciza o aligerada, combinación 1,4 D + 1,7 L, momentos ACI-3 y Marcus por paño, pórtico equivalente por cada franja real y acero As distinto por paño (E.060 / ACI 318)."
+            : mod.slug === "zapata-corrida"
+              ? "Esta memoria desarrolla la zapata corrida de columnas como expediente técnico: geometría de la planta (A, Ixx, Iyy, baricentro), cargas P1–P3 y M1–M3 por columna, combinación última, q = P/A ± Mc/I, esfuerzo neto E.050, prediseño de h (corte 1 dir., punzonamiento 11.12 y flexión de vuelo), viga invertida por tramos (Mu, Vu, As) y longitud de desarrollo."
+            : mod.slug === "platea"
+              ? "Esta memoria desarrolla la platea de cimentación como expediente técnico: espesor, radio de Westergaard (rígida o flexible), método de fajas con momentos por franja, punzonamiento con perímetro crítico Vu y φVn, mallas de acero y anclaje, según E.060 / ACI 318 y E.050."
             : mod.engine === "reservorioApoyado"
               ? "Esta memoria desarrolla el reservorio circular apoyado en el terreno: predimensionamiento por volumen, presión hidrostática, análisis de la pared como lámina cilíndrica empotrada en la base (motor propio, equivalente a las tablas PCA), sismo por el modelo de masas de Housner (componentes impulsiva y convectiva, ACI 350.3-06) y diseño estructural de la pared, la losa de fondo, la cúpula y la viga collarín."
             : mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste"
@@ -641,14 +696,38 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   ? [
                       "El croquis acota la pata, el alma, el talón, el peralte de zapata y el desplante D. El alma se dibuja con talud (F en la base, B′ en coronación).",
                       "Tras la estabilidad se diseña el acero de pantalla, de la pata (inferior) y del talón (superior).",
-                      "Si el muro desliza, se prediseña un dentellón (taco) bajo el fuste (bk = F, hk por iteración de 5 cm) y se verifica FS_d, φMn y φVc.",
+                      "Si el muro desliza, se prediseña un dentellón (taco) bajo el fuste (bk = F, hk de 0,30 a 0,60 m) y se verifica FS_d, φMn y φVc.",
                       "El sismo se dibuja con las posiciones de aplicación: Pa a H/3, ΔPae a 0,6 H (si existe) y PIR = Kh·W en el centro de gravedad.",
                       "La deflexión de servicio se calcula paso a paso (Ec, Mcr, Ie de Branson y elástica del voladizo). Si δ > Hs/150, el espesor F se aumenta de 5 en 5 cm hasta cumplir, y se recalcula el muro.",
                       "Cada zona diseñada incluye el diagrama de momento flector, la fórmula de Mu y el acero adoptado.",
                     ]
                   : []),
+                ...(mod.engine === "estriboVoladizo"
+                  ? [
+                      "El despiece A1 coloca cada acero en su posición: trasdós contra la cara de tierra, intradós siguiendo el talud, puntera en lecho inferior y talón en lecho superior, con ganchos 90° y ℓd.",
+                      "El sismo se dibuja con las mismas posiciones que el muro de contención: Pa (EH1X) a H/3, ΔPae = PAE−EH1X a 0,6 H (si existe) y PIR = Kh·W en el centro de gravedad.",
+                    ]
+                  : []),
                 ...(["zapataAislada", "zapataCombinada", "zapataCorrida", "platea", "escalera"].includes(mod.engine)
                   ? ["En cada zona analizada se dibuja el diagrama de momento flector y se indica el acero que lo cubre."]
+                  : []),
+                ...(mod.slug === "losa-2dir"
+                  ? [
+                      "Al crear ejes todos los paños quedan techo. Paño on/off marca huecos. El expediente calcula Whitney (Rn, ρ, As, Asmín) y Ø @ s por cara de cada paño.",
+                      "Cada paño lleva su peso (maciza o aligerada), momentos ACI-3/Marcus y As de positivo y negativo. No es un resumen de cuatro Ø globales.",
+                    ]
+                  : []),
+                ...(mod.slug === "zapata-corrida"
+                  ? [
+                      "La planta se arma con Vanos X y Vanos Y (1 a 12). Crear grilla regenera los ejes; cada vano se acota (ℓx, ℓy). Pintar toda o celda a celda; Columnas en nudos coloca un apoyo en cada entrecruce de la zapata pintada, con ficha P1…M3.",
+                      "Los pasos cubren A, Ixx, Iyy, baricentro, combinación, q = P/A ± Mc/I, prediseño de h, viga invertida, As y ℓd.",
+                    ]
+                  : []),
+                ...(mod.slug === "platea"
+                  ? [
+                      "La platea se documenta con Westergaard (rígida/flexible), fajas, momentos por franja, punzonamiento Vu–φVn de cada columna y mallas inf./sup.",
+                      "Si no hay paños pintados se carga un ejemplo de expediente; no se publica un informe vacío.",
+                    ]
                   : []),
                 ...(mod.engine === "reservorioApoyado" || mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste"
                   ? [
@@ -716,7 +795,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste") {
         if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
         if (s.n === "07") blocks.push({ type: "h2", text: "3.c Diseño de acero de la cuba (pared, cúpulas, anillos)" });
+        if (s.n === "09b") blocks.push({ type: "h3", text: "Collarines — tracción de anillo y Whitney" });
         if (s.n === "12") blocks.push({ type: "h2", text: mod.engine === "tanqueElevadoColumnas" ? "3.d Torre soportante de columnas" : "3.d Fuste soportante de concreto" });
+        if (mod.engine === "tanqueElevadoColumnas" && s.n === "16b") blocks.push({ type: "h3", text: "Detalle de columnas, vigas de anillo y diagonales" });
+        if (mod.engine === "tanqueElevadoFuste" && s.n === "16b") blocks.push({ type: "h3", text: "Confinamiento del fuste y anillos de arriostre" });
         if (mod.engine === "tanqueElevadoColumnas" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
         if (mod.engine === "tanqueElevadoFuste" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
       }
@@ -782,20 +864,18 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "mTrans" });
           blocks.push({ type: "figure", part: "mSecTrans" });
         }
-        if (s.n === "07" && values.tipo === "columnas") {
+        if (s.n === "07") blocks.push({ type: "figure", part: "mPunch" });
+        if (s.n === "08") {
           blocks.push({ type: "figure", part: "mLong" });
-          blocks.push({ type: "figure", part: "mSecLong" });
-        }
-        if (s.n === "01" && values.tipo === "columnas") blocks.push({ type: "figure", part: "mIso" });
-        if (s.n === "10") {
-          blocks.push({ type: "figure", part: "mSecTrans" });
           blocks.push({ type: "figure", part: "mSecLong" });
         }
       }
       if (mod.diagram === "losa2d") {
-        if (s.n === "04") blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "06") blocks.push({ type: "figure", part: "mStrips" });
+        if (s.n === "07" || s.n === "08") blocks.push({ type: "figure", part: "mSteel" });
       }
       if (mod.diagram === "estribo") {
+        if (s.n === "25") blocks.push({ type: "figure", part: "mSismo" });
         if (s.n === "38") blocks.push({ type: "figure", part: "mSeccion" });
       }
       if (mod.diagram === "platea") {
@@ -805,7 +885,8 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "mIntY" });
           blocks.push({ type: "figure", part: "mEdgY" });
         }
-        if (s.n === "14") blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "10") blocks.push({ type: "figure", part: "mPunch" });
+        if (s.n === "09") blocks.push({ type: "figure", part: "mSteel" });
       }
       if (mod.diagram === "escalera") {
         if (s.n === "04") blocks.push({ type: "figure", part: "mT1" });
@@ -1000,10 +1081,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           </div>
         ) : null}
         {mod.slug === "espectro-e030" ? <E030Resumen values={values} /> : null}
-        {mod.slug === "losa-2dir" ? <GridPaños mode="losa" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
-        {mod.slug === "platea" ? <GridPaños mode="platea" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
-        {mod.slug === "zapata-corrida" && values.tipo === "columnas" ? (
-          <CorridaColumnas values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} />
+        {mod.slug === "losa-2dir" ? <MaeCatalogHost mode="losa" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
+        {mod.slug === "platea" ? <MaeCatalogHost mode="platea" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} /> : null}
+        {mod.slug === "zapata-corrida" && values.tipo !== "muro" ? (
+          <MaeCatalogHost mode="zapata" values={values} onPatch={(p) => setValues((s) => ({ ...s, ...p }))} />
         ) : null}
         {groups.map(([group, fields]) => {
           if (mod.slug === "placa-muro" && /^[5-7]\. ETABS/.test(group)) return null;

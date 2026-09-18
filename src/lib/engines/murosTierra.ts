@@ -457,10 +457,10 @@ export const muroContencionSismo: Engine = (raw) => {
   const FSdEqSinDentellon = st.FSdEq;
   const pasivoSin = 0.5 * D ** 2 * Kp * gammaSat;
   const deslizaSin = st.FSd + 1e-9 < FS_desl || st.FSdEq + 1e-9 < FS_deslSis;
-  const hkPre = Math.max(0.3, snapEspesor5cm(esp));
+  const hkPre = Math.min(0.6, Math.max(0.3, snapEspesor5cm(esp)));
   const ensayosDentellon: { hk: number; FSd: number; FSdEq: number; ok: boolean }[] = [];
   if (deslizaSin) {
-    const hkMax = 0.9;
+    const hkMax = 0.6;
     for (let htry = hkPre; htry <= hkMax + 1e-9; htry = Math.round((htry + 0.05) * 100) / 100) {
       st = estadoDe(st.F, st.Bp, htry);
       const okKey = st.FSd + 1e-9 >= FS_desl && st.FSdEq + 1e-9 >= FS_deslSis;
@@ -781,7 +781,7 @@ export const muroContencionSismo: Engine = (raw) => {
       ok: okDentellonEst && okDentellonSec,
       desarrollo: [
         "El dentellón (taco / diente de cimentación) es una llave de cortante bajo el fuste. No se coloca bajo la puntera: ahí el pasivo ya se cuenta con D y el brazo de la llave sería menor.",
-        `Predimensionamiento: bk = F = ${fmt(F, 2)} m (mismo ancho que el alma). hk,pre = máx(e, 0,30) = ${fmt(hkPre, 2)} m. Se itera de 5 en 5 cm hasta FS_d y FS_d,sis.`,
+        `Predimensionamiento: bk = F = ${fmt(F, 2)} m (mismo ancho que el alma). hk,pre = máx(e, 0,30) = ${fmt(hkPre, 2)} m. Se itera de 5 en 5 cm hasta 0,60 m (llave típica 0,30–0,60 m; más de 0,60 m deja de ser constructivo para un muro de esta escala).`,
         deslizaSin
           ? `Sin llave el muro desliza: FS_d = ${fmt(FSdSinDentellon, 2)} (mín. ${fmt(FS_desl, 2)}) y FS_d,sis = ${fmt(FSdEqSinDentellon, 2)} (mín. ${fmt(FS_deslSis, 2)}).`
           : `Sin llave ya cumple. No se vierte concreto de taco.`,

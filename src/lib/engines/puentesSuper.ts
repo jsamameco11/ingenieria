@@ -1,4 +1,5 @@
 import { type CalcCheck, type CalcOutput, type Engine, fmt, num, str } from "../types";
+export { lineaInfluencia } from "./influence/engine";
 
 function out(
   headline: string,
@@ -886,68 +887,5 @@ export const pasarelaColgante: Engine = (raw) => {
       },
     ],
     { L: String(L), f: String(f), A: String(A) }
-  );
-};
-
-/* Línea de influencia + MOVLOADS */
-export const lineaInfluencia: Engine = (raw) => {
-  const L = num(raw, "L", 30);
-  const x = num(raw, "x", 15);
-  const nPts = 11;
-  const rows: string[][] = [["ξ (m)", "η_M", "η_V", "M HS-20 (t·m)", "V HS-20 (t)"]];
-  for (let i = 0; i < nPts; i++) {
-    const xi = (i / (nPts - 1)) * L;
-    const m = etaM(L, x, xi);
-    const v = etaV(L, x, xi);
-    let Mh = 0;
-    let Vh = 0;
-    for (const ax of HS20) {
-      Mh += ax.p * etaM(L, x, xi + ax.s);
-      Vh += ax.p * etaV(L, x, xi + ax.s);
-    }
-    rows.push([fmt(xi, 2), fmt(m, 3), fmt(v, 3), fmt(Mh, 2), fmt(Vh, 2)]);
-  }
-  const envM = envelopeTruck(L, x, "M");
-  const envV = envelopeTruck(L, x, "V");
-  const envMid = envelopeTruck(L, L / 2, "M");
-  return out(
-    `x=${fmt(x, 2)} m  ·  Mmáx HS-20=${fmt(envM.max, 2)} t·m  ·  Vmáx=${fmt(Math.max(Math.abs(envV.max), Math.abs(envV.min)), 2)} t`,
-    `Viga simple L=${fmt(L, 1)} m  ·  tren 8-32-32 kip  ·  η_M = ξ(L−x)/L`,
-    [
-      {
-        n: "01",
-        title: "Ordenada de momento (viga simplemente apoyada)",
-        formula: "ξ ≤ x:  η_M = ξ (L−x)/L      ξ ≥ x:  η_M = x (L−ξ)/L",
-        substitution: `L=${fmt(L, 2)}    sección x=${fmt(x, 2)} m`,
-        result: `η_M(x,x) = ${fmt(etaM(L, x, x), 3)} m  (pico bajo la carga unidad)`,
-        note: "El caso base es un tramo isostático. En vigas continuas (hasta 6 tramos) las ordenadas se arman con el modelo de tramos múltiples.",
-      },
-      {
-        n: "02",
-        title: "Ordenada de cortante",
-        formula: "ξ ≤ x:  η_V = −(L−x)/L      ξ ≥ x:  η_V = x/L",
-        result: `izquierda ${fmt(-(L - x) / L, 3)}    derecha ${fmt(x / L, 3)}`,
-      },
-      {
-        n: "03",
-        title: "Barrido del tren HS-20",
-        formula: "M(x) = Σ P_i η_M(x, ξ_i)    recorriendo el primer eje cada 0.15 m",
-        result: `Mmáx=${fmt(envM.max, 2)} t·m    Mmín=${fmt(envM.min, 2)} t·m    |V|máx=${fmt(Math.max(Math.abs(envV.max), Math.abs(envV.min)), 2)} t`,
-        note: "El tren se posiciona de 1 a 8 ruedas. El HS-20 son tres ejes; si un eje cae fuera del tramo se anula.",
-      },
-      {
-        n: "04",
-        title: "Centro de luz (referencia)",
-        formula: "Para una carga P en L/2:  M=PL/4",
-        substitution: `eje 14.51 t → 14.51×${fmt(L, 2)}/4 = ${fmt((14.51 * L) / 4, 2)} t·m (una rueda)`,
-        result: `Mmáx tren @ L/2 = ${fmt(envMid.max, 2)} t·m`,
-      },
-    ],
-    [
-      ok("x dentro del tramo", `${fmt(x, 2)} m`, `0–${fmt(L, 2)} m`, x >= 0 && x <= L),
-      ok("Envelope calculado", fmt(envM.max, 2), "t·m", envM.max > 0),
-    ],
-    [{ title: "Línea de influencia en la sección x", rows }],
-    { L: String(L), x: String(x) }
   );
 };

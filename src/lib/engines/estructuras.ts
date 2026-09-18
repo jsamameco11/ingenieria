@@ -39,13 +39,12 @@ import {
 import { resolveSection, tipoById } from "../columnaTipos";
 import { generateColumnPM } from "../pmMotor";
 import { platea, zapataCombinada, zapataCorrida } from "./cimentaciones";
+import { calcLosa2d } from "./maestria/losa2dCalc";
 import { e030C as e030CTabla } from "../e030/tablas";
 import { resolveE030 } from "../e030/resolve";
 import { calcularEscalera, type EscaleraTramo } from "../escaleraCalc";
 import { designBeamStirrups, designColumnStirrups } from "../estribos";
 import { diagramaInteraccion } from "./interaccion";
-import { coefAci3 } from "../steelEngine";
-import { paneContinuity, paneOn, parseGrid, type GridModel } from "../layoutGrid";
 
 function out(
   headline: string,
@@ -2462,161 +2461,7 @@ function losaContinua(kind: "aligerada" | "maciza"): Engine {
 export const viguetas: Engine = losaContinua("aligerada");
 export const losa1d: Engine = losaContinua("maciza");
 
-/* ───────── Losa 2 direcciones (coeficientes ACI, grilla de paños) ───────── */
-function pickSlabBar(As: number) {
-  const s38 = spacingFor(As, 0.71, 100);
-  if (s38 >= 10 && s38 <= 25) return { bar: '3/8"', s: s38, asBar: 0.71 };
-  return { bar: '1/2"', s: spacingFor(As, 1.29, 100), asBar: 1.29 };
-}
-
-function slabAs(Mu: number, h: number, fc: number, fy: number) {
-  const rec = 2.5;
-  const d = Math.max(h - rec, 6);
-  const Asmin = 0.0018 * 100 * h;
-  if (Mu <= 1e-6) return { As: Asmin, d };
-  const phi = 0.9;
-  const Rn = (Mu * 100000) / (phi * 100 * d * d);
-  const disc = 1 - (2 * Rn) / (0.85 * Math.max(fc, 1));
-  const rho = disc > 0 ? (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, disc))) : 0.018;
-  return { As: Math.max(rho * 100 * d, Asmin), d };
-}
-
-export const losa2d: Engine = (raw) => {
-  const Adef = num(raw, "A", 4.0);
-  const Bdef = num(raw, "B", 5.0);
-  const h = num(raw, "h", 15);
-  const cm = num(raw, "cm", 500);
-  const cv = num(raw, "cv", 250);
-  const fy = num(raw, "fy", 4200);
-  const fc = num(raw, "fc", 210);
-  const caso0 = str(raw, "caso", "cccc");
-  const nx0 = Math.max(1, Math.round(num(raw, "nX", 1)));
-  const ny0 = Math.max(1, Math.round(num(raw, "nY", 1)));
-  const fallback: GridModel = {
-    axesX: Array.from({ length: nx0 + 1 }, (_, i) => i * Adef),
-    axesY: Array.from({ length: ny0 + 1 }, (_, i) => i * Bdef),
-    panes: Array.from({ length: ny0 }, () => Array.from({ length: nx0 }, () => true)),
-    cols: [],
-  };
-  const g = parseGrid(str(raw, "gridJson", ""), fallback);
-  const wu = 1.4 * cm + 1.7 * cv;
-  const wuT = wu / 1000;
-  type PaneRow = { ix: number; iy: number; lx: number; ly: number; caso: string; mC: number; mL: number; MuCneg: number; MuCpos: number; MuLneg: number; MuLpos: number };
-  const panes: PaneRow[] = [];
-  let MuInfX = 0;
-  let MuInfY = 0;
-  let MuSupX = 0;
-  let MuSupY = 0;
-  for (let iy = 0; iy < g.panes.length; iy++) {
-    for (let ix = 0; ix < g.panes[iy].length; ix++) {
-      if (!paneOn(g, ix, iy)) continue;
-      const c = paneContinuity(g, ix, iy);
-      const caso = g.panes.length === 1 && g.panes[0].length === 1 ? caso0 : c.caso;
-      const k = coefAci3(caso);
-      const lx = c.lx;
-      const ly = c.ly;
-      const ln = Math.min(lx, ly);
-      const m = ln / Math.max(lx, ly, 0.5);
-      const MuCneg = k.nC * wuT * ln * ln;
-      const MuCpos = k.pC * wuT * ln * ln;
-      const MuLneg = k.nL * wuT * ln * ln;
-      const MuLpos = k.pL * wuT * ln * ln;
-      const xIsShort = lx <= ly + 1e-6;
-      if (xIsShort) {
-        MuInfX = Math.max(MuInfX, MuCpos);
-        MuSupX = Math.max(MuSupX, MuCneg);
-        MuInfY = Math.max(MuInfY, MuLpos);
-        MuSupY = Math.max(MuSupY, MuLneg);
-      } else {
-        MuInfX = Math.max(MuInfX, MuLpos);
-        MuSupX = Math.max(MuSupX, MuLneg);
-        MuInfY = Math.max(MuInfY, MuCpos);
-        MuSupY = Math.max(MuSupY, MuCneg);
-      }
-      panes.push({ ix, iy, lx, ly, caso, mC: m, mL: Math.max(lx, ly) / Math.max(ln, 0.5), MuCneg, MuCpos, MuLneg, MuLpos });
-    }
-  }
-  const nOn = panes.length;
-  const flexInfX = slabAs(MuInfX, h, fc, fy);
-  const flexInfY = slabAs(MuInfY, h, fc, fy);
-  const flexSupX = slabAs(MuSupX, h, fc, fy);
-  const flexSupY = slabAs(MuSupY, h, fc, fy);
-  const infX = pickSlabBar(flexInfX.As);
-  const infY = pickSlabBar(flexInfY.As);
-  const supX = pickSlabBar(flexSupX.As);
-  const supY = pickSlabBar(flexSupY.As);
-  const ratio = nOn ? Math.min(...panes.map((p) => Math.min(p.lx, p.ly) / Math.max(p.lx, p.ly))) : Math.min(Adef, Bdef) / Math.max(Adef, Bdef);
-  const extX = g.axesX[g.axesX.length - 1] - g.axesX[0];
-  const extY = g.axesY[g.axesY.length - 1] - g.axesY[0];
-  return out(
-    `Losa 2 dir.  ${nOn} paños  ·  inf. Ø ${infX.bar} @ ${infX.s} / Ø ${infY.bar} @ ${infY.s} cm`,
-    `Método 3 ACI  ·  h=${fmt(h, 0)} cm  ·  wu=${fmt(wu, 0)} kg/m²  ·  malla inf. X/Y y sup. X/Y gobernantes`,
-    [
-      {
-        n: "01",
-        title: "Grilla de paños techados y continuidad",
-        formula: "Cada paño: m = ℓcorto/ℓlargo    ·    c/d según paños vecinos techados",
-        substitution: `${g.axesX.length - 1}×${g.axesY.length - 1} paños    ·    ${nOn} techados    ·    planta ${fmt(extX, 2)}×${fmt(extY, 2)} m`,
-        result: nOn ? `Paño tipo: ${panes[0].lx.toFixed(2)}×${panes[0].ly.toFixed(2)} m  ·  caso ${panes[0].caso}` : "Sin paños techados",
-        note: "Un paño discontinuo en un borde usa el coeficiente de borde libre. No se arman los paños apagados (patio, hueco de escalera, vacío).",
-      },
-      {
-        n: "02",
-        title: "Carga última y momentos de paño (método 3)",
-        formula: "wu = 1.4 CM + 1.7 CV    ·    Mu = α wu ℓn²    (α de tabla según cccc…dddd)",
-        substitution: `CM=${fmt(cm, 0)}  CV=${fmt(cv, 0)}  →  wu=${fmt(wu, 0)} kg/m²    ·    α corto neg/pos y largo neg/pos`,
-        result: `Gobernantes: Mu+X=${fmt(MuInfX, 3)}  Mu−X=${fmt(MuSupX, 3)}  Mu+Y=${fmt(MuInfY, 3)}  Mu−Y=${fmt(MuSupY, 3)} t·m/m`,
-        note: "ℓn = lado corto del paño. El acero de planta es el envolvente: cada lecho y dirección toma el mayor Mu de todos los paños techados.",
-      },
-      {
-        n: "03",
-        title: "Acero por metro — Whitney, Asmín = 0,0018 h",
-        formula: "As = Mu / (φ fy j d)    ·    Asmín = 0.0018 b h    ·    s ≤ 3h y ≤ 45 cm",
-        substitution: `h=${fmt(h, 0)} cm    d≈${fmt(flexInfX.d, 1)} cm    fy=${fmt(fy, 0)}    f'c=${fmt(fc, 0)}`,
-        result: `Inf X Ø ${infX.bar} @ ${infX.s} cm    ·    Inf Y Ø ${infY.bar} @ ${infY.s} cm    ·    Sup X Ø ${supX.bar} @ ${supX.s} cm    ·    Sup Y Ø ${supY.bar} @ ${supY.s} cm`,
-      },
-      {
-        n: "04",
-        title: "Despiece — una barra representativa por cálculo",
-        formula: "Cuatro lechos: inf. X, inf. Y, sup. X (apoyos), sup. Y (apoyos)",
-        substitution: `As inf X=${fmt(flexInfX.As, 2)}  Y=${fmt(flexInfY.As, 2)}    ·    As sup X=${fmt(flexSupX.As, 2)}  Y=${fmt(flexSupY.As, 2)} cm²/m`,
-        result: "Planta A1: un Ø y un s por lecho (acero gobernante de los paños techados)",
-        note: "No se dibuja la malla completa. En obra se coloca a la separación indicada en todo el paño techado; en apoyos el lecho superior cubre ℓn/4 a cada lado.",
-      },
-    ],
-    [
-      ok("A/B ≥ 0.5 (método 3)", fmt(ratio, 2), "≥ 0.50", ratio >= 0.5),
-      ok("Hay paños techados", String(nOn), "≥ 1", nOn >= 1),
-      ok("h ≥ 12 cm", `${fmt(h, 0)} cm`, "≥ 12 cm", h >= 12),
-    ],
-    [
-      {
-        title: "Paños techados — momentos de diseño",
-        rows: [
-          ["Paño", "ℓx (m)", "ℓy (m)", "caso", "Mu+ corto", "Mu− corto", "Mu+ largo", "Mu− largo"],
-          ...panes.map((p) => [
-            `${p.ix + 1},${p.iy + 1}`,
-            fmt(p.lx, 2),
-            fmt(p.ly, 2),
-            p.caso,
-            fmt(p.MuCpos, 3),
-            fmt(p.MuCneg, 3),
-            fmt(p.MuLpos, 3),
-            fmt(p.MuLneg, 3),
-          ]),
-        ],
-      },
-    ],
-    {
-      h: String(h),
-      asInfX: `Ø ${infX.bar} @ ${infX.s} cm`,
-      asInfY: `Ø ${infY.bar} @ ${infY.s} cm`,
-      asSupX: `Ø ${supX.bar} @ ${supX.s} cm`,
-      asSupY: `Ø ${supY.bar} @ ${supY.s} cm`,
-      gridJson: str(raw, "gridJson", ""),
-    }
-  );
-};
+export const losa2d = calcLosa2d;
 
 /* ───────── Placa / muro de corte (DISEÑO DE PLACAS.xlsx) ───────── */
 const PLACA_AB: Record<string, { as: number; db: number }> = {

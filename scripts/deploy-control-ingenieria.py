@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Publica MemoriaCalc en control-ingenieria.miacademiapreu.com (y replica en ingenieria)."""
+"""Publica MemoriaCalc en ingenieria.miacademiapreu.com (sitio público) y el panel en control-ingenieria."""
 from __future__ import annotations
 
 import os
 import stat
 import sys
+import tarfile
+import tempfile
 from pathlib import Path
 
 import paramiko
@@ -17,16 +19,18 @@ PASSWORD = os.environ.get("VPS_PASS") or None
 ROOT = Path(r"C:\Users\Renzo\Desktop\WEB MEMORIAS DESCRIPTIVAS")
 LOCAL_DIST = ROOT / "dist"
 LOCAL_SERVER = ROOT / "server" / "culqi-server.mjs"
+LOCAL_ECOSYSTEM = ROOT / "server" / "ecosystem.mjs"
 LOCAL_PROMPT = ROOT / "server" / "prompt.mjs"
 LOCAL_ENV = ROOT / "server" / ".env"
 LOCAL_PHP = ROOT / "server" / "google-session.php"
 APP_CTRL = "/var/www/control-ingenieria"
 APP_ING = "/var/www/ingenieria"
 OPT_ROOT = "/opt/memorcalc"
-DOMAIN = "control-ingenieria.miacademiapreu.com"
+PUBLIC_DOMAIN = "ingenieria.miacademiapreu.com"
+CTRL_DOMAIN = "control-ingenieria.miacademiapreu.com"
 
 VHOST = f"""<VirtualHost *:80>
-    ServerName {DOMAIN}
+    ServerName {CTRL_DOMAIN}
     DocumentRoot {APP_CTRL}
     <Directory {APP_CTRL}>
         Options FollowSymLinks
@@ -40,9 +44,43 @@ VHOST = f"""<VirtualHost *:80>
     IncludeOptional snippets/ingenieria-billing.conf
     IncludeOptional snippets/ingenieria-control.conf
     IncludeOptional snippets/ingenieria-profile.conf
+    IncludeOptional snippets/ingenieria-revit.conf
     ErrorLog ${{APACHE_LOG_DIR}}/control-ingenieria-error.log
     CustomLog ${{APACHE_LOG_DIR}}/control-ingenieria-access.log combined
 </VirtualHost>
+"""
+
+GOOGLE_SNIPPET = """ProxyPreserveHost On
+<Location /api/google-session>
+    FallbackResource disabled
+    ProxyPass http://127.0.0.1:8788/api/google-session
+    ProxyPassReverse http://127.0.0.1:8788/api/google-session
+</Location>
+"""
+
+CULQI_SNIPPET = """ProxyPreserveHost On
+<Location /api/charges>
+    FallbackResource disabled
+    ProxyPass http://127.0.0.1:8788/api/charges
+    ProxyPassReverse http://127.0.0.1:8788/api/charges
+</Location>
+"""
+
+GROK_SNIPPET = """ProxyPreserveHost On
+ProxyTimeout 520
+<Location /api/grok>
+    FallbackResource disabled
+    ProxyPass http://127.0.0.1:8788/api/grok
+    ProxyPassReverse http://127.0.0.1:8788/api/grok
+</Location>
+"""
+
+REVIT_SNIPPET = """ProxyPreserveHost On
+<Location /api/v1>
+    FallbackResource disabled
+    ProxyPass http://127.0.0.1:8788/api/v1
+    ProxyPassReverse http://127.0.0.1:8788/api/v1
+</Location>
 """
 
 BILLING_SNIPPET = """ProxyPreserveHost On
@@ -89,31 +127,27 @@ def run(ssh: paramiko.SSHClient, cmd: str, timeout: int = 180) -> str:
     return out
 
 
-def put_dir(sftp: paramiko.SFTPClient, local: Path, remote: str) -> None:
+def put_dist(ssh: paramiko.SSHClient, sftp: paramiko.SFTPClient, local: Path, remote: str) -> None:
+    fd, tmp = tempfile.mkstemp(suffix=".tgz")
+    os.close(fd)
     try:
-        sftp.stat(remote)
-    except FileNotFoundError:
-        sftp.mkdir(remote)
-    for path in local.rglob("*"):
-        rel = path.relative_to(local).as_posix()
-        target = f"{remote}/{rel}"
-        if path.is_dir():
-            try:
-                sftp.stat(target)
-            except FileNotFoundError:
-                sftp.mkdir(target)
-        else:
-            parent = str(Path(target).parent).replace("\\", "/")
-            parts = [p for p in parent.strip("/").split("/") if p]
-            cur = ""
-            for p in parts:
-                cur += "/" + p
-                try:
-                    sftp.stat(cur)
-                except FileNotFoundError:
-                    sftp.mkdir(cur)
-            sftp.put(str(path), target)
-            sftp.chmod(target, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        with tarfile.open(tmp, "w:gz") as tar:
+            for path in local.rglob("*"):
+                if not path.is_file():
+                    continue
+                rel = path.relative_to(local).as_posix()
+                if rel == "addin" or rel.startswith("addin/"):
+                    continue
+                tar.add(path, arcname=rel)
+        remote_tar = "/tmp/memorcalc-dist.tgz"
+        print("Empaquetado dist →", remote_tar)
+        sftp.put(tmp, remote_tar)
+        run(ssh, f"mkdir -p {remote} && tar -xzf {remote_tar} -C {remote} && rm -f {remote_tar}")
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def main() -> None:
@@ -129,16 +163,18 @@ def main() -> None:
         ssh.connect(HOST, username=USER, timeout=25, allow_agent=True, look_for_keys=True)
     sftp = ssh.open_sftp()
 
-    print("Subiendo dist →", APP_CTRL)
+    print("Subiendo dist →", APP_ING, "(", PUBLIC_DOMAIN, ")")
     run(ssh, f"mkdir -p {APP_CTRL} {APP_ING} {OPT_ROOT} {APP_CTRL}/assets {APP_ING}/assets")
-    put_dir(sftp, LOCAL_DIST, APP_CTRL)
-    print("Replicando en", APP_ING)
-    run(ssh, f"rsync -a --delete --exclude addin {APP_CTRL}/ {APP_ING}/")
+    put_dist(ssh, sftp, LOCAL_DIST, APP_ING)
+    print("Replicando archivos al panel", APP_CTRL)
+    run(ssh, f"rsync -a --delete --exclude addin --exclude index.html {APP_ING}/ {APP_CTRL}/")
     print("Control arranca el panel, no la web de módulos")
-    run(ssh, f"cp {APP_CTRL}/control.html {APP_CTRL}/index.html")
+    run(ssh, f"test -f {APP_CTRL}/control.html && cp {APP_CTRL}/control.html {APP_CTRL}/index.html")
 
     print("Subiendo API")
     sftp.put(str(LOCAL_SERVER), f"{OPT_ROOT}/culqi-server.mjs")
+    if LOCAL_ECOSYSTEM.exists():
+        sftp.put(str(LOCAL_ECOSYSTEM), f"{OPT_ROOT}/ecosystem.mjs")
     if LOCAL_PROMPT.exists():
         sftp.put(str(LOCAL_PROMPT), f"{OPT_ROOT}/prompt.mjs")
     if LOCAL_ENV.exists():
@@ -150,10 +186,17 @@ def main() -> None:
     print("Apache vhost + rewrite")
     run(ssh, "a2enmod proxy proxy_http headers rewrite >/dev/null 2>&1 || true")
     run(ssh, "mkdir -p /etc/apache2/snippets")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-google-session.conf <<'EOF'\n{GOOGLE_SNIPPET}EOF")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-culqi.conf <<'EOF'\n{CULQI_SNIPPET}EOF")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-grok.conf <<'EOF'\n{GROK_SNIPPET}EOF")
+    run(ssh, f"cat > /etc/apache2/snippets/ingenieria-revit.conf <<'EOF'\n{REVIT_SNIPPET}EOF")
     run(ssh, f"cat > /etc/apache2/snippets/ingenieria-billing.conf <<'EOF'\n{BILLING_SNIPPET}EOF")
     run(ssh, f"cat > /etc/apache2/snippets/ingenieria-control.conf <<'EOF'\n{CONTROL_SNIPPET}EOF")
     run(ssh, f"cat > /etc/apache2/snippets/ingenieria-profile.conf <<'EOF'\n{PROFILE_SNIPPET}EOF")
-    run(ssh, f"cat > /etc/apache2/sites-available/{DOMAIN}.conf <<'EOF'\n{VHOST}EOF")
+    ctrl_avail = f"/etc/apache2/sites-available/{CTRL_DOMAIN}.conf"
+    has_ctrl = run(ssh, f"test -f {ctrl_avail} && echo yes || true").strip()
+    if not has_ctrl:
+        run(ssh, f"cat > {ctrl_avail} <<'EOF'\n{VHOST}EOF")
     run(ssh, f"cat > {APP_CTRL}/.htaccess <<'EOF'\n{HTACCESS}EOF")
     run(
         ssh,
@@ -174,7 +217,7 @@ def main() -> None:
 </IfModule>
 EOF""",
     )
-    run(ssh, f"a2ensite {DOMAIN}.conf >/dev/null")
+    run(ssh, f"a2ensite {CTRL_DOMAIN}.conf >/dev/null 2>&1 || true")
     run(ssh, "apache2ctl configtest")
     run(ssh, "systemctl reload apache2")
 
@@ -182,22 +225,31 @@ EOF""",
     cert = run(
         ssh,
         "certbot --apache -d "
-        + DOMAIN
+        + PUBLIC_DOMAIN
         + " --non-interactive --agree-tos --redirect --keep-until-expiring "
         + "-m miacademiapreu.pe@gmail.com || true",
         timeout=180,
     )
     print(cert[-800:] if len(cert) > 800 else cert)
 
-    ssl = f"/etc/apache2/sites-enabled/{DOMAIN}-le-ssl.conf"
-    http = f"/etc/apache2/sites-enabled/{DOMAIN}.conf"
-    ing_ssl = "/etc/apache2/sites-enabled/ingenieria.miacademiapreu.com-le-ssl.conf"
-    ing_http = "/etc/apache2/sites-enabled/ingenieria.miacademiapreu.com.conf"
+    ssl = f"/etc/apache2/sites-enabled/{CTRL_DOMAIN}-le-ssl.conf"
+    http = f"/etc/apache2/sites-enabled/{CTRL_DOMAIN}.conf"
+    ing_ssl = f"/etc/apache2/sites-enabled/{PUBLIC_DOMAIN}-le-ssl.conf"
+    ing_http = f"/etc/apache2/sites-enabled/{PUBLIC_DOMAIN}.conf"
+    snippets = (
+        "ingenieria-google-session.conf",
+        "ingenieria-culqi.conf",
+        "ingenieria-grok.conf",
+        "ingenieria-revit.conf",
+        "ingenieria-billing.conf",
+        "ingenieria-control.conf",
+        "ingenieria-profile.conf",
+    )
     for vhost in (ssl, http, ing_ssl, ing_http):
         exists = run(ssh, f"test -f {vhost} && echo yes || true").strip()
         if not exists:
             continue
-        for snippet in ("ingenieria-billing.conf", "ingenieria-control.conf", "ingenieria-profile.conf"):
+        for snippet in snippets:
             run(
                 ssh,
                 f"grep -q '{snippet}' {vhost} || "
@@ -207,12 +259,13 @@ EOF""",
     run(ssh, "systemctl reload apache2")
 
     run(ssh, "systemctl restart memorcalc-culqi || true")
-    print(run(ssh, f"ls -la {APP_CTRL} | head"))
-    print(run(ssh, f"curl -sS -H 'Host: {DOMAIN}' http://127.0.0.1/ | head -c 240; echo"))
+    print(run(ssh, f"ls -la {APP_ING} | head"))
+    print(run(ssh, f"curl -sS -H 'Host: {PUBLIC_DOMAIN}' http://127.0.0.1/ | head -c 280; echo"))
+    print(run(ssh, f"grep -oE 'assets/main-[^\"]+\\.js' {APP_ING}/index.html; echo"))
 
     sftp.close()
     ssh.close()
-    print("DEPLOY_OK", f"https://{DOMAIN}")
+    print("DEPLOY_OK", f"https://{PUBLIC_DOMAIN}")
 
 
 if __name__ == "__main__":

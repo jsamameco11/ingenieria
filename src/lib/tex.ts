@@ -33,12 +33,14 @@ export function looksLikeMathLine(raw: string): boolean {
   if (!t) return false;
   if (/\\[a-zA-Z]|\\begin\{/.test(t)) return true;
   const spanish = (t.match(/[A-Za-záéíóúñÁÉÍÓÚÑ]{4,}/g) || []).filter(
-    (w) => !/^(máximo|mínimo|máx|mín|sen|cos|tan|arctan|log|min|max|prov|temp|zona)$/i.test(w)
+    (w) =>
+      !/^(máximo|mínimo|máx|mín|sen|cos|tan|arctan|log|min|max|prov|temp|zona|transv|long)$/i.test(w),
   );
-  if (spanish.length >= 3) return false;
+  /* Una sola palabra de prosa (baricentro, celdas, Hagaclic…) basta: KaTeX pegaría las letras. */
+  if (spanish.length >= 1) return false;
   if (/^(?:[A-Za-z][A-Za-z0-9_,'′]{0,14}|[ρφαγβδεωπθσℓØΔ][A-Za-z0-9_,'′]{0,12}|φ[A-Za-z]+)\s*[=≈≤≥]/.test(t)) return true;
   if (/^[=√∫]/.test(t)) return true;
-  if (t.includes(" · ") && /[=√²³ρφ]/.test(t) && t.length < 240 && spanish.length < 2) return true;
+  if (t.includes(" · ") && /[=√²³ρφ]/.test(t) && t.length < 240) return true;
   return false;
 }
 
@@ -49,6 +51,7 @@ export function looksLikeMathLine(raw: string): boolean {
 export function asciiFormulaToTex(raw: string): string | undefined {
   const src = String(raw || "").trim();
   if (!src) return undefined;
+  if (!looksLikeMathLine(src) && !/\\[a-zA-Z]|\\begin\{|\\dfrac|\\frac/.test(src)) return undefined;
   if (/\\[a-zA-Z]|\\begin\{|\\dfrac|\\frac/.test(src)) return stackDisplayTex(src);
   const lines = src
     .split(/\s+·\s+/)

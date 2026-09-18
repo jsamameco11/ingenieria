@@ -186,6 +186,7 @@ export const estriboPantalla: Engine = (raw) => {
 
   const hPant = H - D - hparap - e1;
   const hTrap = Math.max(0, hPant - e2);
+  const hCajBot = H - hparap - e1;
 
   const V1 = bparap * hparap;
   const V2 = e1 * (bparap + N);
@@ -263,7 +264,19 @@ export const estriboPantalla: Engine = (raw) => {
   const yEH = H / 3;
   const yEH2 = H / 2;
   const yLS = H / 2;
-  const yPIR = H / 2;
+  const yPae = 0.6 * H;
+  const y1 = H - hparap / 2;
+  const y2 = hCajBot + e1 / 2;
+  const y3 = D + Math.max(hCajBot - D, 0.05) / 3;
+  const y4 = D + hPant / 2;
+  const y5 = D + e2 / 3;
+  const y6 = D + hTrap / 3;
+  const y7 = D / 2;
+  const y8 = D + (H - D) / 2;
+  const y9 = D + e2 / 3;
+  const yW =
+    (W1 * y1 + W2 * y2 + W3 * y3 + W4 * y4 + W5 * y5 + W6 * y6 + W7 * y7 + W8 * y8 + W9 * y9) / Math.max(WwWs, 1e-6);
+  const yPIR = yW;
   const yPEQ = H - hparap / 2;
   const yBR = H + hBR;
   const yWS = H - hparap / 2;
@@ -326,7 +339,7 @@ export const estriboPantalla: Engine = (raw) => {
       c.gLSx * LS2x * yLS +
       c.gEH * EH1x * yEH +
       c.gEH * EH2x * yEH2 +
-      c.gEQ * EQh1 * yLS +
+      c.gEQ * EQh1 * yPae +
       c.gEQ * PIRu * yPIR +
       c.gEQ * PEQ * yPEQ +
       c.gBR * BR * yBR +
@@ -373,20 +386,26 @@ export const estriboPantalla: Engine = (raw) => {
 
   const crit = rows.find((r) => r.name === "Resistencia Ib") ?? rows[1];
   const stemH = H - D;
-  const dPant = tinf * 100 - rec - 0.95;
-  const MuPant = 1.0 * (1.75 * LS2x * (stemH / 2) + 1.5 * EH1x * (stemH / 3));
-  const flexP = whitney(MuPant, 100, Math.max(dPant, 8), fc, fy);
   const barP = BARS.find((b) => b.name === '3/4"') ?? BARS[3];
+  const dPant = tinf * 100 - rec - barP.db / 2;
+  const MuPantSt = 1.0 * (1.75 * LS2x * (stemH / 2) + 1.5 * EH1x * (stemH / 3));
+  const armPaeStem = Math.max(0, yPae - D);
+  const armPirStem = Math.max(0, yPIR - D);
+  const MuPantEq = 0.5 * LS2x * (stemH / 2) + 1.0 * EH1x * (stemH / 3) + 1.0 * EQh1 * armPaeStem + 1.0 * PIRu * armPirStem;
+  const MuPant = Math.max(MuPantSt, MuPantEq);
+  const flexP = whitney(MuPant, 100, Math.max(dPant, 8), fc, fy);
   const sPant = spacingFor(flexP.AsUse, barP.as, 100);
   const AsTemp = Math.min(12.7, Math.max(2.33, (0.18 * B * D * 10000) / (fy * ((B + D) * 100))));
   const barT = BARS.find((b) => b.name === '1/2"') ?? BARS[1];
   const sTemp = spacingFor(AsTemp, barT.as, 100);
+  const AsIntra = 0.0012 * 100 * (tsup * 100);
+  const sIntra = spacingFor(AsIntra, barT.as, 100);
 
   const VuStem = 1.5 * EH1x + 1.75 * LS2x;
   const Vc = (0.53 * Math.sqrt(fc) * 100 * dPant) / 1000;
   const phiVc = 0.85 * Vc;
 
-  const dZap = D * 100 - recZap - 0.95;
+  const dZap = D * 100 - recZap - barP.db / 2;
   const MuPun = crit.qmax * Lp * Lp / 2;
   const flexPun = whitney(MuPun, 100, Math.max(dZap, 8), fc, fy);
   const wHeel = (EV + LSy) / Math.max(Ltalon, 0.1) + gc * D;
@@ -395,6 +414,8 @@ export const estriboPantalla: Engine = (raw) => {
   const sPun = spacingFor(flexPun.AsUse, barP.as, 100);
   const sTal = spacingFor(flexTal.AsUse, barP.as, 100);
   const sBatter = (Math.atan(Math.max(tinf - tsup, 0) / Math.max(hTrap, 0.2)) * 180) / Math.PI;
+  const ldPant = (0.1508 * fy * barP.db) / Math.max(Math.sqrt(fc), 1);
+  const ldZap = ldPant;
 
   const allE = rows.filter((r) => r.name !== "Servicio I").every((r) => r.okE);
   const allS = rows.filter((r) => r.name !== "Servicio I").every((r) => r.okS);
@@ -650,11 +671,11 @@ export const estriboPantalla: Engine = (raw) => {
     ),
     paso(
       "38",
-      "Flexión de la pantalla (voladizo) — Resistencia I, Whitney",
-      "Mu = γLS LS2X (Hs/2) + γEH EH1X (Hs/3)    ·    Ru = Mu / (φ b d²)    ·    ρ = (0.85 f'c / fy) [1 − √(1 − 2 Ru / 0.85 f'c)]    ·    As = ρ b d    ·    a = As fy / (0.85 f'c b)",
-      `Hs = H − D = ${fmt(stemH, 2)} m    ·    d = tinf − rec − db/2 = ${fmt(tinf * 100, 1)} − ${fmt(rec, 1)} − 0.95 = ${fmt(dPant, 1)} cm    ·    Mu = 1.75×${fmt(LS2x, 2)}×${fmt(stemH / 2, 2)} + 1.50×${fmt(EH1x, 2)}×${fmt(stemH / 3, 2)} = ${fmt(MuPant, 2)} t·m/m    ·    b = 100 cm    ·    Ru = ${fmt(flexP.Ru, 2)} kg/cm²    ·    ρ = ${fmt(flexP.rho, 5)}`,
-      `a = ${fmt(flexP.a, 2)} cm    ·    As req = ${fmt(flexP.As, 2)} cm²/m    ·    Asmín = ${fmt(flexP.Asmin, 2)} cm²/m    ·    As uso = ${fmt(flexP.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sPant} cm`,
-      { note: `Cara interior (tracción hacia el relleno). φ = 0.90.` }
+      "Flexión de la pantalla (voladizo) — envolvente Resistencia I y Evento extremo I",
+      "Mu,st = γLS LS2X (Hs/2) + γEH EH1X (Hs/3)    ·    Mu,eq = 0.5 LS2X (Hs/2) + EH1X (Hs/3) + EQterr·(0,6H−D) + PIR·(ȳ−D)    ·    Mu = máx(Mu,st; Mu,eq)",
+      `Hs = H − D = ${fmt(stemH, 2)} m    ·    d = tinf − rec − db/2 = ${fmt(tinf * 100, 1)} − ${fmt(rec, 1)} − ${fmt(barP.db / 2, 2)} = ${fmt(dPant, 1)} cm    ·    Mu,st = ${fmt(MuPantSt, 2)}    ·    Mu,eq = ${fmt(MuPantEq, 2)} t·m/m    ·    gobierna ${MuPantEq > MuPantSt ? "sismo" : "Resistencia I"}    ·    Ru = ${fmt(flexP.Ru, 2)} kg/cm²    ·    ρ = ${fmt(flexP.rho, 5)}`,
+      `a = ${fmt(flexP.a, 2)} cm    ·    As req = ${fmt(flexP.As, 2)} cm²/m    ·    Asmín = ${fmt(flexP.Asmin, 2)} cm²/m    ·    As uso = ${fmt(flexP.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sPant} cm    ·    ℓd = ${fmt(ldPant, 0)} cm`,
+      { note: `Cara de tierra / trasdós (tracción). Gancho 90° al lecho superior del talón. φ = 0.90. Recubrimiento ${fmt(rec, 1)} cm.` }
     ),
     paso(
       "39",
@@ -677,16 +698,16 @@ export const estriboPantalla: Engine = (raw) => {
       "Flexión de la puntera (Whitney, Resistencia Ib)",
       "Mu,p = qmáx Lp² / 2    ·    Ru, ρ, a, As como en pantalla    ·    d = D − rec,zap − db/2",
       `qmáx,Ib = ${fmt(crit.qmax, 2)} t/m²    ·    Lp = ${fmt(Lp, 2)} m    ·    Mu = ${fmt(crit.qmax, 2)} × ${fmt(Lp, 2)}² / 2 = ${fmt(MuPun, 2)} t·m/m    ·    d = ${fmt(dZap, 1)} cm    ·    Ru = ${fmt(flexPun.Ru, 2)}    ·    ρ = ${fmt(flexPun.rho, 5)}    ·    a = ${fmt(flexPun.a, 2)} cm`,
-      `As req = ${fmt(flexPun.As, 2)}    ·    Asmín = ${fmt(flexPun.Asmin, 2)}    ·    As uso = ${fmt(flexPun.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sPun} cm`,
-      { note: `Acero superior en puntera (tracción por el suelo). Recubrimiento ${fmt(recZap, 1)} cm.` }
+      `As req = ${fmt(flexPun.As, 2)}    ·    Asmín = ${fmt(flexPun.Asmin, 2)}    ·    As uso = ${fmt(flexPun.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sPun} cm    ·    ℓd = ${fmt(ldZap, 0)} cm`,
+      { note: `Acero inferior en puntera (la reacción del suelo flexiona el voladizo hacia arriba). Recubrimiento ${fmt(recZap, 1)} cm. Gancho 90° en el extremo libre.` }
     ),
     paso(
       "42",
       "Flexión del talón (Whitney, Resistencia Ib)",
       "wnet = (EV + LS1)/Ltalón + γc D − qmín    ·    Mu,t = |wnet| Ltalón² / 2",
       `w,suelo = (${fmt(EV, 2)} + ${fmt(LSy, 2)}) / ${fmt(Ltalon, 2)} + ${fmt(gc, 2)}×${fmt(D, 2)} = ${fmt(wHeel, 2)} t/m²    ·    qmín,Ib = ${fmt(crit.qmin, 2)} t/m²    ·    Mu = ${fmt(MuTal, 2)} t·m/m    ·    d = ${fmt(dZap, 1)} cm    ·    Ru = ${fmt(flexTal.Ru, 2)}    ·    a = ${fmt(flexTal.a, 2)} cm`,
-      `As req = ${fmt(flexTal.As, 2)}    ·    Asmín = ${fmt(flexTal.Asmin, 2)}    ·    As uso = ${fmt(flexTal.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sTal} cm`,
-      { note: "Acero superior en el talón (el relleno carga más que la reacción del suelo)." }
+      `As req = ${fmt(flexTal.As, 2)}    ·    Asmín = ${fmt(flexTal.Asmin, 2)}    ·    As uso = ${fmt(flexTal.AsUse, 2)} cm²/m    ·    Ø 3/4" @ ${sTal} cm    ·    ℓd = ${fmt(ldZap, 0)} cm`,
+      { note: "Acero superior en el talón (el relleno carga más que la reacción del suelo). Gancho 90° hacia el peralte, en el extremo libre. Los ganchos de pantalla se solapan con este lecho." }
     )
   );
 
@@ -755,7 +776,7 @@ export const estriboPantalla: Engine = (raw) => {
       ["EH2X", "EH", fmt(EH2x, 2), fmt(yEH2, 2), fmt(EH2x * yEH2, 2)],
       ["CR+SH+TU", "CR", fmt(CR, 2), fmt(yWS, 2), fmt(CR * yWS, 2)],
       ["WS", "WS", fmt(WS, 2), fmt(yWS, 2), fmt(WS * yWS, 2)],
-      [useFirst ? "EQterr" : "0.5 EQterr", "EQ", fmt(EQh1, 2), fmt(yLS, 2), fmt(EQh1 * yLS, 2)],
+      [useFirst ? "EQterr" : "0.5 EQterr", "EQ", fmt(EQh1, 2), fmt(yPae, 2), fmt(EQh1 * yPae, 2)],
       [useFirst ? "0.5 PIR" : "PIR", "EQ", fmt(PIRu, 2), fmt(yPIR, 2), fmt(PIRu * yPIR, 2)],
       ["PEQ", "EQ", fmt(PEQ, 2), fmt(yPEQ, 2), fmt(PEQ * yPEQ, 2)],
       ["BR", "BR", fmt(BR, 2), fmt(yBR, 2), fmt(BR * yBR, 2)],
@@ -769,9 +790,9 @@ export const estriboPantalla: Engine = (raw) => {
       ["kh = ½ kho", `0.50 × ${fmt(kho, 3)}`, fmt(kh, 3), "g", "—"],
       ["θ'", "arctan[kh/(1−kv)]", fmt(thp, 2), "°", "—"],
       ["KAE", "Mononobe–Okabe", fmt(KAE, 4), "—", "—"],
-      ["PAE", "½ KAE γs H²", fmt(PAE, 3), "t/m", fmt(yLS, 2)],
-      ["EQterr", "PAE − EH1X", fmt(EQterr, 3), "t/m", fmt(yLS, 2)],
-      ["PIR", "kh (DCestr + EV)", fmt(PIR, 3), "t/m", fmt(yPIR, 2)],
+      ["PAE", "½ KAE γs H²", fmt(PAE, 3), "t/m", fmt(yPae, 2)],
+      ["EQterr = ΔPae", "PAE − EH1X  ·  a 0,6 H", fmt(EQterr, 3), "t/m", fmt(yPae, 2)],
+      ["PIR", "kh (DCestr + EV)  ·  en ȳ", fmt(PIR, 3), "t/m", fmt(yPIR, 2)],
       ["PEQ", "(PDC+PDW) kho", fmt(PEQ, 3), "t/m", fmt(yPEQ, 2)],
       [useFirst ? "Gobierna PAE+0.5 PIR" : "Gobierna 0.5 PAE+PIR", "Art. 11.6.5.1", useFirst ? fmt(combo1, 2) : fmt(combo2, 2), "t/m", "—"],
     ],
@@ -856,8 +877,27 @@ export const estriboPantalla: Engine = (raw) => {
       asPun: `Ø 3/4" @ ${sPun} cm`,
       asTal: `Ø 3/4" @ ${sTal} cm`,
       asTemp: `Ø 1/2" @ ${sTemp} cm`,
+      asIntra: `Ø 1/2" @ ${sIntra} cm`,
+      AsPantReq: flexP.AsUse.toFixed(2),
+      AsPunReq: flexPun.AsUse.toFixed(2),
+      AsTalReq: flexTal.AsUse.toFixed(2),
+      AsTempReq: AsTemp.toFixed(2),
+      AsIntraReq: AsIntra.toFixed(2),
       rec: String(rec),
       recZap: String(recZap),
+      Pa: EH1x.toFixed(3),
+      Pae: PAE.toFixed(3),
+      dPae: EQterr.toFixed(3),
+      PIR: PIR.toFixed(3),
+      Kh: kh.toFixed(3),
+      Kv: "0",
+      yPa: yEH.toFixed(3),
+      yPae: yPae.toFixed(3),
+      yW: yW.toFixed(3),
+      Wtot: WwWs.toFixed(3),
+      xBar: DCxa.toFixed(3),
+      fc: String(fc),
+      fy: String(fy),
     }
   );
 };

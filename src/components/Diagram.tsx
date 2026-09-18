@@ -8,6 +8,7 @@ import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, par
 import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
 import { CrossCroquisAny } from "./DiagramCross";
 import { CargaDistribuida } from "./DclCargas";
+import { defaultModel, parseMae } from "../lib/engines/maestria/types";
 
 const DimLive = createContext<{
   values: Record<string, string>;
@@ -4464,15 +4465,49 @@ function Portico({ values, active, onFocus }: { values: Record<string, string>; 
   );
 }
 
-function LosaPaño({ values, active, onFocus }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
-  const A = n(values, "A", n(values, "L", 4));
-  const B = n(values, "B", 5);
+function LosaPaño({ values }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
+  const m = parseMae(values.studioJson, defaultModel("losa"));
+  const Lx = Math.max(m.axesX[m.axesX.length - 1] - m.axesX[0], 0.5);
+  const Ly = Math.max(m.axesY[m.axesY.length - 1] - m.axesY[0], 0.5);
+  const pad = { l: 48, t: 28, r: 18, b: 36 };
+  const W = 360;
+  const H = 260;
+  const sc = Math.min((W - pad.l - pad.r) / Lx, (H - pad.t - pad.b) / Ly);
+  const xy = (x: number, y: number) => ({ x: pad.l + (x - m.axesX[0]) * sc, y: pad.t + (m.axesY[m.axesY.length - 1] - y) * sc });
+  const tipo = String(values.tipoLosa || "maciza") === "aligerada" ? "aligerada" : "maciza";
   return (
-    <SvgFrame caption="Paño de losa — lados A (corto) y B (largo)">
-      <rect x="110" y="70" width="300" height="200" fill="url(#conc)" stroke="#1a4473" strokeWidth="2" />
-      <path d="M110,70 L410,270 M410,70 L110,270" stroke="#1a4473" strokeOpacity="0.15" />
-      <Dim x1={110} y1={270} x2={410} y2={270} label={`${B.toFixed(2)}`} field="B" unit="m" side={28} active={active} onFocus={onFocus} />
-      <Dim x1={110} y1={70} x2={110} y2={270} label={`${A.toFixed(2)}`} field="A" unit="m" side={32} active={active} onFocus={onFocus} />
+    <SvgFrame caption={`Planta de ejes · losa ${tipo} · vanos, no A×B`}>
+      {m.cells.map((row, iy) =>
+        row.map((on, ix) => {
+          const a = xy(m.axesX[ix], m.axesY[iy + 1]);
+          const b = xy(m.axesX[ix + 1], m.axesY[iy]);
+          return (
+            <rect
+              key={`${ix}-${iy}`}
+              x={a.x}
+              y={a.y}
+              width={Math.max(2, b.x - a.x)}
+              height={Math.max(2, b.y - a.y)}
+              fill={on ? "#d9e4d0" : "#f4efe4"}
+              stroke="#1a4473"
+              strokeDasharray={on ? undefined : "4 3"}
+            />
+          );
+        }),
+      )}
+      {m.axesX.map((x, i) => {
+        const a = xy(x, m.axesY[0]);
+        const b = xy(x, m.axesY[m.axesY.length - 1]);
+        return <line key={`x-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#1a4473" strokeWidth="1.1" />;
+      })}
+      {m.axesY.map((y, i) => {
+        const a = xy(m.axesX[0], y);
+        const b = xy(m.axesX[m.axesX.length - 1], y);
+        return <line key={`y-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#1a4473" strokeWidth="1.1" />;
+      })}
+      <text x={W / 2} y={H - 8} textAnchor="middle" fontSize="10" fill="#5a4a28">
+        Lx = {Lx.toFixed(2)} m · Ly = {Ly.toFixed(2)} m
+      </text>
     </SvgFrame>
   );
 }
@@ -4679,25 +4714,336 @@ function Colgante({ values, active, onFocus }: { values: Record<string, string>;
   );
 }
 
+function parsePack(s: string) {
+  if (!s) return [] as { x: number; y: number; v: number }[];
+  return s
+    .split(";")
+    .map((p) => {
+      const [a, b, c] = p.split(",");
+      const x = Number(a);
+      const y = Number(b);
+      const v = Number(c);
+      return { x, y, v: Number.isFinite(v) && v > 0 ? v : 1 };
+    })
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+function peakOf(pts: { x: number; y: number }[], mode: "max" | "min") {
+  if (!pts.length) return { x: 0, y: 0 };
+  return pts.reduce((a, p) => (mode === "max" ? (p.y > a.y ? p : a) : p.y < a.y ? p : a));
+}
+
 function LineaInf({ values, active, onFocus }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
-  const L = n(values, "L", 30);
-  const x = n(values, "x", 15);
-  const t = Math.min(0.92, Math.max(0.08, x / Math.max(L, 0.1)));
-  const px = 70 + t * 380;
-  const peakH = (t * (1 - t)) * 4 * 90;
+  const nA = Math.max(2, Math.min(7, Math.round(n(values, "nApoyos", 2))));
+  const spans: number[] = [Math.max(0.5, n(values, "L", 30))];
+  for (let i = 2; i < nA; i++) spans.push(Math.max(0.5, n(values, `L${i}`, 25)));
+  const packedSpans = String(values.spans || "")
+    .split(",")
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const Ls = packedSpans.length === nA - 1 ? packedSpans : spans;
+  const Ltot = Ls.reduce((a, b) => a + b, 0);
+  const xSec = Math.min(Ltot, Math.max(0, n(values, "x", Ltot / 2)));
+  const izq = values.izq === "empotrado" || values.izq === "libre" ? values.izq : "simple";
+  const der = values.der === "empotrado" || values.der === "libre" ? values.der : "simple";
+  const nVeh = values.nVeh === "2" || (values.nVeh !== "1" && nA > 2) ? 2 : 1;
+  const flota = values.flota || "hl93";
+  const s0raw = String(values.s0 ?? "").trim();
+  const s0 = s0raw !== "" ? n(values, "s0", 0) : n(values, "s0used", n(values, "sCrit", 0));
+  const x0 = 64;
+  const x1 = 500;
+  const W = x1 - x0;
+  const X = (s: number) => x0 + (s / Math.max(Ltot, 0.1)) * W;
+  const sup: number[] = [0];
+  let acc = 0;
+  for (const L of Ls) {
+    acc += L;
+    sup.push(acc);
+  }
+  const kindAt = (i: number) => (i === 0 ? izq : i === sup.length - 1 ? der : "simple");
+
+  let ptsM = parsePack(values.ilM || "");
+  let ptsVL = parsePack(values.ilVL || values.ilV || "");
+  let ptsVR = parsePack(values.ilVR || "");
+  if (!ptsM.length && nA === 2 && izq === "simple" && der === "simple") {
+    const nn = 41;
+    for (let i = 0; i < nn; i++) {
+      const xi = (i / (nn - 1)) * Ltot;
+      ptsM.push({ x: xi, y: xi <= xSec ? (xi * (Ltot - xSec)) / Ltot : (xSec * (Ltot - xi)) / Ltot, v: 1 });
+    }
+    ptsVL = [
+      { x: 0, y: 0, v: 1 },
+      { x: xSec, y: -xSec / Ltot, v: 1 },
+    ];
+    ptsVR = [
+      { x: xSec, y: (Ltot - xSec) / Ltot, v: 1 },
+      { x: Ltot, y: 0, v: 1 },
+    ];
+  }
+  const axles = parsePack(values.axles || "");
+  const envMmax = parsePack(values.envMmax || "");
+  const envMmin = parsePack(values.envMmin || "");
+  const envVmax = parsePack(values.envVmax || "");
+  const envVmin = parsePack(values.envVmin || "");
+  const allMmax = parsePack(values.allMmax || "");
+  const allMmin = parsePack(values.allMmin || "");
+  const allVmax = parsePack(values.allVmax || "");
+  const allVmin = parsePack(values.allVmin || "");
+  const instM = parsePack(values.instM || "");
+  const instV = parsePack(values.instV || "");
+
+  const beamGlyphs = (yB: number) => (
+    <g>
+      <line x1={x0} y1={yB} x2={x1} y2={yB} stroke="#1a4473" strokeWidth="3.5" />
+      {sup.map((s, i) => {
+        const px = X(s);
+        const k = kindAt(i);
+        if (k === "libre") return <line key={i} x1={px} y1={yB - 6} x2={px} y2={yB + 6} stroke="#1a4473" />;
+        if (k === "empotrado") {
+          return (
+            <g key={i}>
+              <rect x={i === 0 ? px - 9 : px} y={yB - 18} width="9" height="36" fill="#1a4473" />
+              <text x={px} y={yB + 32} textAnchor="middle" fontSize="8" fill="#1a4473">{i + 1}</text>
+            </g>
+          );
+        }
+        return (
+          <g key={i}>
+            <polygon points={`${px},${yB} ${px + 8},${yB + 14} ${px - 8},${yB + 14}`} fill="#1a4473" />
+            <text x={px} y={yB + 32} textAnchor="middle" fontSize="8" fill="#1a4473">{i + 1}</text>
+          </g>
+        );
+      })}
+    </g>
+  );
+
+  const spanDims = (yB: number) =>
+    Ls.map((L, i) => {
+      const field = i === 0 ? "L" : `L${i + 1}`;
+      return (
+        <Dim key={field} x1={X(sup[i])} y1={yB} x2={X(sup[i + 1])} y2={yB} label={`${L.toFixed(1)}`} field={field} unit="m" side={-22} active={active} onFocus={onFocus} />
+      );
+    });
+
+  const trucks = (yB: number) => {
+    const groups = new Map<number, typeof axles>();
+    for (const a of axles) {
+      const list = groups.get(a.v) || [];
+      list.push(a);
+      groups.set(a.v, list);
+    }
+    const colors = ["#8b1e1e", "#1a4473"];
+    const out: ReactNode[] = [];
+    groups.forEach((list, veh) => {
+      const on = list.filter((a) => a.x >= -1 && a.x <= Ltot + 1).sort((a, b) => a.x - b.x);
+      if (!on.length) return;
+      const color = colors[(veh - 1) % 2];
+      const xL = X(on[0].x);
+      const xR = X(on[on.length - 1].x);
+      const w = Math.max(18, xR - xL);
+      out.push(
+        <g key={`veh${veh}`}>
+          <rect x={xL - 10} y={yB - 22} width={w + 20} height="11" rx="2.2" fill={color} />
+          <rect x={xL - 16} y={yB - 20} width="10" height="9" rx="1.4" fill={color} />
+          {on.map((a, i) => (
+            <g key={i}>
+              <circle cx={X(a.x) - 3.2} cy={yB - 8} r="2.5" fill="#1a1a1a" />
+              <circle cx={X(a.x) + 3.2} cy={yB - 8} r="2.5" fill="#1a1a1a" />
+            </g>
+          ))}
+          <text x={(xL + xR) / 2} y={yB - 26} textAnchor="middle" fontSize="9" fill={color}>{`Veh ${veh}`}</text>
+        </g>,
+      );
+    });
+    return <g>{out}</g>;
+  };
+
+  const band = (
+    hi: { x: number; y: number }[],
+    lo: { x: number; y: number }[],
+    Xf: (x: number) => number,
+    Yf: (y: number) => number,
+  ) => {
+    if (hi.length < 2 || lo.length < 2) return "";
+    const top = hi.map((p) => `${Xf(p.x).toFixed(1)},${Yf(p.y).toFixed(1)}`);
+    const bot = [...lo].reverse().map((p) => `${Xf(p.x).toFixed(1)},${Yf(p.y).toFixed(1)}`);
+    return `${top.join(" ")} ${bot.join(" ")}`;
+  };
+
+  const poly = (pts: { x: number; y: number }[], Xf: (x: number) => number, Yf: (y: number) => number) =>
+    pts.map((p) => `${Xf(p.x).toFixed(1)},${Yf(p.y).toFixed(1)}`).join(" ");
+
+  const yIl = 210;
+  const vL = ptsVL.filter((p) => p.x <= xSec + 1e-6);
+  const vR = (ptsVR.length ? ptsVR : ptsVL).filter((p) => p.x >= xSec - 1e-6);
+  const peakIlM = Math.max(0.12, ...ptsM.map((p) => Math.abs(p.y)));
+  const peakIlV = Math.max(0.12, ...vL.map((p) => Math.abs(p.y)), ...vR.map((p) => Math.abs(p.y)));
+  const YilM = (eta: number) => yIl + eta * (70 / peakIlM);
+  const YilV = (eta: number) => yIl + eta * (70 / peakIlV);
+  const fillIl = ptsM.length ? `${X(ptsM[0].x)},${YilM(0)} ${poly(ptsM, X, YilM)} ${X(ptsM[ptsM.length - 1].x)},${YilM(0)}` : "";
+  const vJumpL = vL.length ? vL[vL.length - 1].y : 0;
+  const vJumpR = vR.length ? vR[0].y : 0;
+
+  const envChart = (hi: { x: number; y: number }[], lo: { x: number; y: number }[]) => {
+    const yMid = 218;
+    const half = 78;
+    const peak = Math.max(0.2, ...hi.map((p) => Math.abs(p.y)), ...lo.map((p) => Math.abs(p.y)));
+    const sc = (half * 0.86) / peak;
+    const Y = (v: number) => yMid + v * sc;
+    const pHi = peakOf(hi, "max");
+    const pLo = peakOf(lo, "min");
+    const yLab = (v: number, outside: boolean) => {
+      const y = Y(v);
+      const below = y >= yMid - 0.5;
+      const dir = outside ? (below ? 1 : -1) : (below ? -1 : 1);
+      return Math.max(122, Math.min(318, y + dir * 15));
+    };
+    return { Y, pHi, pLo, yLab, band: band(hi, lo, X, Y), polyHi: poly(hi, X, Y), polyLo: poly(lo, X, Y) };
+  };
+
+  const mCh = envChart(envMmax, envMmin);
+  const vCh = envChart(envVmax, envVmin);
+  const aM = envChart(allMmax.length ? allMmax : envMmax, allMmin.length ? allMmin : envMmin);
+  const aV = envChart(allVmax.length ? allVmax : envVmax, allVmin.length ? allVmin : envVmin);
+  const iCh = envChart(instM, instM.map((p) => ({ ...p, y: 0 })));
+  const peakInstV = Math.max(0.2, ...instV.map((p) => Math.abs(p.y)));
+  const YinstV = (v: number) => 218 + v * (67 / peakInstV);
+
+  const Mplus = values.allMplus || values.Mplus || "—";
+  const Mminus = values.allMminus || values.Mminus || "—";
+  const Vabs = values.allVabs || values.Vabs || "—";
+  const Vplus = values.allVplus || values.Vplus || "—";
+  const Vminus = values.allVminus || values.Vminus || "—";
+  const s0On = s0 >= 0.15 && s0 <= Ltot - 0.05;
+  const tag = (px: number, py: number, txt: string, fill: string) => (
+    <text x={px} y={py} textAnchor="middle" fontSize="10" fill={fill} stroke="#fbf8f1" strokeWidth="3.2" paintOrder="stroke">
+      {txt}
+    </text>
+  );
+
   return (
-    <SvgFrame caption="Línea de influencia de momento en la sección x — tren HS-20">
-      <line x1="70" y1="70" x2="450" y2="70" stroke="#1a4473" strokeWidth="3" />
-      <polygon points="70,70 82,88 58,88" fill="#1a4473" />
-      <rect x="438" y="70" width="14" height="18" fill="#1a4473" />
-      <line x1={px} y1={70} x2={px} y2={70 + peakH} stroke="#8b1e1e" strokeDasharray="4 3" />
-      <path d={`M70,70 L${px},${70 + peakH} L450,70`} fill="#8b1e1e18" stroke="#8b1e1e" strokeWidth="2" />
-      <Dim x1={70} y1={70} x2={450} y2={70} label={`${L.toFixed(1)}`} field="L" unit="m" side={-24} active={active} onFocus={onFocus} />
-      <Dim x1={70} y1={70 + peakH + 10} x2={px} y2={70 + peakH + 10} label={`${x.toFixed(1)}`} field="x" unit="m" side={22} active={active} onFocus={onFocus} />
-      <text x="260" y="310" textAnchor="middle" fontSize="11" fill="#8b1e1e">
-        η_M(x, ξ)
-      </text>
-    </SvgFrame>
+    <div className="fig-stack fig-stack-lineaInf">
+      <SvgFrame
+        part="il"
+        heading={`Líneas de influencia · ${nVeh} vehículo${nVeh === 2 ? "s" : ""}`}
+        viewBox="0 0 540 400"
+        caption={`η_M y η_V en x = ${xSec.toFixed(2)} m · tren en s₀ = ${s0.toFixed(2)} m (${s0raw ? "cota" : "crítica"}) · ${flota.toUpperCase()}`}
+      >
+        {beamGlyphs(52)}
+        {spanDims(52)}
+        {trucks(52)}
+        <line x1={X(xSec)} y1={24} x2={X(xSec)} y2={YilM(0) + 72} stroke="#8b1e1e" strokeDasharray="4 3" strokeWidth="1.1" />
+        <text x={X(xSec) + 6} y={22} fontSize="10" fill="#8b1e1e">x</text>
+        <line x1={x0} y1={YilM(0)} x2={x1} y2={YilM(0)} stroke="#1a4473" opacity="0.4" />
+        {fillIl ? <polygon points={fillIl} fill="#8b1e1e18" /> : null}
+        {ptsM.length > 1 ? <polyline points={poly(ptsM, X, YilM)} fill="none" stroke="#8b1e1e" strokeWidth="2.2" /> : null}
+        {vL.length > 1 ? <polyline points={poly(vL, X, YilV)} fill="none" stroke="#1a4473" strokeWidth="1.7" strokeDasharray="6 3" /> : null}
+        {vR.length > 1 ? <polyline points={poly(vR, X, YilV)} fill="none" stroke="#1a4473" strokeWidth="1.7" strokeDasharray="6 3" /> : null}
+        {vL.length && vR.length ? <line x1={X(xSec)} y1={YilV(vJumpL)} x2={X(xSec)} y2={YilV(vJumpR)} stroke="#1a4473" strokeWidth="1.7" /> : null}
+        {s0On ? <Dim x1={x0} y1={52} x2={X(s0)} y2={52} label={`${s0.toFixed(1)}`} field="s0" unit="m" side={18} active={active} onFocus={onFocus} /> : null}
+        <Dim x1={x0} y1={YilM(0)} x2={X(xSec)} y2={YilM(0)} label={`${xSec.toFixed(1)}`} field="x" unit="m" side={22} active={active} onFocus={onFocus} />
+        <rect x="70" y="376" width="10" height="3" fill="#8b1e1e" />
+        <text x="84" y="380" fontSize="10" fill="#1a4473">η_M (esc. propia)</text>
+        <line x1="194" y1="378" x2="220" y2="378" stroke="#1a4473" strokeDasharray="6 3" />
+        <text x="226" y="380" fontSize="10" fill="#1a4473">η_V con salto en x (esc. propia)</text>
+      </SvgFrame>
+
+      <SvgFrame
+        part="inst"
+        heading="Esfuerzos con el tren en s₀ (análisis móvil)"
+        viewBox="0 0 540 400"
+        caption={`1.er eje en s₀ = ${s0.toFixed(2)} m. En la sección x = ${xSec.toFixed(2)} m: M = ${values.Ms0 || "—"} t·m · V = ${values.Vs0 || "—"} t`}
+      >
+        {beamGlyphs(48)}
+        {spanDims(48)}
+        {trucks(48)}
+        <line x1={x0} y1={iCh.Y(0)} x2={x1} y2={iCh.Y(0)} stroke="#1a4473" opacity="0.45" />
+        {instM.length > 1 ? <polyline points={poly(instM, X, iCh.Y)} fill="none" stroke="#8b1e1e" strokeWidth="2.2" /> : null}
+        {instV.length > 1 ? <polyline points={poly(instV, X, YinstV)} fill="none" stroke="#1a4473" strokeWidth="1.6" strokeDasharray="6 3" /> : null}
+        <line x1={X(xSec)} y1={30} x2={X(xSec)} y2={330} stroke="#8b1e1e" strokeDasharray="4 3" strokeWidth="1" />
+        {s0On ? <Dim x1={x0} y1={48} x2={X(Math.max(0, Math.min(Ltot, s0)))} y2={48} label={`${s0.toFixed(1)}`} field="s0" unit="m" side={18} active={active} onFocus={onFocus} /> : null}
+        <rect x="70" y="376" width="10" height="3" fill="#8b1e1e" />
+        <text x="84" y="380" fontSize="10" fill="#1a4473">M(x) en s₀</text>
+        <line x1="176" y1="378" x2="202" y2="378" stroke="#1a4473" strokeDasharray="6 3" />
+        <text x="208" y="380" fontSize="10" fill="#1a4473">V(x) en s₀ (esc. propia)</text>
+      </SvgFrame>
+
+      <SvgFrame
+        part="envM"
+        heading="Diagrama de momentos máximos y mínimos"
+        viewBox="0 0 540 400"
+        caption={`M+ y M− del tren adoptado · ${nVeh} vehículo${nVeh === 2 ? "s" : ""}. Diseño del tren: M+ = ${values.Mplus || "—"} t·m · M− = ${values.Mminus || "—"} t·m`}
+      >
+        {beamGlyphs(48)}
+        {spanDims(48)}
+        <line x1={x0} y1={mCh.Y(0)} x2={x1} y2={mCh.Y(0)} stroke="#1a4473" opacity="0.45" />
+        {mCh.band ? <polygon points={mCh.band} fill="#8b1e1e22" /> : null}
+        {envMmax.length > 1 ? <polyline points={mCh.polyHi} fill="none" stroke="#8b1e1e" strokeWidth="2.2" /> : null}
+        {envMmin.length > 1 ? <polyline points={mCh.polyLo} fill="none" stroke="#3d5a80" strokeWidth="2" /> : null}
+        {envMmax.length ? tag(X(mCh.pHi.x), mCh.yLab(mCh.pHi.y, true), `M+ ${mCh.pHi.y.toFixed(1)}`, "#8b1e1e") : null}
+        {envMmin.length && mCh.pLo.y < -0.05 ? tag(X(mCh.pLo.x), mCh.yLab(mCh.pLo.y, true), `M− ${mCh.pLo.y.toFixed(1)}`, "#3d5a80") : null}
+        <text x="70" y="380" fontSize="11" fill="#1a4473">
+          Envelope del tren (todas las posiciones) · no es el instante s₀
+        </text>
+      </SvgFrame>
+
+      <SvgFrame
+        part="envV"
+        heading="Diagrama de cortantes máximos y mínimos"
+        viewBox="0 0 540 400"
+        caption={`V+ y V− del tren adoptado · ${nVeh} vehículo${nVeh === 2 ? "s" : ""}. Diseño: V+ = ${values.Vplus || "—"} t · V− = ${values.Vminus || "—"} t · |V| = ${values.Vabs || "—"} t`}
+      >
+        {beamGlyphs(48)}
+        {spanDims(48)}
+        <line x1={x0} y1={vCh.Y(0)} x2={x1} y2={vCh.Y(0)} stroke="#1a4473" opacity="0.45" />
+        {vCh.band ? <polygon points={vCh.band} fill="#1a447322" /> : null}
+        {envVmax.length > 1 ? <polyline points={vCh.polyHi} fill="none" stroke="#1a4473" strokeWidth="2.2" /> : null}
+        {envVmin.length > 1 ? <polyline points={vCh.polyLo} fill="none" stroke="#8b1e1e" strokeWidth="2" /> : null}
+        {envVmax.length ? tag(X(vCh.pHi.x), vCh.yLab(vCh.pHi.y, true), `V+ ${vCh.pHi.y.toFixed(1)}`, "#1a4473") : null}
+        {envVmin.length ? tag(X(vCh.pLo.x), vCh.yLab(vCh.pLo.y, true), `V− ${vCh.pLo.y.toFixed(1)}`, "#8b1e1e") : null}
+        <text x="70" y="380" fontSize="11" fill="#1a4473">
+          Cortante de diseño del tren |V| = {values.Vabs || "—"} t (máx de |V+| y |V−|)
+        </text>
+      </SvgFrame>
+
+      <SvgFrame
+        part="envAll"
+        heading="Envolvente de momentos — todos los trenes"
+        viewBox="0 0 540 400"
+        caption={`Máximo y mínimo de M con toda la flota (HL-93, MTC RNV). Diseño: M+ = ${Mplus} t·m · M− = ${Mminus} t·m`}
+      >
+        {beamGlyphs(48)}
+        {spanDims(48)}
+        <line x1={x0} y1={aM.Y(0)} x2={x1} y2={aM.Y(0)} stroke="#1a4473" opacity="0.45" />
+        {aM.band ? <polygon points={aM.band} fill="#8b1e1e20" /> : null}
+        {(allMmax.length > 1 || envMmax.length > 1) ? <polyline points={aM.polyHi} fill="none" stroke="#8b1e1e" strokeWidth="2.3" /> : null}
+        {(allMmin.length > 1 || envMmin.length > 1) ? <polyline points={aM.polyLo} fill="none" stroke="#3d5a80" strokeWidth="2" /> : null}
+        {tag(X(aM.pHi.x), aM.yLab(aM.pHi.y, true), `M+ ${aM.pHi.y.toFixed(1)}`, "#8b1e1e")}
+        {aM.pLo.y < -0.05 ? tag(X(aM.pLo.x), aM.yLab(aM.pLo.y, true), `M− ${aM.pLo.y.toFixed(1)}`, "#3d5a80") : null}
+        <text x="70" y="380" fontSize="11" fill="#8b1e1e">
+          ARMAR M+ = {Mplus} t·m    M− = {Mminus} t·m
+        </text>
+      </SvgFrame>
+
+      <SvgFrame
+        part="envAllV"
+        heading="Envolvente de cortantes — todos los trenes"
+        viewBox="0 0 540 400"
+        caption={`Máximo y mínimo de V con toda la flota. Diseño: V+ = ${Vplus} t · V− = ${Vminus} t · |V| = ${Vabs} t`}
+      >
+        {beamGlyphs(48)}
+        {spanDims(48)}
+        <line x1={x0} y1={aV.Y(0)} x2={x1} y2={aV.Y(0)} stroke="#1a4473" opacity="0.45" />
+        {aV.band ? <polygon points={aV.band} fill="#1a447320" /> : null}
+        {(allVmax.length > 1 || envVmax.length > 1) ? <polyline points={aV.polyHi} fill="none" stroke="#1a4473" strokeWidth="2.3" /> : null}
+        {(allVmin.length > 1 || envVmin.length > 1) ? <polyline points={aV.polyLo} fill="none" stroke="#8b1e1e" strokeWidth="2" /> : null}
+        {tag(X(aV.pHi.x), aV.yLab(aV.pHi.y, true), `V+ ${aV.pHi.y.toFixed(1)}`, "#1a4473")}
+        {aV.pLo.y < -0.05 ? tag(X(aV.pLo.x), aV.yLab(aV.pLo.y, true), `V− ${aV.pLo.y.toFixed(1)}`, "#8b1e1e") : null}
+        <text x="70" y="380" fontSize="11" fill="#8b1e1e">
+          ARMAR |V| = {Vabs} t    V+ = {Vplus} t    V− = {Vminus} t
+        </text>
+      </SvgFrame>
+    </div>
   );
 }
 

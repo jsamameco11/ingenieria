@@ -6,6 +6,7 @@ Las ecuaciones de cada paso se escriben en LaTeX y se **renderizan con KaTeX** e
 
 - Bloque **Fórmula**: modo display, una ecuación por renglón (`aligned`), fracciones, raíces y subíndices tipográficos.
 - **Sustitución** y **resultado**: si la línea es una asignación (`ρ = …`, `H = 4.00`), también va en KaTeX.
+- El **resultado en prosa** (instrucciones, adopción) **no** se pasa por KaTeX: los espacios se conservan. KaTeX en modo matemático ignora espacios y pegaría «Hagaclicenlasceldas…».
 - El párrafo explicativo del **Cálculo** sigue en texto; solo las líneas que son ecuación se renderizan.
 - Al **Imprimir / PDF** se imprime el mismo KaTeX (fuentes y color exactos), no el ASCII crudo.
 - El bloque de fórmula **no lleva fondo distinto**: mismo papel que el resto de la hoja.

@@ -78,6 +78,7 @@ export function pillOf(platform: string) {
 }
 
 export function matchesChip(u: AdminUser, chip: Chip) {
+  if (!chip || chip === "all") return true;
   if (chip === "pro") return planVigente(u);
   if (chip === "free") return !planVigente(u);
   if (chip === "revoked") return u.status === "revoked";

@@ -12,6 +12,8 @@ export type MetradoZone = {
   pts: Pt[];
   /** Centro del número; si falta, se usa el centroide. */
   badge?: Pt;
+  /** Superficie curva (cúpula / agua): se traza como spline, no como polígono facetado. */
+  smooth?: boolean;
 };
 
 export type MetradoArrow = {
@@ -93,6 +95,34 @@ function rect(x: number, y: number, w: number, h: number): Pt[] {
 
 function tri(a: Pt, b: Pt, c: Pt): Pt[] {
   return [a, b, c];
+}
+
+/** Casquete esférico con polo abajo (cúpula invertida / agua sobre el fondo INTZE). y=0 en el polo. */
+export function sampleSphereBowl(r: number, f: number, n = 80): Pt[] {
+  const sag = Math.max(f, 1e-4);
+  const Rs = (r * r + sag * sag) / (2 * sag);
+  const yc = Rs;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const x = (i / n) * r;
+    const y = yc - Math.sqrt(Math.max(0, Rs * Rs - x * x));
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+/** Casquete esférico con polo arriba (cúpula de techo). yRing = cota del arranque. */
+export function sampleSphereCrown(r: number, f: number, yRing: number, n = 80): Pt[] {
+  const sag = Math.max(f, 1e-4);
+  const Rs = (r * r + sag * sag) / (2 * sag);
+  const yc = yRing + f - Rs;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= n; i++) {
+    const x = (i / n) * r;
+    const y = yc + Math.sqrt(Math.max(0, Rs * Rs - x * x));
+    pts.push([x, y]);
+  }
+  return pts;
 }
 
 /* ─── Muro en voladizo ─── */
@@ -485,15 +515,8 @@ export function layoutTanqueCircular(p: {
   const { D, HL, H, tMuro, tLosa, tDomo, fDomo } = p;
   const R = D / 2;
   const y0 = tLosa;
-  const n = 10;
-  const dome: Pt[] = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const x = t * R;
-    const y = y0 + H + fDomo * (1 - (x / Math.max(R, 0.1)) ** 2);
-    dome.push([x, y]);
-  }
-  const domeOuter = dome.map(([x, y]) => [x + (x / Math.max(R, 0.1)) * tDomo, y + tDomo * 0.2] as Pt);
+  const dome = sampleSphereCrown(R, fDomo, y0 + H, 36);
+  const domeOuter = sampleSphereCrown(R + tDomo, fDomo + tDomo * 0.35, y0 + H, 36);
   return {
     id: "metrado-tanque-circular",
     title: "Identificación de zonas — pesos propios",
@@ -552,31 +575,27 @@ export function layoutTanqueIntze(p: {
 }): MetradoLayout {
   const { R, rp, h1, hCono, fInf, tMuro, HL } = p;
   const fSup = p.fSup ?? R / 6;
-  const yDomoInf = 0;
+  const tInf = Math.max(0.1, tMuro * 0.55);
   const yCono = fInf;
   const yCil = fInf + hCono;
   const yTop = yCil + h1;
-  const n = 8;
-  const lower: Pt[] = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const x = t * rp;
-    const y = yDomoInf + fInf * (x / Math.max(rp, 0.05)) ** 2;
-    lower.push([x, y]);
-  }
-  const upper: Pt[] = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const x = t * R;
-    const y = yTop + fSup * (1 - (x / Math.max(R, 0.1)) ** 2);
-    upper.push([x, y]);
-  }
-  const upperOuter = upper.map(([x, y]) => [x + 0.08, y + 0.08] as Pt);
+  const yWater = yCil + Math.min(Math.max(HL - hCono * 0.35, h1 * 0.92), h1);
+  const lowerInner = sampleSphereBowl(rp, fInf, 80);
+  const lowerOuter = sampleSphereBowl(rp + tInf * 0.35, fInf + tInf, 80).map(([x, y]) => [x, y - tInf] as Pt);
+  const upper = sampleSphereCrown(R, fSup, yTop, 80);
+  const upperOuter = sampleSphereCrown(R + tMuro * 0.45, fSup + tMuro * 0.35, yTop, 80);
+  const waterBowl = sampleSphereBowl(rp * 0.98, fInf * 0.98, 80);
+  const nCono = 12;
+  const waterCono: Pt[] = Array.from({ length: nCono }, (_, i) => {
+    const t = (i + 1) / nCono;
+    return [rp * 0.98 + (R * 0.985 - rp * 0.98) * t, fInf * 0.98 + (yCil - fInf * 0.98) * t] as Pt;
+  });
+  const water: Pt[] = [...waterBowl, ...waterCono, [R * 0.985, yWater], [0, yWater]];
   return {
     id: "metrado-tanque-intze",
     title: "Identificación de zonas — pesos de la cuba INTZE",
     caption:
-      "Media sección de la cuba tipo INTZE. Cada número identifica el elemento del metrado (pared, cono, cúpulas, anillos y agua).",
+      "Media sección de la cuba tipo INTZE. Cúpulas y agua se dibujan como casquetes esféricos (no polígonos). Cada número identifica el elemento del metrado.",
     origin: "Eje de la cuba",
     zones: [
       { n: 1, label: "Pared cilíndrica", material: "concreto", pts: rect(R, yCil, tMuro, h1) },
@@ -596,12 +615,14 @@ export function layoutTanqueIntze(p: {
         label: "Cúpula superior",
         material: "concreto",
         pts: [...upper, ...upperOuter.slice().reverse()],
+        smooth: true,
       },
       {
         n: 4,
         label: "Cúpula inferior",
         material: "concreto",
-        pts: [...lower, ...lower.map(([x, y]) => [x, y - 0.1] as Pt).reverse()],
+        pts: [...lowerInner, ...lowerOuter.slice().reverse()],
+        smooth: true,
       },
       {
         n: 5,
@@ -613,13 +634,8 @@ export function layoutTanqueIntze(p: {
         n: 6,
         label: "Agua almacenada",
         material: "agua",
-        pts: [
-          [0, yCono + 0.04],
-          [rp * 0.92, yCono + 0.04],
-          [R * 0.92, yCil],
-          [R * 0.92, yCil + Math.min(HL, h1)],
-          [0, yCil + Math.min(HL, h1)],
-        ],
+        pts: water,
+        badge: [R * 0.42, yCil + Math.min(h1, yWater - yCil) * 0.45],
       },
     ],
   };

@@ -6,7 +6,7 @@ Si el **FS al deslizamiento** (estático o sísmico) no alcanza el mínimo, el m
 
 - Sin llave se calcula `FS_d` y `FS_d,sis`.
 - Si alguno falla, `bk = F` (mismo ancho que el alma, **bajo el fuste**, no bajo la puntera).
-- `hk,pre = máx(e, 0,30 m)`. Se itera `hk` de 5 en 5 cm hasta 0,90 m.
+- `hk,pre = máx(e, 0,30 m)`, acotado a 0,60 m. Se itera `hk` de 5 en 5 cm hasta 0,60 m (llave típica 0,30–0,60 m; Bowles, Das, FHWA). Más de 0,60 m deja de ser constructivo en un muro de esta escala.
 - El plano de deslizamiento baja a `D + hk`: `Pp = ½ Kp γsat (D+hk)²`.
 - El peso del dentellón entra al metrado (zona 6).
 - `ΔPp = Pp − Pp0` es la fuerza extra que flexiona el taco.
@@ -38,11 +38,11 @@ Si el muro ya cumple al deslizamiento, **no** se dibuja ni se vierte concreto de
 
 Una marca por lecho. El corte se dibuja grande, a escala de plano. Barras **delgadas** (cerca de la escala real, levemente exageradas):
 
-- **1** longitudinal vertical al **trasdós** (flexión, gancho al talón).
-- **2** longitudinal vertical al **intradós** (reparto, gancho a la puntera).
+- **1** longitudinal vertical al **trasdós** (flexión, continúa en la zapata, gancho 90° al lecho superior del talón, ℓd).
+- **2** longitudinal vertical al **intradós** (reparto, sigue el talud, entra a la zapata y ancla en el lecho inferior de la puntera).
 - **3** temperatura horizontal en corte, **interior** a los verticales, ambas caras.
-- **4 / 5** puntera inferior (flexión) y **superior** (reparto).
-- **6 / 7** talón superior (flexión) e **inferior** (reparto).
-- **8** U del dentellón, si hay llave.
+- **4 / 5** zapata inferior (puntera, flexión) y **superior** (reparto / talón), ganchos 90° **en ambos extremos**, continuidad bajo el fuste.
+- **6** transversales de zapata en corte, a lo ancho (incluido bajo el alma).
+- **7 / 8 / 9** dentellón si hay llave: **7** cara de suelo (dowel al alma, capa interior, sin coincidir con el intradós); **8** cara interior (gancho 90° en la zapata, no llega al fuste); **9** longitudinales del taco en corte, interiores al recubrimiento y desfasados de los verticales.
 
-Cotas de Corona, Intradós, Trasdós, Puntera, Cimentación y Dentellón.
+Cajas de marca pegadas al acero (no flotando al borde ni tapando el concreto). Cotas de Corona, Intradós, Trasdós, Puntera, Cimentación y Dentellón.

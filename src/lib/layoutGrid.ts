@@ -18,6 +18,8 @@ export type GridModel = {
   axesY: number[];
   panes: boolean[][];
   cols: GridCol[];
+  /** Si true, las columnas son solo las clicadas (no se rellenan nudos vacíos). */
+  placed?: boolean;
 };
 
 export type CorridaCol = {
@@ -49,7 +51,7 @@ function numList(raw: unknown, fallback: number[]): number[] {
 
 export function uniformAxes(nBay: number, span: number, origin = 0): number[] {
   const n = Math.max(1, Math.round(nBay));
-  const s = Math.max(0.5, span);
+  const s = Math.max(0.3, span);
   return Array.from({ length: n + 1 }, (_, i) => origin + i * s);
 }
 
@@ -108,20 +110,36 @@ export function parseGrid(raw: string | undefined, fallback: GridModel): GridMod
       }
     }
     const colsIn = Array.isArray(j.cols) ? j.cols : [];
-    const cols = defaultCols(axesX, axesY);
-    for (const c of cols) {
-      const hit = colsIn.find((q) => Number(q.ix) === c.ix && Number(q.iy) === c.iy);
-      if (!hit) continue;
-      c.t1 = Number(hit.t1) || c.t1;
-      c.t2 = Number(hit.t2) || c.t2;
-      c.P1 = Number(hit.P1) || 0;
-      c.P2 = Number(hit.P2) || 0;
-      c.P3 = Number(hit.P3) || c.P3;
-      c.M1 = Number(hit.M1) || 0;
-      c.M2 = Number(hit.M2) || 0;
-      c.M3 = Number(hit.M3) || 0;
+    const placed = j.placed === true;
+    const cols = placed
+      ? colsIn.map((hit) => ({
+          ix: Number(hit.ix) || 0,
+          iy: Number(hit.iy) || 0,
+          t1: Number(hit.t1) || 0.4,
+          t2: Number(hit.t2) || 0.4,
+          P1: Number(hit.P1) || 0,
+          P2: Number(hit.P2) || 0,
+          P3: Number(hit.P3) || 0,
+          M1: Number(hit.M1) || 0,
+          M2: Number(hit.M2) || 0,
+          M3: Number(hit.M3) || 0,
+        }))
+      : defaultCols(axesX, axesY);
+    if (!placed) {
+      for (const c of cols) {
+        const hit = colsIn.find((q) => Number(q.ix) === c.ix && Number(q.iy) === c.iy);
+        if (!hit) continue;
+        c.t1 = Number(hit.t1) || c.t1;
+        c.t2 = Number(hit.t2) || c.t2;
+        c.P1 = Number(hit.P1) || 0;
+        c.P2 = Number(hit.P2) || 0;
+        c.P3 = Number(hit.P3) || c.P3;
+        c.M1 = Number(hit.M1) || 0;
+        c.M2 = Number(hit.M2) || 0;
+        c.M3 = Number(hit.M3) || 0;
+      }
     }
-    return { axesX, axesY, panes, cols };
+    return { axesX, axesY, panes, cols, placed };
   } catch {
     return fallback;
   }
@@ -133,6 +151,7 @@ export function dumpGrid(g: GridModel): string {
     axesY: g.axesY.map((x) => Math.round(x * 1000) / 1000),
     panes: g.panes,
     cols: g.cols,
+    placed: g.placed === true,
   });
 }
 
@@ -240,7 +259,7 @@ export function momentsAtFooting(c: { P1: number; P2: number; M1: number; M2: nu
 }
 
 export function setAxisSpan(axes: number[], iBay: number, span: number) {
-  const s = Math.max(0.5, span);
+  const s = Math.max(0.3, span);
   const next = axes.slice();
   const i = Math.max(0, Math.min(iBay, next.length - 2));
   const d = s - (next[i + 1] - next[i]);

@@ -7,6 +7,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleRevitApi } from "./revit-sync.mjs";
+import {
+  emptyBreakdown,
+  markSite,
+  idFromPlatformCode,
+  idFromApp,
+  sitePresenceFromBreakdown,
+  nestedPlatformCode,
+} from "./ecosystem.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 loadEnv(join(root, ".env"));
@@ -805,19 +813,7 @@ function tastesOf(identity) {
 }
 
 function platformOfApp(app, os) {
-  const id = String(app || "").toLowerCase();
-  const o = String(os || "").toLowerCase();
-  if (id === "memorcalc" || id === "ingenieria" || id === "memoriacalc") return "ingenieria";
-  if (id === "folio-android" || id.includes("android") || o.includes("android")) return "android";
-  return "folio";
-}
-
-function emptyBuckets() {
-  return {
-    folio: { id: "folio", label: "Folio PC", count: 0, hosts: [], lastSeen: "", present: false },
-    android: { id: "android", label: "Folio Android", count: 0, hosts: [], lastSeen: "", present: false },
-    ingenieria: { id: "ingenieria", label: "Ingeniería", count: 0, hosts: [], lastSeen: "", present: false },
-  };
+  return idFromApp(app, os) || "folio";
 }
 
 function ageBandFromAge(age) {
@@ -855,6 +851,8 @@ function mergeCensus({
   masterUsers,
   masterProfiles,
   userPlatforms,
+  sessions,
+  platformCatalog,
 }) {
   const ids = new Set();
   for (const row of profilesMc) if (row.user_id) ids.add(String(row.user_id));
@@ -865,6 +863,8 @@ function mergeCensus({
   for (const row of masterProfiles || []) if (row.user_id) ids.add(String(row.user_id));
   for (const row of installs) if (row.user_id) ids.add(String(row.user_id));
   for (const row of authUsers) if (row.id) ids.add(String(row.id));
+  for (const row of userPlatforms || []) if (row.user_id) ids.add(String(row.user_id));
+  for (const row of sessions || []) if (row.user_id) ids.add(String(row.user_id));
   const mc = byKey(profilesMc, "user_id");
   const pl = byKey(plans, "user_id");
   const lkGroups = groupByKey(locks, "user_id");
@@ -910,16 +910,14 @@ function mergeCensus({
     const id = String(row.user_id || "");
     if (id) payN.set(id, (payN.get(id) || 0) + 1);
   }
-  const masterPlats = new Map();
-  for (const row of userPlatforms || []) {
-    const id = String(row.user_id || "");
-    if (!id || row.is_active === false) continue;
-    const raw = String(row.platforms?.platform_code || row.platform_code || "").toUpperCase();
-    const code = raw === "INGENIERIA" ? "ingenieria" : raw === "FOLIO_PDF" ? "folio" : raw.toLowerCase();
-    if (!code) continue;
-    const set = masterPlats.get(id) || new Set();
-    set.add(code);
-    masterPlats.set(id, set);
+  const byPlatId = new Map((platformCatalog || []).map((p) => [p.id, p]));
+  const platsByUser = groupByKey(userPlatforms || [], "user_id");
+  const sessByUser = groupByKey(sessions || [], "user_id");
+  function siteIdOfPlatformRow(row) {
+    const nested = nestedPlatformCode(row);
+    if (nested) return idFromPlatformCode(nested);
+    const plat = byPlatId.get(row.platform_id) || {};
+    return idFromPlatformCode(plat.platform_code || row.platform_code || "");
   }
   const activity = new Map();
   for (const row of events || []) {
@@ -967,45 +965,55 @@ function mergeCensus({
     const rubros = rubrosOf(p, insight);
     const tastes = tastesOf(identity);
     const occupation = p.profession_label || p.inferred_role || insight.role_guess || identity.occupation || "";
-    const buckets = emptyBuckets();
+    const buckets = emptyBreakdown();
     const userInstalls = byUserInstalls.get(user_id) || [];
     for (const item of userInstalls) {
-      const key = platformOfApp(item.app, item.os);
-      const bucket = buckets[key] || buckets.folio;
-      bucket.present = true;
-      bucket.count += 1;
-      const host = String(item.hostname || item.install_id || "").trim();
-      if (host && !bucket.hosts.includes(host)) bucket.hosts.push(host);
-      if (!bucket.lastSeen || String(item.last_seen_at || "") > String(bucket.lastSeen)) {
-        bucket.lastSeen = item.last_seen_at || "";
-      }
+      const key = idFromApp(item.app, item.os);
+      if (!key) continue;
+      markSite(buckets, key, {
+        lastSeen: item.last_seen_at || "",
+        host: item.hostname || item.install_id || "",
+        source: "install",
+      });
     }
-    const usedIngenieria = Boolean(p.email || p.full_name || p.last_module || budN.get(user_id) || lock.device_id || activity.get(user_id) || (masterPlats.get(user_id) || new Set()).has("ingenieria"));
+    const ownPlats = platsByUser.get(user_id) || [];
+    const usedIngenieria = Boolean(
+      p.email || p.full_name || p.last_module || budN.get(user_id) || lock.device_id || activity.get(user_id)
+      || ownPlats.some((row) => siteIdOfPlatformRow(row) === "ingenieria"),
+    );
     if (usedIngenieria) {
-      buckets.ingenieria.present = true;
-      if (!buckets.ingenieria.count) buckets.ingenieria.count = 1;
-      if (lock.device_label && !buckets.ingenieria.hosts.includes(lock.device_label)) {
-        buckets.ingenieria.hosts.push(lock.device_label);
-      }
-      if (!buckets.ingenieria.lastSeen || String(lock.updated_at || "") > String(buckets.ingenieria.lastSeen)) {
-        buckets.ingenieria.lastSeen = lock.updated_at || buckets.ingenieria.lastSeen;
-      }
+      markSite(buckets, "ingenieria", {
+        lastSeen: lock.updated_at || p.updated_at || "",
+        host: lock.device_label || "",
+        source: "memorcalc",
+      });
     }
-    for (const code of masterPlats.get(user_id) || []) {
-      if (code === "ingenieria") {
-        buckets.ingenieria.present = true;
-        if (!buckets.ingenieria.count) buckets.ingenieria.count = 1;
-      }
-      if (code === "folio") {
-        buckets.folio.present = true;
-        if (!buckets.folio.count) buckets.folio.count = 1;
-      }
+    for (const row of ownPlats) {
+      if (row.is_active === false) continue;
+      const key = siteIdOfPlatformRow(row);
+      if (!key) continue;
+      const backfill = String(row.acquisition_source || "").startsWith("backfill");
+      if (backfill && key === "folio" && !buckets.folio?.present) continue;
+      markSite(buckets, key, {
+        lastSeen: row.last_login_at || row.last_activity_at || row.first_login_at || "",
+        source: row.acquisition_source || "user_platforms",
+      });
     }
-    const platforms = Object.values(buckets).filter((b) => b.present).map((b) => b.id);
-    if (!platforms.length && (folio.email || folio.plan || au.email)) {
-      buckets.folio.present = true;
-      platforms.push("folio");
+    for (const row of sessByUser.get(user_id) || []) {
+      const key = siteIdOfPlatformRow(row);
+      if (!key) continue;
+      markSite(buckets, key, {
+        lastSeen: row.last_activity_at || row.started_at || "",
+        source: "session",
+      });
     }
+    const sitePresence = sitePresenceFromBreakdown(buckets);
+    const platforms = sitePresence.filter((row) => row.present).map((row) => row.id);
+    const latestSite = sitePresence
+      .filter((row) => row.present && row.lastSeen)
+      .map((row) => row.lastSeen)
+      .sort()
+      .at(-1) || "";
     const coverage = occupation || rubros.length || tastes.length || p.last_module ? 80 : identity.id ? 55 : 0;
     return {
       user_id,
@@ -1036,12 +1044,13 @@ function mergeCensus({
       threads: thrN.get(user_id) || 0,
       payments: payN.get(user_id) || 0,
       profile_at: p.created_at || folio.created_at || au.created_at || null,
-      last_seen_at: inst.last_seen_at || lock.updated_at || masterU.last_active_at || p.updated_at || folio.updated_at || au.last_sign_in_at || null,
-      last_sign_in_at: au.last_sign_in_at || inst.last_seen_at || null,
+      last_seen_at: inst.last_seen_at || lock.updated_at || masterU.last_active_at || p.updated_at || folio.updated_at || au.last_sign_in_at || latestSite || null,
+      last_sign_in_at: au.last_sign_in_at || inst.last_seen_at || latestSite || null,
       folio_plan: folio.plan || folio.plan_id || "",
       folio_status: status,
       platforms,
       platformBreakdown: buckets,
+      sitePresence,
       platformCount: platforms.length,
       google_email: inst.google_email || inst.email || au.email || "",
       google_sub: inst.google_sub || p.google_sub || "",
@@ -1221,6 +1230,8 @@ async function controlSnapshot() {
     masterUsers,
     masterProfiles,
     userPlatforms,
+    sessions,
+    platformCatalog,
   ] = await Promise.all([
     tableRows("/rest/v1/memorcalc_profiles?select=*&limit=3000"),
     tableRows("/rest/v1/memorcalc_plans?select=*&limit=3000"),
@@ -1239,7 +1250,9 @@ async function controlSnapshot() {
     tableRows("/rest/v1/memorcalc_events?select=user_id,event_type,module_slug,specialty,meta,created_at&order=created_at.desc&limit=8000"),
     tableRows("/rest/v1/users?select=id,public_user_code,account_status,is_active,onboarding_completed,last_login_at,last_active_at,created_at,updated_at&limit=5000"),
     tableRows("/rest/v1/user_profiles?select=user_id,display_name,first_name,last_name,phone,profile_photo_url&limit=5000"),
-    tableRows("/rest/v1/user_platforms?select=user_id,is_active,last_login_at,platforms(platform_code)&limit=8000"),
+    tableRows("/rest/v1/user_platforms?select=user_id,is_active,acquisition_source,last_login_at,last_activity_at,first_login_at,platform_id&limit=8000"),
+    tableRows("/rest/v1/user_sessions?select=user_id,platform_id,last_activity_at,started_at,session_status&order=last_activity_at.desc&limit=8000"),
+    tableRows("/rest/v1/platforms?select=id,platform_code,name,slug,status&limit=400"),
   ]);
   const users = mergeCensus({
     profilesMc,
@@ -1258,6 +1271,8 @@ async function controlSnapshot() {
     masterUsers,
     masterProfiles,
     userPlatforms,
+    sessions,
+    platformCatalog,
   });
   const countries = {};
   for (const u of users) {
@@ -1270,6 +1285,8 @@ async function controlSnapshot() {
     { family: "cuenta", name: "users (maestra)", count: masterUsers.length },
     { family: "cuenta", name: "user_profiles", count: masterProfiles.length },
     { family: "cuenta", name: "user_platforms", count: userPlatforms.length },
+    { family: "cuenta", name: "user_sessions", count: sessions.length },
+    { family: "cuenta", name: "platforms", count: platformCatalog.length },
     { family: "cuenta", name: "profiles (Folio legado)", count: folioProfiles.length },
     { family: "cuenta", name: "memorcalc_profiles", count: profilesMc.length },
     { family: "cuenta", name: "memorcalc_plans", count: plans.length },

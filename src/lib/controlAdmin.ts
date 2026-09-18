@@ -1,6 +1,7 @@
 import { folio } from "./folio";
 import { readControlToken } from "./controlGate";
 import { asListing, type Listing } from "./mercado";
+import { ECOSYSTEM } from "./ecosystem";
 
 export type AdminTaste = { id: string; label: string; family: string; score: number };
 
@@ -230,14 +231,36 @@ function asUser(row: Record<string, unknown>): AdminUser {
   const rubros = Array.isArray(row.rubros) ? row.rubros.map(String) : [];
   const tastes = Array.isArray(row.tastes) ? row.tastes.map((t) => asTaste((t || {}) as Record<string, unknown>)) : [];
   const rawBd = (row.platformBreakdown || {}) as Record<string, Record<string, unknown>>;
-  const platformBreakdown = {
-    folio: asBucket(rawBd.folio, { id: "folio", label: "Folio PC", count: 0, hosts: [], lastSeen: "", present: platforms.includes("folio") }),
-    android: asBucket(rawBd.android, { id: "android", label: "Folio Android", count: 0, hosts: [], lastSeen: "", present: platforms.includes("android") }),
-    ingenieria: asBucket(rawBd.ingenieria, { id: "ingenieria", label: "Ingeniería", count: 0, hosts: [], lastSeen: "", present: platforms.includes("ingenieria") }),
-  };
+  const platformBreakdown: Record<string, AdminPlatformBucket> = {};
+  for (const site of ECOSYSTEM) {
+    platformBreakdown[site.id] = asBucket(rawBd[site.id], {
+      id: site.id,
+      label: site.label,
+      count: 0,
+      hosts: [],
+      lastSeen: "",
+      present: platforms.includes(site.id),
+    });
+  }
+  for (const [id, raw] of Object.entries(rawBd)) {
+    if (!platformBreakdown[id]) {
+      platformBreakdown[id] = asBucket(raw, { id, label: id, count: 0, hosts: [], lastSeen: "", present: platforms.includes(id) });
+    }
+  }
   const sitePresence = Array.isArray(row.sitePresence)
-    ? row.sitePresence.map((s) => asSitePresence((s || {}) as Record<string, unknown>))
-    : undefined;
+    ? (row.sitePresence as Record<string, unknown>[]).map((s) => asSitePresence((s || {}) as Record<string, unknown>))
+    : ECOSYSTEM.map((site) => ({
+        id: site.id,
+        code: site.code,
+        label: site.label,
+        short: site.short,
+        pill: site.pill,
+        count: platformBreakdown[site.id]?.count || 0,
+        hosts: platformBreakdown[site.id]?.hosts || [],
+        lastSeen: platformBreakdown[site.id]?.lastSeen || "",
+        present: Boolean(platformBreakdown[site.id]?.present),
+        source: platformBreakdown[site.id]?.source || "",
+      }));
   return {
     user_id: String(row.user_id || row.id || ""),
     email: String(row.email || ""),
@@ -270,10 +293,10 @@ function asUser(row: Record<string, unknown>): AdminUser {
     last_sign_in_at: row.last_sign_in_at ? String(row.last_sign_in_at) : null,
     folio_plan: String(row.folio_plan || ""),
     folio_status: String(row.folio_status || row.status || ""),
-    platforms: platforms.length ? platforms : ["folio"],
+    platforms,
     platformBreakdown,
     sitePresence,
-    platformCount: Number(row.platformCount || platforms.length || 1),
+    platformCount: Number(row.platformCount ?? platforms.length),
     google_email: String(row.google_email || row.email || ""),
     google_sub: String(row.google_sub || ""),
     last_module: String(row.last_module || ""),

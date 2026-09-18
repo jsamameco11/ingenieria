@@ -53,18 +53,26 @@ function attachOf(layer: SteelLayer) {
 
 function calloutOf(layer: SteelLayer, index: number, W: number, H: number) {
   if (layer.callout) return layer.callout;
-  if (layer.side === "right") return { x: W - 16, y: 52 + index * 58, anchor: "end" as const };
-  if (layer.side === "left") return { x: 16, y: 52 + index * 58, anchor: "start" as const };
+  if (layer.side === "right") return { x: W - 16, y: 56 + index * 78, anchor: "end" as const };
+  if (layer.side === "left") return { x: 16, y: 56 + index * 78, anchor: "start" as const };
   if (layer.side === "top") return { x: attachOf(layer).x, y: 28, anchor: "middle" as const };
   return { x: attachOf(layer).x, y: H - 28, anchor: "middle" as const };
 }
 
 function leaderD(from: { x: number; y: number }, box: { x: number; y: number; anchor: "start" | "middle" | "end" }) {
-  const gap = box.anchor === "end" ? -22 : box.anchor === "start" ? 22 : 0;
+  const gap = box.anchor === "end" ? -16 : box.anchor === "start" ? 16 : 0;
   const xEnd = box.x + gap;
   const yEnd = box.y;
-  if (box.anchor === "middle") return `M ${from.x} ${from.y} L ${from.x} ${yEnd - 18}`;
-  const elbowX = box.anchor === "end" ? Math.max(from.x + 28, Math.min(from.x + 56, xEnd - 28)) : Math.min(from.x - 28, Math.max(from.x - 56, xEnd + 28));
+  if (box.anchor === "middle") {
+    const yJoin = yEnd < from.y ? yEnd + 14 : yEnd - 14;
+    return `M ${from.x} ${from.y} L ${from.x} ${yJoin}`;
+  }
+  const dx = xEnd - from.x;
+  const dy = yEnd - from.y;
+  if (Math.hypot(dx, dy) < 36) return `M ${from.x} ${from.y} L ${xEnd} ${yEnd}`;
+  const elbow = Math.min(32, Math.max(10, Math.abs(dx) * 0.28));
+  const elbowX = dx < 0 ? from.x - elbow : from.x + elbow;
+  if (Math.abs(dy) < 10) return `M ${from.x} ${from.y} L ${xEnd} ${from.y}`;
   return `M ${from.x} ${from.y} L ${elbowX} ${from.y} L ${elbowX} ${yEnd} L ${xEnd} ${yEnd}`;
 }
 
@@ -123,28 +131,51 @@ function LayerCallout({
   box: { x: number; y: number; anchor: "start" | "middle" | "end" };
   a1?: boolean;
 }) {
-  const plateW = Math.max(a1 ? 148 : 108, layer.name.length * (a1 ? 8.2 : 7.4) + 48);
-  const plateH = a1 ? 40 : 32;
+  const extra = a1 && (layer.asReq != null || layer.ldCm != null || layer.recCm != null);
+  const plateW = Math.min(a1 ? 220 : 168, Math.max(a1 ? 188 : 118, layer.name.length * (a1 ? 8.2 : 7.2) + (a1 ? 62 : 44)));
+  const plateH = extra ? 82 : a1 ? 58 : 34;
   const plateX = box.anchor === "end" ? box.x - plateW : box.anchor === "start" ? box.x : box.x - plateW / 2;
-  const badgeR = a1 ? 12.5 : 9.2;
-  const badge = box.anchor === "end" ? box.x - 12 : box.anchor === "start" ? box.x + 12 : plateX + 14;
-  const tx = box.anchor === "end" ? box.x - 30 : box.anchor === "start" ? box.x + 30 : plateX + 30;
+  const badgeR = a1 ? 15 : 9.2;
+  const badge = box.anchor === "end" ? box.x - 14 : box.anchor === "start" ? box.x + 14 : plateX + 16;
+  const tx = box.anchor === "end" ? box.x - 34 : box.anchor === "start" ? box.x + 34 : plateX + 34;
   const textAnchor = box.anchor === "middle" ? "start" : box.anchor;
-  const nameY = box.y - (a1 ? 7 : 6);
+  const nameY = box.y - (extra ? 28 : a1 ? 12 : 6);
+  const asLine =
+    layer.asReq != null
+      ? `As req ${layer.asReq.toFixed(2)}  ·  As disp ${layer.asProv.toFixed(2)} ${layer.asUnit}`
+      : `As disp ${layer.asProv.toFixed(2)} ${layer.asUnit}`;
+  const ldLine = [
+    layer.ldCm != null ? `ℓd ${layer.ldCm.toFixed(0)} cm` : null,
+    layer.recCm != null ? `rec ${layer.recCm.toFixed(1)} cm` : null,
+  ]
+    .filter(Boolean)
+    .join("  ·  ");
   return (
     <g>
       <path d={leaderD(from, box)} fill="none" stroke={layer.color} strokeWidth={a1 ? 1.45 : 1.15} />
       <rect x={plateX} y={box.y - plateH / 2} width={plateW} height={plateH} rx="3" fill="#fffcf6" stroke={layer.color} strokeWidth="1.35" />
       <circle cx={badge} cy={box.y} r={badgeR} fill="#fff" stroke={layer.color} strokeWidth="2" />
-      <text x={badge} y={box.y + 4.5} textAnchor="middle" fontSize={a1 ? 13 : 10.5} fontWeight="700" fill={layer.color} fontFamily="IBM Plex Sans, sans-serif">
+      <text x={badge} y={box.y + 5} textAnchor="middle" fontSize={a1 ? 14.5 : 10.5} fontWeight="700" fill={layer.color} fontFamily="IBM Plex Sans, sans-serif">
         {layer.mark}
       </text>
-      <text x={tx} y={nameY} textAnchor={textAnchor} fontSize={a1 ? 13 : 11} fill={layer.color} fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
+      <text x={tx} y={nameY} textAnchor={textAnchor} fontSize={a1 ? 14.5 : 11} fill={layer.color} fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
         {layer.name}
       </text>
-      <text x={tx} y={nameY + (a1 ? 15 : 13)} textAnchor={textAnchor} fontSize={a1 ? 11.5 : 9.5} fill={layer.color} fontFamily="IBM Plex Mono, ui-monospace, monospace">
+      <text x={tx} y={nameY + (a1 ? 22 : 13)} textAnchor={textAnchor} fontSize={a1 ? 19 : 10.5} fontWeight={a1 ? 700 : 500} fill={layer.color} fontFamily="IBM Plex Mono, ui-monospace, monospace">
         Ø {layer.bar} @ {layer.sCm.toFixed(0)} cm
       </text>
+      {extra ? (
+        <>
+          <text x={tx} y={nameY + 42} textAnchor={textAnchor} fontSize={11.5} fill="#5a4a28" fontFamily="IBM Plex Mono, ui-monospace, monospace">
+            {asLine}
+          </text>
+          {ldLine ? (
+            <text x={tx} y={nameY + 58} textAnchor={textAnchor} fontSize={11.5} fill="#5a4a28" fontFamily="IBM Plex Mono, ui-monospace, monospace">
+              {ldLine}
+            </text>
+          ) : null}
+        </>
+      ) : null}
     </g>
   );
 }
@@ -180,6 +211,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   const soil = `steel-soil-${uid}`;
   const conc = `steel-conc-${uid}`;
   const shadow = `steel-sh-${uid}`;
+  const clipWall = `steel-clip-${uid}`;
   const a1 = spec.sheet === "a1";
   const plan = spec.mode === "plan";
   const scale = spec.barScale ?? 1;
@@ -209,6 +241,11 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             <filter id={shadow} x="-4%" y="-3%" width="108%" height="110%">
               <feDropShadow dx="0.8" dy="2.2" stdDeviation="1.8" floodColor="#3a2a12" floodOpacity="0.2" />
             </filter>
+            <clipPath id={clipWall}>
+              {spec.regions?.length
+                ? spec.regions.filter((r) => r.hatch !== false && r.fill !== "#f4efe4").map((r, i) => <polygon key={i} points={r.points} />)
+                : <polygon points={spec.outline} />}
+            </clipPath>
           </defs>
           <rect x="0" y="0" width={spec.W} height={spec.H} fill="#f4efe4" />
           <rect x="10" y="10" width={spec.W - 20} height={spec.H - 20} fill="none" stroke="#163a63" strokeWidth={a1 ? 2 : 1.4} />
@@ -227,30 +264,57 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
                 const x = 44 + i * ((spec.W - 88) / (a1 ? 27 : 21));
                 return <line key={i} x1={x} y1={gy} x2={x - 8} y2={gy + 9} stroke="#7d6c48" strokeWidth="1.2" />;
               })}
-          <polygon points={spec.outline} fill={`url(#${conc})`} stroke="#163a63" strokeWidth={a1 ? 2.8 : 2.25} filter={`url(#${shadow})`} />
-          <polygon points={spec.outline} fill={`url(#${hatch})`} opacity="0.42" />
+          {spec.regions?.length ? (
+            spec.regions.map((r, i) => (
+              <g key={`rg-${i}`}>
+                <polygon points={r.points} fill={r.fill ?? `url(#${conc})`} stroke={r.stroke ?? "#163a63"} strokeWidth={r.dash ? 1.35 : a1 ? 2.4 : 2} strokeDasharray={r.dash} />
+                {r.hatch ? <polygon points={r.points} fill={`url(#${hatch})`} opacity="0.38" /> : null}
+              </g>
+            ))
+          ) : (
+            <>
+              <polygon points={spec.outline} fill={`url(#${conc})`} stroke="#163a63" strokeWidth={a1 ? 2.8 : 2.25} filter={`url(#${shadow})`} />
+              <polygon points={spec.outline} fill={`url(#${hatch})`} opacity="0.42" />
+            </>
+          )}
+          {spec.guides?.map((g, i) => (
+            <line
+              key={`gd-${i}`}
+              x1={g.x1}
+              y1={g.y1}
+              x2={g.x2}
+              y2={g.y2}
+              stroke={g.color ?? "#1a4473"}
+              strokeWidth={g.width ?? 1.1}
+              strokeDasharray={g.dash}
+            />
+          ))}
           {spec.cover ? <polygon points={spec.cover} fill="none" stroke="#7a6240" strokeWidth={a1 ? 1.15 : 0.95} strokeDasharray="6 3" /> : null}
           {longLayers.map((layer) => {
             const paths = layer.barPaths?.length ? layer.barPaths : layer.barPath?.length ? [layer.barPath] : [];
             return (
               <g key={`rb-${layer.mark}`}>
                 {paths.map((pts, i) => (
-                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM)} />
+                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM, a1)} />
                 ))}
               </g>
             );
           })}
+          <g clipPath={`url(#${clipWall})`}>
           {cutLayers.map((layer) => (
             <g key={`ct-${layer.mark}`}>
               {layer.bars.map((p, i) => (
-                <BarCut key={`${layer.mark}-${i}`} x={p.x} y={p.y} r={barRadiusOf(layer, scale, spec.pxPerM)} color={layer.color} />
+                <BarCut key={`${layer.mark}-${i}`} x={p.x} y={p.y} r={barRadiusOf(layer, scale, spec.pxPerM, a1)} color={layer.color} />
               ))}
             </g>
           ))}
+          </g>
           {spec.dims.map((d, i) => (
             <g key={`d-${i}`}>{dimTicks(d.x1, d.y1, d.x2, d.y2, d.side, d.label, a1)}</g>
           ))}
-          {spec.layers.map((layer) => {
+          {spec.hideCallouts
+            ? null
+            : spec.layers.map((layer) => {
             const slot =
               layer.side === "right" ? rightLayers.indexOf(layer) : layer.side === "left" ? leftLayers.indexOf(layer) : spec.layers.indexOf(layer);
             const box = calloutOf(layer, slot, spec.W, spec.H);
@@ -273,15 +337,22 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               {a.text}
             </text>
           ))}
-          {spec.pxPerM ? <ScaleBar x={28} y={spec.H - 42} pxPerM={spec.pxPerM} a1={a1} /> : null}
+          {spec.pxPerM ? (
+            <ScaleBar
+              x={a1 ? spec.W / 2 - (spec.pxPerM >= 90 ? spec.pxPerM / 2 : spec.pxPerM * 0.25) : 28}
+              y={a1 ? spec.H - 80 : spec.H - 42}
+              pxPerM={spec.pxPerM}
+              a1={a1}
+            />
+          ) : null}
           {a1 ? (
             <g>
-              <rect x={spec.W - 268} y={spec.H - 58} width="240" height="40" fill="#fffcf6" stroke="#163a63" strokeWidth="1.1" />
-              <text x={spec.W - 256} y={spec.H - 40} fontSize="10" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
+              <rect x={spec.W / 2 - 120} y={spec.H - 44} width="240" height="30" fill="#fffcf6" stroke="#163a63" strokeWidth="1.1" />
+              <text x={spec.W / 2 - 108} y={spec.H - 31} fontSize="10" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
                 {plan ? "PLANTA · HOJA A1" : "CORTE A-A · HOJA A1"}
               </text>
-              <text x={spec.W - 256} y={spec.H - 26} fontSize="11" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
-                {plan ? "Despiece · un Ø por cálculo" : "Despiece de aceros · 1,00 m"}
+              <text x={spec.W / 2 - 108} y={spec.H - 17} fontSize="11" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
+                {plan ? "Despiece · aceros por paño" : "Despiece de aceros · 1,00 m"}
               </text>
             </g>
           ) : (
@@ -301,7 +372,10 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             <th>db</th>
             <th>@</th>
             <th>n / ml</th>
-            <th>As</th>
+            <th>As req</th>
+            <th>As disp</th>
+            <th>ℓd</th>
+            <th>rec</th>
           </tr>
         </thead>
         <tbody>
@@ -314,9 +388,12 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               <td>{l.dbCm.toFixed(2)} cm</td>
               <td>{l.sCm.toFixed(0)} cm</td>
               <td>{l.nReal}</td>
+              <td>{l.asReq != null ? `${l.asReq.toFixed(2)} ${l.asUnit}` : "—"}</td>
               <td>
                 {l.asProv.toFixed(2)} {l.asUnit}
               </td>
+              <td>{l.ldCm != null ? `${l.ldCm.toFixed(0)} cm` : "—"}</td>
+              <td>{l.recCm != null ? `${l.recCm.toFixed(1)} cm` : "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -326,15 +403,19 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   );
 }
 
-function barRadiusOf(layer: SteelLayer, _scale: number, pxPerM?: number) {
+function barRadiusOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false) {
   const dbM = layer.dbCm / 100;
-  if (pxPerM) return Math.max(2.15, Math.min(4.4, dbM * pxPerM * 1.25));
-  return Math.max(2.0, Math.min(4.0, layer.dbCm * 1.05));
+  const lo = a1 ? 2.6 : 2.0;
+  const hi = a1 ? 6.2 : 4.0;
+  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 1.85 : 1.25)));
+  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.35 : 1.05)));
 }
 
-function barWidthOf(layer: SteelLayer, _scale: number, pxPerM?: number) {
+function barWidthOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false) {
   const dbM = layer.dbCm / 100;
-  if (pxPerM) return Math.max(2.35, Math.min(5.4, dbM * pxPerM * 1.45));
-  return Math.max(2.2, Math.min(5.0, layer.dbCm * 1.2));
+  const lo = a1 ? 3.4 : 2.2;
+  const hi = a1 ? 9.2 : 5.0;
+  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 2.35 : 1.45)));
+  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.55 : 1.2)));
 }
 

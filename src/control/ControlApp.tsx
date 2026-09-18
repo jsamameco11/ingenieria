@@ -16,7 +16,6 @@ import {
   whenAgo,
   whenPe,
   type AdminIdentity,
-  type AdminInstall,
   type AdminSnapshot,
   type AdminUser,
 } from "../lib/controlAdmin";
@@ -28,6 +27,20 @@ import { SOPORTE_LABEL } from "../lib/support";
 import { useAuth } from "../ui/AuthProvider";
 import { BillingLaunchPanel } from "../ui/BillingLaunchPanel";
 import { PrintPolicyPanel } from "./PrintPolicyPanel";
+import {
+  aboutLine,
+  siteCount,
+  matchesChip,
+  searchBlob,
+  PlatformPills,
+  SessionFlags,
+  UsersView,
+  PlatformsView,
+  InstallsView,
+  InstallAppPill,
+  type Chip,
+} from "./platformUi";
+import { ECOSYSTEM } from "../lib/ecosystem";
 
 type View =
   | "dashboard"
@@ -42,13 +55,12 @@ type View =
   | "avisos"
   | "planes"
   | "ajustes";
-type Chip = "all" | "pro" | "free" | "revoked" | "lectura" | "ingenieria" | "folio" | "android" | "ambos";
 type DrawerTab = "cuenta" | "prefs" | "perfil" | "pcs" | "ads";
 
 const TITLES: Record<View, { kicker: string; title: string; lead: string }> = {
-  dashboard: { kicker: "Parque", title: "Resumen operativo", lead: "Identidad en la base maestra de usuarios (App Nitro PDF). Los cálculos y planes de Ingeniería siguen en sus tablas propias." },
-  usuarios: { kicker: "Parque", title: "Inventario de usuarios", lead: "Una sola identidad: public.users (USER_ID = Auth). El plan Pro de Ingeniería se cobra con Culqi; CIP y oficio de obra viven en el overlay de Ingeniería." },
-  plataforma: { kicker: "Parque", title: "Plataforma", lead: "user_platforms ancla cada app al mismo USER_ID. Folio PC, Android e Ingeniería no duplican la cuenta." },
+  dashboard: { kicker: "Parque", title: "Resumen operativo", lead: "Identidad en la base maestra de usuarios. El inventario lee las mismas sesiones que Folio Control (user_platforms + user_sessions)." },
+  usuarios: { kicker: "Parque", title: "Inventario de usuarios", lead: "Una sola identidad: public.users. Cada pastilla dice si esa cuenta tiene sesión en cada página del ecosistema (Folio, Ingeniería, Casa, CV y el resto)." },
+  plataforma: { kicker: "Parque", title: "Plataforma", lead: "Misma base que Folio Control: user_platforms y user_sessions. Cada cuenta muestra en qué páginas está logueada." },
   equipos: { kicker: "Parque", title: "Equipos", lead: "Una fila = un computador (install_id). La IP no identifica el PC: varios equipos del mismo Wi-Fi la comparten." },
   identidad: { kicker: "Parque", title: "Identidad", lead: "user_identities de Folio: oficio, edad, ubigeo, gustos. El PDF no se guarda." },
   campanas: { kicker: "Comercio", title: "Campañas y vitrina", lead: "Tabla listings compartida. origin_app dice si el aviso nació en Folio o en Ingeniería." },
@@ -77,52 +89,6 @@ const EMPTY: AdminSnapshot = {
 
 function money(value: number) {
   return `S/ ${Number(value || 0).toLocaleString("es-PE")}`;
-}
-
-function aboutLine(u: AdminUser) {
-  if (u.profession_label && u.rubros.length) return `${u.profession_label} · ${u.rubros.slice(0, 3).join(", ")}`;
-  if (u.profession_label) return u.profession_label;
-  if (u.last_module) return `Último módulo ${u.last_module}`;
-  if (u.rubros.length) return `Ingeniería · ${u.rubros.slice(0, 4).join(", ")}`;
-  return "Aún no categoriza módulos";
-}
-
-function hasIng(u: Pick<AdminUser, "platforms">) {
-  return u.platforms.includes("ingenieria");
-}
-
-function hasFolioPdf(u: Pick<AdminUser, "platforms">) {
-  return u.platforms.includes("folio") || u.platforms.includes("android");
-}
-
-function hasAndroid(u: Pick<AdminUser, "platforms">) {
-  return u.platforms.includes("android");
-}
-
-function Flag({ on, yes, no, kind = "ing" }: { on: boolean; yes: string; no: string; kind?: "ing" | "folio" | "and" }) {
-  return <span className={`ctl-pill ${on ? kind : "no"}`}>{on ? yes : no}</span>;
-}
-
-function PlatformPills({ u }: { u: AdminUser }) {
-  return (
-    <span className="ctl-plats">
-      {u.platforms.includes("folio") ? <span className="ctl-pill folio">Folio PC</span> : null}
-      {u.platforms.includes("android") ? <span className="ctl-pill and">Android</span> : null}
-      {u.platforms.includes("ingenieria") ? <span className="ctl-pill ing">Ingeniería</span> : null}
-      {!u.platforms.length ? <span className="ctl-pill no">Sin pulso</span> : null}
-    </span>
-  );
-}
-
-function appLabel(platform: string, app?: string) {
-  if (platform === "android" || app === "folio-android") return "Folio Android";
-  if (platform === "ingenieria" || app === "memorcalc") return "Ingeniería";
-  return "Folio PC";
-}
-
-function tasteLine(u: AdminUser) {
-  if (u.tastes.length) return u.tastes.slice(0, 4).map((t) => t.label).join(" · ");
-  return u.rubros.slice(0, 4).join(" · ") || "—";
 }
 
 function localUntil(iso: string | null) {
@@ -308,19 +274,9 @@ export function ControlApp() {
   const filteredUsers = useMemo(() => {
     const s = q.trim().toLowerCase();
     return users.filter((u) => {
-      if (chip === "pro" && !planVigente(u)) return false;
-      if (chip === "free" && planVigente(u)) return false;
-      if (chip === "revoked" && u.status !== "revoked") return false;
-      if (chip === "lectura" && !(u.coverage > 0 || u.budgets > 0)) return false;
-      if (chip === "ingenieria" && !hasIng(u)) return false;
-      if (chip === "folio" && !hasFolioPdf(u)) return false;
-      if (chip === "android" && !hasAndroid(u)) return false;
-      if (chip === "ambos" && !(hasIng(u) && hasFolioPdf(u))) return false;
+      if (!matchesChip(u, chip)) return false;
       if (!s) return true;
-      return [u.full_name, u.email, u.public_user_code, u.city, u.profession_label, aboutLine(u), tasteLine(u), u.device_label, u.last_module]
-        .join(" ")
-        .toLowerCase()
-        .includes(s);
+      return searchBlob(u).toLowerCase().includes(s);
     });
   }, [users, q, chip]);
 
@@ -372,7 +328,7 @@ export function ControlApp() {
           <p className="ctl-brand">MEMORIACALC</p>
           <h1>Control</h1>
           <p className="ctl-muted">
-            Consola de Ingeniería. Las cuentas salen de la base maestra de usuarios (App Nitro PDF). Aquí se ve el plan Culqi y si la misma identidad entra a Folio PDF.
+            Consola de Ingeniería. Una sola identidad en la base maestra. El inventario muestra en qué páginas del ecosistema está logueada cada cuenta (Folio, Casa, CV y el resto).
           </p>
           <form
             onSubmit={(e) => {
@@ -480,9 +436,18 @@ export function ControlApp() {
                 <button type="button" onClick={() => go("usuarios")}><small>Cuentas Auth</small><strong>{stats.usuarios}</strong><em>base maestra de usuarios</em></button>
                 <button type="button" onClick={() => { go("usuarios"); setChip("pro"); }}><small>Pagando PRO</small><strong className="ctl-stat-pro">{stats.pro}</strong><em>{stats.free} Free · {stats.revoked} revocados</em></button>
                 <button type="button" onClick={() => go("equipos")}><small>Equipos</small><strong>{snap.installs.length || stats.anclados}</strong><em>installs + anclas Ingeniería</em></button>
-                <button type="button" onClick={() => go("plataforma")}><small>Cruce de apps</small><strong>{users.filter((u) => hasIng(u) && hasFolioPdf(u)).length}</strong><em>en Folio e Ingeniería a la vez</em></button>
+                <button type="button" onClick={() => go("plataforma")}><small>Cruce de sitios</small><strong>{users.filter((u) => (u.platformCount || 0) >= 2).length}</strong><em>logueados en 2 o más páginas</em></button>
                 <button type="button" onClick={() => go("mensajes")}><small>Hilos de tienda</small><strong>{snap.threads.length}</strong><em>{snap.accounts.length} PC↔cuenta</em></button>
                 <button type="button" onClick={() => go("publicidad")}><small>Inversión publicitaria</small><strong>{money(stats.spend)}</strong><em>{stats.articulos} avisos · {stats.campañas} campañas</em></button>
+              </div>
+              <div className="ctl-kpis ctl-site-cards">
+                {ECOSYSTEM.map((site) => (
+                  <button type="button" key={site.id} onClick={() => { go("usuarios"); setChip(site.id); }}>
+                    <small>{site.short}</small>
+                    <strong>{siteCount(users, site.id)}</strong>
+                    <em>con sesión</em>
+                  </button>
+                ))}
               </div>
               <div className="ctl-dash-grid">
                 <section className="ctl-panel">
@@ -496,7 +461,7 @@ export function ControlApp() {
                           <td><span className={`ctl-pill ${planVigente(u) ? "pro" : "mute"}`}>{planVigente(u) ? "PRO" : "Free"}</span></td>
                           <td>
                             {aboutLine(u)}
-                            <small><PlatformPills u={u} /></small>
+                            <small><PlatformPills u={u} compact /></small>
                           </td>
                           <td>{whenAgo(u.last_seen_at)}</td>
                         </tr>
@@ -540,6 +505,15 @@ export function ControlApp() {
                   flash("Invitación enviada");
                 })
               }
+            />
+          ) : null}
+
+          {view === "plataforma" ? (
+            <PlatformsView
+              users={users}
+              q={q}
+              onQ={setQ}
+              onOpen={(u) => { setSel(u); setTab("cuenta"); }}
             />
           ) : null}
 
@@ -709,11 +683,7 @@ export function ControlApp() {
                 <h3>{sel.email || sel.full_name || "Usuario"}</h3>
                 <span className={`ctl-pill ${planVigente(sel) ? "pro" : "mute"}`}>{planVigente(sel) ? "PRO" : "Free"}</span>
                 <span className={`ctl-pill ${sel.status === "revoked" ? "warn" : "ok"}`}>{sel.status || "active"}</span>
-                <div className="ctl-flags" style={{ marginTop: 10 }}>
-                  <div className="ctl-flag"><span>Folio PC</span><Flag on={sel.platforms.includes("folio")} yes="Sí" no="No" kind="folio" /></div>
-                  <div className="ctl-flag"><span>Folio Android</span><Flag on={hasAndroid(sel)} yes="Sí" no="No" kind="and" /></div>
-                  <div className="ctl-flag"><span>Ingeniería (cálculos)</span><Flag on={hasIng(sel)} yes="Sí" no="No" kind="ing" /></div>
-                </div>
+                <SessionFlags user={sel} />
               </div>
               <button type="button" className="ctl-ghost" onClick={() => setSel(null)}>Cerrar</button>
             </div>
@@ -824,7 +794,7 @@ export function ControlApp() {
                   <tbody>
                     {snap.installs.filter((i) => i.user_id === sel.user_id).map((i) => (
                       <tr key={i.install_id}>
-                        <td><span className={`ctl-pill ${i.platform === "ingenieria" ? "ing" : i.platform === "android" ? "and" : "folio"}`}>{appLabel(i.platform, i.app)}</span></td>
+                        <td><InstallAppPill platform={i.platform} app={i.app} /></td>
                         <td><b>{i.hostname || i.install_id.slice(0, 12)}</b><small>{i.os || i.version || "—"}</small></td>
                         <td>{[i.city, i.country].filter(Boolean).join(", ") || "—"}<small>{i.ip || i.location_source || "—"}</small></td>
                         <td>{whenAgo(i.last_seen_at)}</td>
@@ -861,120 +831,6 @@ export function ControlApp() {
       ) : null}
 
       {toast ? <div className="ctl-toast">{toast}</div> : null}
-    </div>
-  );
-}
-
-function UsersView({
-  users, filtered, q, chip, stats, invite, sel, onQ, onChip, onInvite, onOpen, onSend,
-}: {
-  users: AdminUser[];
-  filtered: AdminUser[];
-  q: string;
-  chip: Chip;
-  stats: { usuarios: number; pro: number; free: number; revoked: number; lectura: number };
-  invite: string;
-  sel: AdminUser | null;
-  onQ: (v: string) => void;
-  onChip: (v: Chip) => void;
-  onInvite: (v: string) => void;
-  onOpen: (u: AdminUser) => void;
-  onSend: () => void;
-}) {
-  const ing = users.filter(hasIng).length;
-  const folio = users.filter(hasFolioPdf).length;
-  const android = users.filter(hasAndroid).length;
-  const both = users.filter((u) => hasIng(u) && hasFolioPdf(u)).length;
-  return (
-    <div>
-      <p className="ctl-hint">Identidad única en public.users. Cada fila indica si esa misma cuenta usa Ingeniería, Folio PDF o ambas.</p>
-      <div className="ctl-toolbar">
-        <input className="ctl-search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="Buscar correo, oficio, ciudad, módulo…" />
-        <div className="ctl-chips">
-          {([
-            ["all", `Todos (${stats.usuarios})`],
-            ["ingenieria", `Ingeniería (${ing})`],
-            ["folio", `Folio (${folio})`],
-            ["android", `Android (${android})`],
-            ["ambos", `Ambos (${both})`],
-            ["lectura", `Con lectura (${stats.lectura})`],
-            ["pro", `PRO (${stats.pro})`],
-            ["free", `Free (${stats.free})`],
-            ["revoked", `Revocados (${stats.revoked})`],
-          ] as const).map(([id, label]) => (
-            <button key={id} type="button" className={chip === id ? "on" : ""} onClick={() => onChip(id)}>{label}</button>
-          ))}
-        </div>
-      </div>
-            <table className="ctl-table">
-              <thead>
-                <tr>
-            <th>Cuenta</th>
-            <th>Plataformas</th>
-            <th>De qué se trata</th>
-            <th>Gustos / rubros</th>
-            <th>Plan</th>
-            <th>Última vez</th>
-                </tr>
-              </thead>
-              <tbody>
-          {filtered.map((u) => (
-            <tr key={u.user_id} className={`click${sel?.user_id === u.user_id ? " on" : ""}`} onClick={() => onOpen(u)}>
-              <td><b>{u.email || "—"}</b><small>{[u.public_user_code, u.city, u.department, u.country].filter(Boolean).join(" · ") || "Sin ubicación"}</small></td>
-              <td>
-                <PlatformPills u={u} />
-                <small>{u.installCount ? `${u.installCount} equipo(s)` : "sin huella"}{u.last_module ? ` · ${u.last_module}` : ""}</small>
-              </td>
-              <td>{aboutLine(u)}<small>{u.documentType || u.workplace_role || "sin tipo"}</small></td>
-              <td>{tasteLine(u)}<small>{u.tasteCount} gustos{u.last_module ? ` · último módulo ${u.last_module}` : ""}</small></td>
-              <td><span className={`ctl-pill ${planVigente(u) ? "pro" : "mute"}`}>{planVigente(u) ? "PRO" : "Free"}</span><small>{u.sku}</small></td>
-              <td>{whenAgo(u.last_seen_at)}<small>{whenPe(u.profile_at)}</small></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {filtered.length === 0 ? (
-        <p className="ctl-empty">
-          {users.length === 0 ? "No se pudo leer el inventario. Las cuentas no se han borrado." : "Ninguna cuenta con ese filtro."}
-        </p>
-      ) : null}
-      <div className="ctl-invite">
-        <h3>Invitar por correo</h3>
-        <input value={invite} onChange={(e) => onInvite(e.target.value)} placeholder="cliente@correo.com" />
-        <button type="button" className="ctl-btn primary" onClick={onSend}>Enviar invitación</button>
-      </div>
-    </div>
-  );
-}
-
-function InstallsView({ items, q, onQ }: { items: AdminInstall[]; q: string; onQ: (v: string) => void }) {
-  const rows = items.filter((i) => {
-    if (!q.trim()) return true;
-    return [i.hostname, i.email, i.google_email, i.city, i.ip, i.install_id, i.os, i.app, i.platform].join(" ").toLowerCase().includes(q.toLowerCase());
-  });
-  return (
-    <div>
-      <p className="ctl-hint">Una fila = un computador (install_id / machine_key). Varios PCs en el mismo Wi-Fi comparten IP y son filas distintas. App sale de installs.app.</p>
-      <div className="ctl-toolbar">
-        <input className="ctl-search" value={q} onChange={(e) => onQ(e.target.value)} placeholder="Buscar hostname, correo, ciudad, IP, app…" />
-      </div>
-      <table className="ctl-table">
-        <thead><tr><th>App</th><th>Equipo</th><th>Cuenta</th><th>Ubicación / red</th><th>Plan</th><th>Versión</th><th>Última vez</th></tr></thead>
-        <tbody>
-          {rows.map((i) => (
-            <tr key={`${i.user_id}-${i.install_id}`}>
-              <td><span className={`ctl-pill ${i.platform === "ingenieria" ? "ing" : i.platform === "android" ? "and" : "folio"}`}>{appLabel(i.platform, i.app)}</span></td>
-              <td><b>{i.hostname || i.install_id || "—"}</b><small className="ctl-mono">{String(i.install_id).slice(0, 18)}</small></td>
-              <td>{i.email || i.google_email || "Sin cuenta"}<small>{i.google_email && i.google_email !== i.email ? i.google_email : ""}</small></td>
-              <td>{[i.city, i.district, i.department, i.country].filter(Boolean).join(", ") || "—"}<small>{i.ip || "sin IP"} · {i.location_source || "—"}</small></td>
-              <td>{i.license_tier || "—"}</td>
-              <td>{i.version || "—"}<small>{i.os || i.locale || "—"}</small></td>
-              <td>{whenAgo(i.last_seen_at)}<small>{whenPe(i.first_seen_at)}</small></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-      {rows.length === 0 ? <p className="ctl-empty">Sin equipos.</p> : null}
     </div>
   );
 }

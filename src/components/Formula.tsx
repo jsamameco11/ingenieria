@@ -10,8 +10,10 @@ export function Formula({ tex, fallback, display = true }: { tex?: string; fallb
   const html = useMemo(() => {
     const candidates: string[] = [];
     if (tex?.trim()) candidates.push(stackDisplayTex(tex));
-    const fromAscii = asciiFormulaToTex(fallback || "");
-    if (fromAscii && fromAscii !== candidates[0]) candidates.push(fromAscii);
+    else if (looksLikeMathLine(fallback || "")) {
+      const fromAscii = asciiFormulaToTex(fallback || "");
+      if (fromAscii) candidates.push(fromAscii);
+    }
     for (const src of candidates) {
       try {
         const out = katex.renderToString(src, {
@@ -36,6 +38,22 @@ export function Formula({ tex, fallback, display = true }: { tex?: string; fallb
 /** Una línea de cálculo o sustitución: KaTeX si es ecuación, texto si es prosa. */
 export function MathLine({ text }: { text: string }) {
   if (!text) return null;
+  const parts = text
+    .split(/\s+·\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (parts.length > 1) {
+    return (
+      <span className="math-line-parts">
+        {parts.map((p, i) => (
+          <span key={i}>
+            {i ? <span className="math-line-dot"> · </span> : null}
+            {looksLikeMathLine(p) ? <Formula fallback={p} display={false} /> : p}
+          </span>
+        ))}
+      </span>
+    );
+  }
   if (looksLikeMathLine(text)) return <Formula fallback={text} />;
   return <span>{text}</span>;
 }

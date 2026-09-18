@@ -24,6 +24,8 @@ El croquis `mSismo` (`src/components/MuroDidactica.tsx`) detalla **dónde** act�
 - **Kv·W**, alivio vertical del peso, también en el c.g.
 - Cota vertical didáctica: base, H/3, ȳ, 0,6 H y H.
 
+El estribo tipo pantalla usa el mismo criterio (`SismoEstriboFig`, paso 25): Pa = EH1X a H/3, ΔPae = PAE−EH1X a 0,6 H y PIR en ȳ del metrado DC+EV.
+
 ## Dónde sale
 
 - Tras el paso 01: croquis geométrico con todas las cotas (`mGeom`).

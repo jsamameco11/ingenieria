@@ -1,4 +1,5 @@
 import { CargaDistribuida } from "./DclCargas";
+import { geoEstriboPantalla } from "../lib/steelEngine";
 
 const INK = "#163a63";
 const FLEX = "#8b1e1e";
@@ -277,6 +278,207 @@ export function SismoMuroFig({ values }: { values: Record<string, string> }) {
         {nulo
           ? `ΔPae nulo porque Pae (${Pae.toFixed(2)}) ≤ Pa (${Pa.toFixed(2)}). Gobierna la inercia PIR = ${PIR.toFixed(2)} t/ml en ȳ = ${yW.toFixed(2)} m.`
           : `ΔPae = ${dPae.toFixed(2)} t/ml a 0,6 H = ${yPae.toFixed(2)} m · PIR = ${PIR.toFixed(2)} t/ml en ȳ = ${yW.toFixed(2)} m.`}
+      </p>
+    </div>
+  );
+}
+
+/** Posiciones sísmicas del estribo tipo pantalla: Pa a H/3, ΔPae a 0,6 H, PIR en el c.g. */
+export function SismoEstriboFig({ values }: { values: Record<string, string> }) {
+  const g = geoEstriboPantalla(values);
+  const H = g.H;
+  const B = g.B;
+  const Pa = nv(values, "Pa");
+  const Pae = nv(values, "Pae");
+  const dPae = nv(values, "dPae");
+  const PIR = nv(values, "PIR");
+  const Kh = nv(values, "Kh", 0.18);
+  const Kv = nv(values, "Kv", 0);
+  const yPa = nv(values, "yPa", H / 3);
+  const yPae = nv(values, "yPae", 0.6 * H);
+  const yW = nv(values, "yW", H / 2);
+  const Wtot = nv(values, "Wtot");
+  const nulo = dPae < 0.05;
+
+  const W = 920;
+  const Ht = 580;
+  const padL = 88;
+  const padB = 76;
+  const sc = Math.min(360 / Math.max(B, 2.2), 400 / Math.max(H, 3));
+  const xA = padL + B * sc;
+  const yBot = Ht - padB;
+  const xy = (xa: number, h: number) => ({ x: xA - xa * sc, y: yBot - h * sc });
+  const wall = g.wall.map(([xa, h]) => `${xy(xa, h).x},${xy(xa, h).y}`).join(" ");
+  const yTop = xy(0, H).y;
+  const xFill = xy(g.xaFill, H).x;
+  const xHeel = xy(B, g.D).x;
+  const yBase = xy(0, g.D).y;
+  const yPaPx = yBot - yPa * sc;
+  const yPaePx = yBot - yPae * sc;
+  const yCg = yBot - yW * sc;
+  const xCg = xy(Math.min(Math.max(nv(values, "xBar", B / 2), 0.1), B), 0).x;
+
+  return (
+    <div className="croquis croquis-didactica" data-fig-part="sismo">
+      <div className="croquis-head">
+        <p>Aplicación de las acciones sísmicas — estribo tipo pantalla</p>
+      </div>
+      <div className="croquis-stage">
+        <svg viewBox={`0 0 ${W} ${Ht}`} preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="sis-est-kh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill={SEIS} />
+            </marker>
+            <marker id="sis-est-kv" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill={WGT} />
+            </marker>
+            <pattern id="sis-est-conc" width="8" height="8" patternUnits="userSpaceOnUse">
+              <rect width="8" height="8" fill="#d9d2c3" />
+              <circle cx="2" cy="3" r="0.55" fill="#6b6458" />
+            </pattern>
+            <pattern id="sis-est-soil" width="10" height="10" patternUnits="userSpaceOnUse">
+              <path d="M0 8 H10 M2 4 H8" stroke="#b7a57a" strokeWidth="0.7" fill="none" />
+            </pattern>
+          </defs>
+          <rect x="0" y="0" width={W} height={Ht} fill="#f7f3ea" />
+          <text x={W / 2} y="22" textAnchor="middle" fontSize="13" fill={INK} fontWeight="600" fontFamily={FONT}>
+            Pseudo-estática · franja 1,00 m · Pa a H/3 · ΔPae a 0,6 H · PIR en ȳ
+          </text>
+          <polygon
+            points={`${xHeel},${yBase} ${xy(B, 0).x},${yBot} ${xy(B + 0.35, H).x},${yTop - 8} ${xy(g.xaFill, H).x},${yTop}`}
+            fill="url(#sis-est-soil)"
+            opacity="0.85"
+          />
+          <polygon points={wall} fill="url(#sis-est-conc)" stroke={INK} strokeWidth="1.8" />
+
+          <CargaDistribuida
+            id="sis-est-pa"
+            x0={xFill}
+            y0={yTop}
+            xFace1={xy(g.xaBack, g.D).x}
+            y1={yBot}
+            w0={8}
+            w1={38}
+            toward="right"
+            offset={18}
+            color={LOAD}
+            fillOpacity={0.1}
+            arrows={6}
+          />
+          <CargaDistribuida
+            id="sis-est-dpae"
+            x0={xFill}
+            y0={yTop}
+            xFace1={xy(g.xaBack, g.D).x}
+            y1={yBot}
+            w0={nulo ? 22 : 10}
+            w1={nulo ? 10 : 46}
+            toward="right"
+            offset={64}
+            color={SEIS}
+            fillOpacity={nulo ? 0.04 : 0.14}
+            strokeDasharray={nulo ? "5,3" : undefined}
+            arrows={6}
+          />
+
+          <line x1={xy(0, 0).x + 8} y1={yPaPx} x2={xy(0, 0).x + 118} y2={yPaPx} stroke={LOAD} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={xy(0, 0).x + 122} y={yPaPx + 3} fontSize="9" fill={LOAD} fontFamily={FONT}>
+            H/3
+          </text>
+          <line x1={xHeel - 8} y1={yPaePx} x2={xHeel - 118} y2={yPaePx} stroke={SEIS} strokeWidth="1" strokeDasharray="3,2" />
+          <text x={xHeel - 122} y={yPaePx + 3} textAnchor="end" fontSize="9" fill={SEIS} fontFamily={FONT}>
+            0,6 H
+          </text>
+
+          <circle cx={xCg} cy={yCg} r="6" fill="#f7f3ea" stroke={WGT} strokeWidth="1.4" />
+          <line x1={xCg - 6} y1={yCg} x2={xCg + 6} y2={yCg} stroke={WGT} strokeWidth="1.1" />
+          <line x1={xCg} y1={yCg - 6} x2={xCg} y2={yCg + 6} stroke={WGT} strokeWidth="1.1" />
+          <Arrow x1={xCg - 10} y1={yCg} x2={xCg + 54} y2={yCg} color={SEIS} marker="sis-est-kh" width={2.4} />
+          <text x={xCg + 58} y={yCg - 8} fontSize="10" fill={SEIS} fontWeight="700" fontFamily={FONT}>
+            PIR = Kh·W
+          </text>
+          <text x={xCg + 58} y={yCg + 6} fontSize="9" fill={SEIS} fontFamily={FONT}>
+            {`ȳ = ${yW.toFixed(2)} m`}
+          </text>
+          {Kv > 0.001 ? (
+            <>
+              <Arrow x1={xCg} y1={yCg - 8} x2={xCg} y2={yCg + 42} color={WGT} marker="sis-est-kv" width={2} />
+              <text x={xCg + 10} y={yCg + 38} fontSize="9" fill={WGT} fontFamily={FONT}>
+                Kv·W (alivio)
+              </text>
+            </>
+          ) : null}
+
+          {(() => {
+            const xCote = xy(B, 0).x - 28;
+            const ticks = [
+              { y: yBot, t: "base" },
+              { y: yPaPx, t: "H/3" },
+              { y: yCg, t: "ȳ" },
+              { y: yPaePx, t: "0,6 H" },
+              { y: yTop, t: "H" },
+            ];
+            return (
+              <g>
+                <line x1={xCote} y1={yBot} x2={xCote} y2={yTop} stroke={INK} strokeWidth="1.15" />
+                {ticks.map((tk) => (
+                  <g key={tk.t}>
+                    <line x1={xCote - 5} y1={tk.y} x2={xCote + 5} y2={tk.y} stroke={INK} strokeWidth="1.1" />
+                    <text x={xCote - 8} y={tk.y - 4} textAnchor="end" fontSize="8.5" fill={INK} fontFamily={FONT}>
+                      {tk.t}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            );
+          })()}
+
+          <Arrow x1={xy(0, 0).x + 168} y1={yPaPx} x2={xy(0, 0).x + 98} y2={yPaPx} color={LOAD} marker="sis-est-kh" width={2.6} />
+          <text x={xy(0, 0).x + 172} y={yPaPx - 6} fontSize="10" fill={LOAD} fontWeight="700" fontFamily={FONT}>
+            {`Pa = ${Pa.toFixed(2)} t/m`}
+          </text>
+          <text x={xy(0, 0).x + 172} y={yPaPx + 8} fontSize="8.5" fill={LOAD} fontFamily={FONT}>
+            EH1X · resultante a H/3
+          </text>
+          <Arrow
+            x1={xy(0, 0).x + 168}
+            y1={yPaePx}
+            x2={xy(0, 0).x + 98}
+            y2={yPaePx}
+            color={SEIS}
+            marker="sis-est-kh"
+            width={nulo ? 1.4 : 2.6}
+          />
+          <text x={xy(0, 0).x + 172} y={yPaePx - 6} fontSize="10" fill={SEIS} fontWeight="700" fontFamily={FONT}>
+            {nulo ? "ΔPae = 0" : `ΔPae = ${dPae.toFixed(2)} t/m`}
+          </text>
+          <text x={xy(0, 0).x + 172} y={yPaePx + 8} fontSize="8.5" fill={SEIS} fontFamily={FONT}>
+            {nulo ? "PAE ≤ EH1X · no hay incremento" : "EQterr a 0,6 H"}
+          </text>
+
+          <Plate
+            x={16}
+            y={36}
+            color={SEIS}
+            lines={[
+              `Kh = ${Kh.toFixed(3)}    Kv = ${Kv.toFixed(3)}`,
+              `PAE = ${Pae.toFixed(2)} t/m    Pa = ${Pa.toFixed(2)}`,
+              nulo
+                ? "ΔPae = 0  (PAE ≤ EH1X: no hay incremento de tierra)"
+                : `ΔPae = ${dPae.toFixed(2)} t/m  en 0,6 H`,
+              `PIR = ${PIR.toFixed(2)} t/m  en el c.g. (ȳ)`,
+              Wtot > 0 ? `W = ${Wtot.toFixed(2)} t/m` : "W = DCestr + EV",
+            ]}
+          />
+          <text x="16" y={Ht - 18} fontSize="9" fill="#5a4a28" fontFamily={FONT}>
+            Igual criterio que el muro de contención: Pa a H/3, ΔPae a 0,6 H (si existe) y PIR = Kh·W en el centro de gravedad.
+          </text>
+        </svg>
+      </div>
+      <p className="croquis-cap">
+        {nulo
+          ? `ΔPae nulo porque PAE (${Pae.toFixed(2)}) ≤ EH1X (${Pa.toFixed(2)}). Gobierna la inercia PIR = ${PIR.toFixed(2)} t/m en ȳ = ${yW.toFixed(2)} m.`
+          : `ΔPae = ${dPae.toFixed(2)} t/m a 0,6 H = ${yPae.toFixed(2)} m · PIR = ${PIR.toFixed(2)} t/m en ȳ = ${yW.toFixed(2)} m.`}
       </p>
     </div>
   );

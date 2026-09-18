@@ -1311,6 +1311,7 @@ button.nav-label.nav-label-white {
 }
 .paper .croquis {
   max-width: 100%;
+  overflow: visible;
 }
 .paper .croquis-stage svg {
   max-width: 100%;
@@ -2009,10 +2010,49 @@ html.is-printing .sd-props {
   margin: 0 auto;
   overflow: visible;
 }
-.croquis-board.croquis-board-escalera {
-  grid-template-columns: minmax(340px, 1.5fr) minmax(240px, 0.8fr);
+.croquis-board.croquis-board-lineaInf {
+  grid-template-columns: 1fr;
   min-height: 0;
-  align-items: stretch;
+  overflow: visible;
+}
+.croquis-board-lineaInf > .fig-host,
+.croquis-board-lineaInf > .fig-stack,
+.fig-stack-lineaInf {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border-right: 0;
+}
+.croquis-board-lineaInf .fig-stack .croquis,
+.fig-stack-lineaInf .croquis {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+.fig-stack-lineaInf .croquis-stage {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  overflow: visible;
+  padding: 10px 12px 8px;
+}
+.croquis-board-lineaInf .fig-stack .croquis-stage svg,
+.croquis-board-lineaInf .croquis-stage svg,
+.paper .croquis-board-lineaInf .croquis-stage svg,
+.paper .fig-stack-lineaInf .croquis-stage svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+.croquis-board-lineaInf .ficha {
+  border-left: 0;
+  border-top: 1px solid #b8b8b8;
+  max-height: none;
+}
+.paper .croquis-board-lineaInf,
+.paper .fig-stack-lineaInf {
+  overflow: visible;
 }
 .croquis-board-escalera > .fig-host,
 .croquis-board-escalera > .fig-stack {
@@ -2749,6 +2789,22 @@ select.ficha-input {
   }
   .croquis-board-escalera .croquis-cap {
     background: #ffffff;
+  }
+  .croquis-board-lineaInf {
+    min-height: 0;
+    grid-template-columns: 1fr !important;
+  }
+  .croquis-board-lineaInf > .fig-host,
+  .croquis-board-lineaInf > .fig-stack {
+    overflow: visible;
+    min-height: 0;
+  }
+  .croquis-board-lineaInf .fig-stack .croquis-stage svg,
+  .croquis-board-lineaInf .croquis svg {
+    max-height: 62mm !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   .croquis-board-septico > .fig-host,
   .croquis-board-septico > .fig-stack {
@@ -11300,6 +11356,137 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   color: #163a63;
   font-size: 13px;
 }
+
+.mae-studio {
+  padding: 16px 20px 40px;
+  max-width: 1280px;
+  margin: 0 auto;
+  color: #163a63;
+}
+.mae-kicker {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: #b87333;
+  margin: 0 0 6px;
+}
+.mae-head h1 {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.85rem;
+  margin: 0 0 8px;
+}
+.mae-head p { max-width: 52rem; color: #5a4a28; }
+.mae-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+.mae-tabs button {
+  text-align: left;
+  border: 1px solid #c4b48a;
+  background: #f7f3ea;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #163a63;
+}
+.mae-tabs button.is-on {
+  border-color: #163a63;
+  background: #fff;
+  box-shadow: 0 0 0 1px #163a63;
+}
+.mae-tabs button span { display: block; font-size: 12px; color: #5a4a28; margin-top: 4px; }
+.mae-body {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.mae-side .fieldset label,
+.mae-vol label,
+.mae-spans label,
+.mae-ficha label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: #5a4a28;
+}
+.mae-side .fieldset,
+.mae-vol,
+.mae-spans,
+.mae-ficha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 10px 0;
+}
+.mae-side input, .mae-vol input, .mae-spans input, .mae-ficha input, .mae-ficha select, .mae-side select {
+  width: 92px;
+  border: 1px solid #c4b48a;
+  padding: 4px 6px;
+  font: 500 12.5px var(--mono, ui-monospace, monospace);
+  color: #163a63;
+  background: #fff;
+}
+.mae-side .fieldset select {
+  min-width: 160px;
+  width: auto;
+}
+.mae-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.mae-tools button {
+  border: 1px solid #c4b48a;
+  background: #efe8dc;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #163a63;
+}
+.mae-tools button.is-on { background: #163a63; color: #f7f3ea; border-color: #163a63; }
+.mae-svg, .mae-fig-svg {
+  width: 100%;
+  background: #f7f3ea;
+  border: 1px solid #c4b48a;
+}
+.mae-svg { min-height: 280px; cursor: crosshair; }
+.mae-hint, .mae-fig-note, .mae-empty { font-size: 12.5px; color: #5a4a28; }
+.mae-ident {
+  font-size: 12px;
+  color: #163a63;
+  background: #fff;
+  border: 1px solid #c4b48a;
+  padding: 8px 10px;
+  margin: 8px 0 12px;
+}
+.mae-ident ul { margin: 6px 0 0; padding-left: 1.1rem; }
+.mae-ident li { margin: 2px 0; }
+.mae-tools label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: #5a4a28;
+}
+.mae-tools label input {
+  width: 64px;
+  border: 1px solid #c4b48a;
+  padding: 4px 6px;
+  font: 500 12.5px var(--mono, ui-monospace, monospace);
+  color: #163a63;
+}
+.mae-ficha strong { width: 100%; font-size: 13px; }
+.mae-fig { margin: 14px 0 22px; }
+.mae-fig figcaption { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.mae-adopt { color: #5a4a28; }
+.mae-report .paso { margin-bottom: 18px; }
+@media (max-width: 900px) {
+  .mae-tabs, .mae-body { grid-template-columns: 1fr; }
+  .mae-studio { padding: 12px; }
+  .mae-kicker { letter-spacing: 0.1em; }
+  .mae-head h1 { font-size: 1.45rem; }
+  .mae-head p { overflow-wrap: anywhere; }
+  .mae-tabs button span { font-size: 11px; }
+  .mae-svg { min-height: 220px; }
+}
+
 
 
 

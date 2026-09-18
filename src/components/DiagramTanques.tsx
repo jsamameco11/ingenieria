@@ -108,7 +108,9 @@ export function ReservorioApoyadoCroquis({ values }: { values: Record<string, st
   const xIzq = cx - rMuroPx - tMuroPx;
   const xDer = cx + rMuroPx + tMuroPx;
 
-  const domoPath = `M ${xIzq} ${yMuroTop} Q ${cx} ${yMuroTop - fDomoPx * 2} ${xDer} ${yMuroTop}`;
+  const rDom = (xDer - xIzq) / 2;
+  const RsDom = (rDom * rDom + fDomoPx * fDomoPx) / (2 * Math.max(fDomoPx, 1));
+  const domoPath = `M ${xIzq} ${yMuroTop} A ${RsDom.toFixed(2)} ${RsDom.toFixed(2)} 0 0 1 ${xDer} ${yMuroTop}`;
 
   const elevacion = (
     <g>
@@ -246,6 +248,25 @@ export function ReservorioCuadradoCroquis({ values }: { values: Record<string, s
 
 /* ---------------- Cuba INTZE (compartida entre tanques elevados) ---------------- */
 
+/** Arco circular de casquete esférico (elevación). sweep: techo=1 (polo arriba), cubeta=0 (polo abajo). */
+function sphereCap(
+  cx: number,
+  yRing: number,
+  rPx: number,
+  fPx: number,
+  dir: "up" | "down",
+) {
+  const sag = Math.max(fPx, 1);
+  const Rs = (rPx * rPx + sag * sag) / (2 * sag);
+  const sweep = dir === "up" ? 1 : 0;
+  const xL = cx - rPx;
+  const xR = cx + rPx;
+  const poleY = dir === "down" ? yRing + sag : yRing - sag;
+  const a = (fromL: boolean) =>
+    `A ${Rs.toFixed(2)} ${Rs.toFixed(2)} 0 0 ${fromL ? sweep : sweep ^ 1} ${(fromL ? xR : xL).toFixed(2)} ${yRing.toFixed(2)}`;
+  return { Rs, xL, xR, yRing, poleY, sag, aFromLeft: a(true), aFromRight: a(false) };
+}
+
 function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record<string, string>, rApoyoPx?: number) {
   const D = nv(values, "D", 8);
   const rp = nv(values, "rp", D * 0.3);
@@ -255,39 +276,55 @@ function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record
   const fSup = nv(values, "fSup", D / 5);
 
   const Rpx = (D / 2) * scale;
-  const rCamaraPx = Math.max(8, (rp / 2) * scale);
-  const rApoyo = rApoyoPx ?? Math.max(rCamaraPx + 10, (nv(values, "Dfuste", D * 0.55) / 2) * scale);
+  const rDomePx = Math.max(10, rp * scale);
+  // Viga de inflexión (anillo más inferior): radio r' del INTZE. No se usa el costado
+  // de la cuba (R = D/2) ni el Ø del fuste: el fuste empalma con este anillo.
+  const ringExtra = Math.max(5, rDomePx * 0.12);
+  const rApoyo = rApoyoPx ?? rDomePx + ringExtra;
   const h1px = h1 * scale;
   const hConoPx = hCono * scale;
-  const fInfPx = Math.max(8, Math.min(hConoPx * 0.45, fInf * scale));
+  const fInfPx = Math.max(10, fInf * scale);
   const fSupPx = Math.max(14, fSup * scale);
+  const rCamaraPx = Math.max(8, rDomePx * 0.38);
   const hCamaraPx = Math.max(16, Math.min(42, rCamaraPx * 1.15));
+  const ringH = Math.max(5, rApoyo * 0.08);
 
   const yAnilloInf = baseY;
   const yAnilloSup = yAnilloInf - hConoPx;
   const yTechoBase = yAnilloSup - h1px;
   const yCamaraBot = yAnilloInf + hCamaraPx;
   const yDomoFondo = yAnilloInf + fInfPx;
+  const ySoffit = yAnilloInf + ringH / 2;
 
-  const kApprox = 0.5523;
+  const roof = sphereCap(cx, yTechoBase, Rpx, fSupPx, "up");
+  const bowl = sphereCap(cx, yAnilloInf, rDomePx, fInfPx, "down");
   const path = [
-    `M ${cx - Rpx} ${yTechoBase}`,
-    `C ${cx - Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx + Rpx} ${yTechoBase - fSupPx * kApprox * 2} ${cx + Rpx} ${yTechoBase}`,
+    `M ${roof.xL.toFixed(2)} ${yTechoBase.toFixed(2)}`,
+    roof.aFromLeft,
     `L ${cx + Rpx} ${yAnilloSup}`,
-    `L ${cx + rApoyo} ${yAnilloInf}`,
-    `L ${cx + rCamaraPx} ${yAnilloInf}`,
-    `L ${cx + rCamaraPx} ${yCamaraBot}`,
-    `L ${cx - rCamaraPx} ${yCamaraBot}`,
-    `L ${cx - rCamaraPx} ${yAnilloInf}`,
-    `L ${cx - rApoyo} ${yAnilloInf}`,
+    `L ${cx + rDomePx} ${yAnilloInf}`,
+    bowl.aFromRight,
     `L ${cx - Rpx} ${yAnilloSup}`,
-    `Z`,
+    "Z",
   ].join(" ");
 
   const aguaTop = yAnilloSup - h1px * 0.92;
+  const wall = 2;
+  const aguaPath = [
+    `M ${(cx - Rpx + wall).toFixed(2)} ${aguaTop.toFixed(2)}`,
+    `L ${(cx - Rpx + wall).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
+    `L ${(cx - rDomePx).toFixed(2)} ${yAnilloInf.toFixed(2)}`,
+    bowl.aFromLeft,
+    `L ${(cx + Rpx - wall).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
+    `L ${(cx + Rpx - wall).toFixed(2)} ${aguaTop.toFixed(2)}`,
+    "Z",
+  ].join(" ");
+  const roofPath = `M ${roof.xL.toFixed(2)} ${yTechoBase.toFixed(2)} ${roof.aFromLeft}`;
+  const bowlPath = `M ${bowl.xL.toFixed(2)} ${yAnilloInf.toFixed(2)} ${bowl.aFromLeft}`;
+
   return {
-    Rpx, rCamaraPx, rApoyo, h1px, hConoPx, fInfPx, fSupPx, hCamaraPx,
-    yAnilloInf, yAnilloSup, yTechoBase, yCamaraBot, yDomoFondo, path, aguaTop,
+    Rpx, rCamaraPx, rDomePx, rApoyo, h1px, hConoPx, fInfPx, fSupPx, hCamaraPx, ringH,
+    yAnilloInf, yAnilloSup, yTechoBase, yCamaraBot, yDomoFondo, ySoffit, path, aguaTop, aguaPath, roofPath, bowlPath,
     D, rp, h1, hCono, fInf, fSup,
   };
 }
@@ -298,51 +335,49 @@ function CubaIntzeElevacion({
   baseY = 250,
   scale,
   rApoyoPx,
+  labels = true,
 }: {
   values: Record<string, string>;
   cx?: number;
   baseY?: number;
   scale: number;
   rApoyoPx?: number;
+  labels?: boolean;
 }) {
   const g = cubaIntzePaths(cx, baseY, scale, values, rApoyoPx);
-  const ringH = Math.max(5, g.rApoyo * 0.08);
-  const kApprox = 0.5523;
-  const fondo = `M ${cx - g.rApoyo + 2} ${g.yAnilloInf} C ${cx - g.rApoyo + 2} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx - g.rCamaraPx} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx - g.rCamaraPx} ${g.yAnilloInf}`;
-  const fondoR = `M ${cx + g.rCamaraPx} ${g.yAnilloInf} C ${cx + g.rCamaraPx} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx + g.rApoyo - 2} ${g.yDomoFondo + g.fInfPx * kApprox} ${cx + g.rApoyo - 2} ${g.yAnilloInf}`;
+  const ringH = g.ringH;
   return (
     <g>
       <path d={g.path} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
-      <rect x={cx - g.Rpx + 2} y={g.aguaTop} width={g.Rpx * 2 - 4} height={Math.max(0, g.yAnilloSup - g.aguaTop)} fill="url(#tq-water)" opacity="0.85" />
-      <polygon
-        points={`${cx - g.Rpx},${g.yAnilloSup} ${cx + g.Rpx},${g.yAnilloSup} ${cx + g.rApoyo},${g.yAnilloInf} ${cx - g.rApoyo},${g.yAnilloInf}`}
-        fill="url(#tq-water)"
-        opacity="0.55"
-      />
-      <path d={fondo} fill="none" stroke={NAVY} strokeWidth="1.3" />
-      <path d={fondoR} fill="none" stroke={NAVY} strokeWidth="1.3" />
+      <path d={g.aguaPath} fill="url(#tq-water)" opacity="0.82" />
+      <path d={g.roofPath} fill="none" stroke={NAVY} strokeWidth="1.35" />
+      <path d={g.bowlPath} fill="none" stroke={NAVY} strokeWidth="1.35" />
       <rect x={cx - g.rApoyo - 6} y={g.yAnilloInf - ringH / 2} width={g.rApoyo * 2 + 12} height={ringH} fill={NAVY} opacity="0.92" />
       <rect x={cx - g.Rpx - 6} y={g.yAnilloSup - 2} width={g.Rpx * 2 + 12} height="4" fill={NAVY} opacity="0.85" />
       <rect x={cx - g.rCamaraPx} y={g.yAnilloInf} width={g.rCamaraPx * 2} height={g.hCamaraPx} fill="#fbf8f1" stroke={NAVY} strokeWidth="1.2" />
-      <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 6} fontSize="7.5" fill={INK} textAnchor="end">
-        Anillo superior
-      </text>
-      <text x={cx - g.rApoyo - 8} y={g.yAnilloInf - ringH - 3} fontSize="7.5" fill={INK} textAnchor="end">
-        Viga anillo inf. (inflexión)
-      </text>
-      <text x={cx + 4} y={g.yAnilloInf + g.hCamaraPx * 0.62} fontSize="7" fill={NAVY}>
-        Cámara de inspección
-      </text>
-      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yAnilloInf) / 2} fontSize="7.5" fill={INK} textAnchor="end">
-        Fondo cónico
-      </text>
-      <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="7.5" fill={INK} textAnchor="end">
-        Pared cilíndrica
-      </text>
-      <Cota x1={cx - g.Rpx} y1={g.yTechoBase - g.fSupPx * 2 - 20} x2={cx + g.Rpx} y2={g.yTechoBase - g.fSupPx * 2 - 20} text={`D=${g.D.toFixed(2)} m`} side={14} />
-      <Cota x1={cx + g.Rpx + 44} y1={g.yTechoBase} x2={cx + g.Rpx + 44} y2={g.yAnilloSup} text={`h1=${g.h1.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx + g.Rpx + 44} y1={g.yAnilloSup} x2={cx + g.Rpx + 44} y2={g.yAnilloInf} text={`hc=${g.hCono.toFixed(2)}`} side={16} vertical />
-      <Cota x1={cx - g.rCamaraPx} y1={g.yCamaraBot + 14} x2={cx + g.rCamaraPx} y2={g.yCamaraBot + 14} text={`Ø cámara=${g.rp.toFixed(2)} m`} side={10} />
+      {labels ? (
+        <>
+          <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 6} fontSize="7.5" fill={INK} textAnchor="end">
+            Anillo superior
+          </text>
+          <text x={cx - g.rApoyo - 8} y={g.yAnilloInf - ringH - 3} fontSize="7.5" fill={INK} textAnchor="end">
+            Viga anillo inf. (inflexión)
+          </text>
+          <text x={cx + 4} y={g.yAnilloInf + g.hCamaraPx * 0.62} fontSize="7" fill={NAVY}>
+            Cámara de inspección
+          </text>
+          <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yAnilloInf) / 2} fontSize="7.5" fill={INK} textAnchor="end">
+            Fondo cónico
+          </text>
+          <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="7.5" fill={INK} textAnchor="end">
+            Pared cilíndrica
+          </text>
+          <Cota x1={cx - g.Rpx} y1={g.yTechoBase - g.fSupPx - 20} x2={cx + g.Rpx} y2={g.yTechoBase - g.fSupPx - 20} text={`D=${g.D.toFixed(2)} m`} side={14} />
+          <Cota x1={cx + g.Rpx + 44} y1={g.yTechoBase} x2={cx + g.Rpx + 44} y2={g.yAnilloSup} text={`h1=${g.h1.toFixed(2)}`} side={16} vertical />
+          <Cota x1={cx + g.Rpx + 44} y1={g.yAnilloSup} x2={cx + g.Rpx + 44} y2={g.yAnilloInf} text={`hc=${g.hCono.toFixed(2)}`} side={16} vertical />
+          <Cota x1={cx - g.rDomePx} y1={g.yDomoFondo + 18} x2={cx + g.rDomePx} y2={g.yDomoFondo + 18} text={`2r'=${(2 * g.rp).toFixed(2)} m`} side={10} />
+        </>
+      ) : null}
     </g>
   );
 }
@@ -351,7 +386,7 @@ function CubaIntzePlanta({ values, cx = 210, cy = 150, scale }: { values: Record
   const D = nv(values, "D", 8);
   const rp = nv(values, "rp", D * 0.3);
   const Rpx = (D / 2) * scale;
-  const rpPx = (rp / 2) * scale;
+  const rpPx = rp * scale;
   return (
     <g>
       <circle cx={cx} cy={cy} r={Rpx} fill="url(#tq-water)" stroke={NAVY} strokeWidth="2" />
@@ -386,14 +421,15 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
   const cx = W / 2;
   const baseY = 400;
   const cubaBaseY = baseY - Htorre * scale;
-  const RcolPx = Rcol * scale;
+  const gCuba = cubaIntzePaths(cx, cubaBaseY, scale, values);
+  const RcolPx = gCuba.rApoyo;
   const RcolBasePx = RcolBase * scale;
   const dColPx = Math.max(4, dCol * scale);
   const DcimPx = (Dcim / 2) * scale;
 
-  // Columnas abatidas: más separadas en la base, convergen al radio de la cuba en la corona (torre real, no paralela).
+  // Columnas abatidas: más separadas en la base, convergen al anillo inferior (viga de inflexión).
   const nVisible = Math.max(2, Math.ceil(nCol / 2) + 1);
-  const yTop = cubaBaseY;
+  const yTop = gCuba.ySoffit;
   const yBase = baseY - 16;
   const nivelesY: number[] = [yBase];
   for (let i = 1; i <= nArr; i++) nivelesY.push(yBase - (i / nArr) * (yBase - yTop));
@@ -444,7 +480,7 @@ export function TanqueElevadoColumnasCroquis({ values }: { values: Record<string
           })}
         </g>
       ))}
-      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} rApoyoPx={RcolPx} />
+      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
       <Cota x1={colXPorNivel[0][0]} y1={baseY + 24} x2={colXPorNivel[0][nVisible - 1]} y2={baseY + 24} text={`2·Rcol,base=${(2 * RcolBase).toFixed(2)} m`} side={14} />
       <Cota x1={cx + RcolBasePx + 44} y1={baseY - 16} x2={cx + RcolBasePx + 44} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
       <Cota x1={cx - RcolBasePx - 44} y1={yBase} x2={cx - RcolBasePx - 44} y2={nivelesY[1] ?? yTop} text={`h=${hEntreCalc.toFixed(2)}`} side={-16} vertical />
@@ -516,60 +552,62 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
   const cx = W / 2;
   const baseY = 400;
   const cubaBaseY = baseY - Htorre * scale;
-  const DfustePx = Dfuste * scale;
+  const gCuba = cubaIntzePaths(cx, cubaBaseY, scale, values);
+  const rJoinPx = gCuba.rApoyo;
+  const fusteOdPx = rJoinPx * 2;
   const DcimPx = Dcim * scale;
-  const eFustePx = Math.max(3, eFuste * scale);
-  const fusteTopY = cubaBaseY;
+  const eFustePx = Math.max(3, Math.min(eFuste * scale, rJoinPx * 0.42));
+  const fusteTopY = gCuba.ySoffit;
   const fusteBotY = baseY - 18;
 
   const { n: nVigas, espac: espacVigas } = calcNivelesFuste(Htorre);
   const nivelesVigaY: number[] = [];
   for (let i = 1; i < nVigas; i++) nivelesVigaY.push(fusteBotY - (i * espacVigas) * scale);
-  const vigaEspesorPx = Math.max(5, DfustePx * 0.055);
+  const vigaEspesorPx = Math.max(5, fusteOdPx * 0.055);
 
   // Líneas verticales de encofrado (textura de fuste cilíndrico real) y escalera lateral.
   const nCostillas = 5;
-  const costillasX = Array.from({ length: nCostillas }, (_, i) => cx - DfustePx / 2 + (DfustePx * (i + 1)) / (nCostillas + 1));
+  const costillasX = Array.from({ length: nCostillas }, (_, i) => cx - rJoinPx + (fusteOdPx * (i + 1)) / (nCostillas + 1));
 
   const elevacion = (
     <g>
       <rect x={cx - DcimPx / 2 - 30} y={baseY} width={DcimPx + 60} height="12" fill="url(#tq-soil)" stroke="#8a7344" strokeWidth="0.6" />
       <rect x={cx - DcimPx / 2} y={fusteBotY} width={DcimPx} height="18" fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.2" />
-      {/* Fuste hueco: las paredes llegan a la viga del anillo inferior (punto más bajo de la cuba). */}
-      <rect x={cx - DfustePx / 2} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
-      <rect x={cx + DfustePx / 2 - eFustePx} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
-      <rect x={cx - DfustePx / 2 + eFustePx} y={fusteTopY} width={DfustePx - 2 * eFustePx} height={fusteBotY - fusteTopY} fill="#efe8d8" opacity="0.55" />
-      <rect x={cx - DfustePx / 2} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
-      <rect x={cx + DfustePx / 2 - eFustePx * 0.45} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      {/* Fuste hueco: las paredes empalman con el intradós de la viga anillo inferior (inflexión), no con el costado de la cuba. */}
+      <rect x={cx - rJoinPx} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+      <rect x={cx + rJoinPx - eFustePx} y={fusteTopY} width={eFustePx} height={fusteBotY - fusteTopY} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+      <rect x={cx - rJoinPx + eFustePx} y={fusteTopY} width={fusteOdPx - 2 * eFustePx} height={fusteBotY - fusteTopY} fill="#efe8d8" opacity="0.55" />
+      <rect x={cx - rJoinPx} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
+      <rect x={cx + rJoinPx - eFustePx * 0.45} y={fusteTopY} width={eFustePx * 0.45} height={fusteBotY - fusteTopY} fill={NAVY} opacity="0.14" />
       {costillasX.map((x, i) => (
         <line key={`rib-${i}`} x1={x} y1={fusteTopY + 3} x2={x} y2={fusteBotY - 3} stroke="#8a7d63" strokeWidth="0.5" opacity="0.4" />
       ))}
       {/* Escalera lateral exterior típica de fuste */}
-      <line x1={cx + DfustePx / 2 + 6} y1={fusteTopY + 10} x2={cx + DfustePx / 2 + 6} y2={fusteBotY - 10} stroke={INK} strokeWidth="0.9" />
+      <line x1={cx + rJoinPx + 6} y1={fusteTopY + 10} x2={cx + rJoinPx + 6} y2={fusteBotY - 10} stroke={INK} strokeWidth="0.9" />
       {(() => {
         const nRungs = Math.max(3, Math.round((fusteBotY - fusteTopY) / 14));
         return Array.from({ length: nRungs }, (_, i) => {
           const y = fusteTopY + 10 + (i / (nRungs - 1)) * (fusteBotY - fusteTopY - 20);
-          return <line key={`rung-${i}`} x1={cx + DfustePx / 2 + 3} y1={y} x2={cx + DfustePx / 2 + 9} y2={y} stroke={INK} strokeWidth="0.7" />;
+          return <line key={`rung-${i}`} x1={cx + rJoinPx + 3} y1={y} x2={cx + rJoinPx + 9} y2={y} stroke={INK} strokeWidth="0.7" />;
         });
       })()}
       {/* Vigas de arriostre interiores (losas/anillos de rigidez), espaciadas 2.5-3.5 m */}
       {nivelesVigaY.map((y, i) => (
         <g key={`viga-${i}`}>
-          <rect x={cx - DfustePx / 2 - 3} y={y - vigaEspesorPx / 2} width={DfustePx + 6} height={vigaEspesorPx} fill={NAVY} opacity="0.9" />
-          <line x1={cx - DfustePx / 2 - 3} y1={y - vigaEspesorPx / 2} x2={cx - DfustePx / 2 - 14} y2={y - vigaEspesorPx / 2} stroke={NAVY} strokeWidth="0.7" strokeDasharray="2,2" />
-          <text x={cx - DfustePx / 2 - 17} y={y - vigaEspesorPx / 2 + 2.5} fontSize="6.8" fill={INK} textAnchor="end">
+          <rect x={cx - rJoinPx - 3} y={y - vigaEspesorPx / 2} width={fusteOdPx + 6} height={vigaEspesorPx} fill={NAVY} opacity="0.9" />
+          <line x1={cx - rJoinPx - 3} y1={y - vigaEspesorPx / 2} x2={cx - rJoinPx - 14} y2={y - vigaEspesorPx / 2} stroke={NAVY} strokeWidth="0.7" strokeDasharray="2,2" />
+          <text x={cx - rJoinPx - 17} y={y - vigaEspesorPx / 2 + 2.5} fontSize="6.8" fill={INK} textAnchor="end">
             V.A. +{(Htorre - (fusteBotY - y) / scale).toFixed(1)}
           </text>
         </g>
       ))}
-      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} rApoyoPx={DfustePx / 2} />
-      <Cota x1={cx - DfustePx / 2} y1={baseY + 24} x2={cx + DfustePx / 2} y2={baseY + 24} text={`Ø fuste=${Dfuste.toFixed(2)} m`} side={14} />
-      <Cota x1={cx + DfustePx / 2 + 40} y1={fusteBotY} x2={cx + DfustePx / 2 + 40} y2={cubaBaseY} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
+      <CubaIntzeElevacion values={values} cx={cx} baseY={cubaBaseY} scale={scale} />
+      <Cota x1={cx - rJoinPx} y1={baseY + 24} x2={cx + rJoinPx} y2={baseY + 24} text={`Ø fuste=${Dfuste.toFixed(2)} m`} side={14} />
+      <Cota x1={cx + rJoinPx + 40} y1={fusteBotY} x2={cx + rJoinPx + 40} y2={gCuba.yAnilloInf} text={`H torre=${Htorre.toFixed(2)}`} side={16} vertical />
       {nVigas > 1 && (
-        <Cota x1={cx - DfustePx / 2 - 44} y1={fusteBotY} x2={cx - DfustePx / 2 - 44} y2={nivelesVigaY[0]} text={`e=${espacVigas.toFixed(2)}`} side={-16} vertical />
+        <Cota x1={cx - rJoinPx - 44} y1={fusteBotY} x2={cx - rJoinPx - 44} y2={nivelesVigaY[0]} text={`e=${espacVigas.toFixed(2)}`} side={-16} vertical />
       )}
-      <Cota x1={cx - DfustePx / 2 - 44} y1={baseY - 18} x2={cx - DfustePx / 2 - 44} y2={baseY} text={`Dcim=${Dcim.toFixed(2)}`} side={-16} vertical />
+      <Cota x1={cx - rJoinPx - 44} y1={baseY - 18} x2={cx - rJoinPx - 44} y2={baseY} text={`Dcim=${Dcim.toFixed(2)}`} side={-16} vertical />
       <text x={cx} y={20} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
         Elevación — tanque elevado sobre fuste
       </text>
@@ -583,10 +621,10 @@ export function TanqueElevadoFusteCroquis({ values }: { values: Record<string, s
   const planta = (
     <g>
       <circle cx={cx} cy={cy2} r={DcimPx / 2} fill="none" stroke={NAVY} strokeWidth="1" strokeDasharray="3,2" />
-      <circle cx={cx} cy={cy2} r={DfustePx / 2} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
-      <circle cx={cx} cy={cy2} r={DfustePx / 2 - eFustePx} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
+      <circle cx={cx} cy={cy2} r={rJoinPx} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
+      <circle cx={cx} cy={cy2} r={rJoinPx - eFustePx} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
       <circle cx={cx} cy={cy2} r={(D / 2) * scale} fill="none" stroke={NAVY} strokeWidth="1" strokeDasharray="1,3" opacity="0.55" />
-      <Cota x1={cx - DfustePx / 2} y1={cy2 + DfustePx / 2 + 28} x2={cx + DfustePx / 2} y2={cy2 + DfustePx / 2 + 28} text={`Ø ext=${Dfuste.toFixed(2)} m`} side={14} />
+      <Cota x1={cx - rJoinPx} y1={cy2 + rJoinPx + 28} x2={cx + rJoinPx} y2={cy2 + rJoinPx + 28} text={`Ø ext=${Dfuste.toFixed(2)} m`} side={14} />
       <text x={cx} y={26} fontSize="10.5" fill={NAVY} textAnchor="middle" fontWeight="600">
         Planta — sección anular del fuste
       </text>
@@ -1011,14 +1049,14 @@ const DCL_REACT = "#8a6a1f";
 const DCL_WATER = "#2f6a8f";
 
 /** Flecha recta para una carga o reacción puntual, con etiqueta. */
-function DclArrow({ x1, y1, x2, y2, color, label, labelAnchor = "middle", labelDx = 0, labelDy = -6, width = 2.2, dashed = false }: {
-  x1: number; y1: number; x2: number; y2: number; color: string; label?: string; labelAnchor?: "start" | "middle" | "end"; labelDx?: number; labelDy?: number; width?: number; dashed?: boolean;
+function DclArrow({ x1, y1, x2, y2, color, label, labelAnchor = "middle", labelDx = 0, labelDy = -6, width = 2.2, dashed = false, marker = "tq-load-arrow" }: {
+  x1: number; y1: number; x2: number; y2: number; color: string; label?: string; labelAnchor?: "start" | "middle" | "end"; labelDx?: number; labelDy?: number; width?: number; dashed?: boolean; marker?: string;
 }) {
   return (
     <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={width} markerEnd="url(#tq-load-arrow)" strokeDasharray={dashed ? "3,2" : undefined} />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={width} markerEnd={`url(#${marker})`} strokeDasharray={dashed ? "3,2" : undefined} />
       {label ? (
-        <text x={x2 + labelDx} y={y2 + labelDy} fontSize="9.5" fill={color} fontWeight="700" textAnchor={labelAnchor} fontFamily="IBM Plex Mono, monospace">
+        <text x={x2 + labelDx} y={y2 + labelDy} fontSize="10" fill={color} fontWeight="700" textAnchor={labelAnchor} fontFamily="IBM Plex Mono, monospace">
           {label}
         </text>
       ) : null}
@@ -1079,26 +1117,28 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
   const Mvolteo = nv(values, "Mvolteo", 10);
   const gammaW = 1;
 
-  const W = 600, H = 420;
-  const cx = 220;
-  const baseY = 336;
+  const W = 780, H = 520;
+  const cx = 320;
+  const baseY = 430;
 
   let structure: ReactNode;
-  let yTop = 60, yWater = 200, halfW = 70;
+  let yTop = 60, yWater = 200, halfW = 70, bodyHalfW = 70;
   let hSismoY = 220;
   let scale = 40;
+  let hydroCuba: { xWall: number; yTop: number; yBase: number; pBase: number } | null = null;
 
   if (variant === "cilindro" || variant === "caja") {
     const D = variant === "cilindro" ? nv(values, "D", 4.25) : nv(values, "Lx", 4);
     const HL = nv(values, "HL", 3.5);
     const bl = nv(values, "bl", 0.3);
-    scale = 230 / Math.max(HL + bl, 1);
-    const rx = Math.min(95, Math.max(46, (D / 2) * scale * 0.62));
+    scale = 300 / Math.max(HL + bl, 1);
+    const rx = Math.min(110, Math.max(50, (D / 2) * scale * 0.7));
     const ry = rx * 0.3;
     const HLpx = HL * scale, blPx = bl * scale;
     yWater = baseY - HLpx;
     yTop = yWater - blPx;
     halfW = rx;
+    bodyHalfW = rx;
     hSismoY = baseY - HLpx * 0.4;
 
     if (variant === "cilindro") {
@@ -1132,35 +1172,32 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
     }
   } else if (variant === "torre") {
     const Htorre = nv(values, "Htorre", 14);
-    const hcgCuba = nv(values, "hcgCuba", 2);
     const Dcuba = nv(values, "D", 8);
-    scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
+    const h1d = nv(values, "h1", 4);
+    const hConod = nv(values, "hCono", 1.5);
+    const fSupd = nv(values, "fSup", Dcuba / 5);
+    scale = 310 / Math.max(Htorre + h1d + hConod + fSupd, 1);
     const torrePx = Htorre * scale;
-    const cubaHalfW = Math.min(85, Math.max(40, (Dcuba / 2) * scale * 0.5));
+    const cubaScale = scale;
     yTop = baseY - torrePx;
-    const cubaTopY = yTop - cubaHalfW * 0.9;
-    halfW = 22;
-    hSismoY = cubaTopY + (yTop - cubaTopY) * 0.5;
+    const cubaTopY = yTop - (h1d + hConod + fSupd) * cubaScale;
+    const gCubaT = cubaIntzePaths(cx, yTop, cubaScale, values);
+    const rJoin = gCubaT.rApoyo;
+    const eFustePx = Math.max(4, Math.min(nv(values, "eFuste", 0.25) * scale, rJoin * 0.42));
+    const ySoffit = gCubaT.ySoffit;
+    halfW = rJoin;
+    bodyHalfW = gCubaT.Rpx;
+    yWater = gCubaT.aguaTop;
+    hydroCuba = { xWall: cx - gCubaT.Rpx, yTop: gCubaT.aguaTop, yBase: gCubaT.yAnilloSup, pBase: gammaW * nv(values, "HL", h1d) };
+    hSismoY = cubaTopY + (yTop - cubaTopY) * 0.45;
     structure = (
       <g>
-        {/* Fuste hueco isométrico: elipse base + paredes + corona */}
-        <ellipse cx={cx} cy={baseY} rx={halfW} ry={halfW * 0.32} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
-        <line x1={cx - halfW} y1={yTop} x2={cx - halfW} y2={baseY} stroke={NAVY} strokeWidth="2.2" />
-        <line x1={cx + halfW} y1={yTop} x2={cx + halfW} y2={baseY} stroke={NAVY} strokeWidth="2.2" />
-        <line x1={cx - halfW + 8} y1={yTop + 8} x2={cx - halfW + 8} y2={baseY - 6} stroke={NAVY} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
-        <line x1={cx + halfW - 8} y1={yTop + 8} x2={cx + halfW - 8} y2={baseY - 6} stroke={NAVY} strokeWidth="0.8" strokeDasharray="3,2" opacity="0.7" />
-        <ellipse cx={cx} cy={yTop} rx={halfW} ry={halfW * 0.32} fill="#efe8d8" stroke={NAVY} strokeWidth="1.4" />
-        {/* Cuba INTZE: pared, cono y anillo inferior apoyado en la corona del fuste */}
-        <path
-          d={`M ${cx - cubaHalfW} ${yTop - 8} C ${cx - cubaHalfW} ${cubaTopY} ${cx + cubaHalfW} ${cubaTopY} ${cx + cubaHalfW} ${yTop - 8} L ${cx + cubaHalfW} ${yTop - 8 + (yTop - cubaTopY) * 0.55} L ${cx + halfW * 0.95} ${yTop + 4} L ${cx - halfW * 0.95} ${yTop + 4} L ${cx - cubaHalfW} ${yTop - 8 + (yTop - cubaTopY) * 0.55} Z`}
-          fill="url(#tq-water)"
-          stroke={NAVY}
-          strokeWidth="1.4"
-        />
-        <line x1={cx - halfW * 1.05} y1={yTop + 2} x2={cx + halfW * 1.05} y2={yTop + 2} stroke={NAVY} strokeWidth="3.2" />
-        <ellipse cx={cx} cy={yTop + 10} rx={halfW * 0.35} ry={halfW * 0.12} fill="#fbf8f1" stroke={NAVY} strokeWidth="1" />
-        <text x={cx + halfW + 8} y={yTop + 5} fontSize="7.5" fill={INK}>Anillo inf.</text>
-        <circle cx={cx} cy={(cubaTopY + yTop) / 2 - 4} r="2.2" fill={NAVY} />
+        <ellipse cx={cx} cy={baseY} rx={rJoin} ry={rJoin * 0.28} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.3" />
+        <rect x={cx - rJoin + eFustePx} y={ySoffit} width={(rJoin - eFustePx) * 2} height={Math.max(0, baseY - ySoffit)} fill="#efe8d8" opacity="0.45" />
+        <rect x={cx - rJoin} y={ySoffit} width={eFustePx} height={Math.max(0, baseY - ySoffit)} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+        <rect x={cx + rJoin - eFustePx} y={ySoffit} width={eFustePx} height={Math.max(0, baseY - ySoffit)} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.5" />
+        <CubaIntzeElevacion values={values} cx={cx} baseY={yTop} scale={cubaScale} labels={false} />
+        <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
       </g>
     );
   } else {
@@ -1168,13 +1205,14 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
     // (silueta esquemática "abatida", simplificada para el tamaño de un DCL: solo se dibujan las
     // columnas/niveles frontales, no las nCol reales completas).
     const Htorre = nv(values, "Htorre", 14);
-    const hcgCuba = nv(values, "hcgCuba", 2);
     const Dcuba = nv(values, "D", 8);
-    scale = 220 / Math.max(Htorre + hcgCuba * 2, 1);
+    const h1d = nv(values, "h1", 4);
+    const hConod = nv(values, "hCono", 1.5);
+    const fSupd = nv(values, "fSup", Dcuba / 5);
+    scale = 310 / Math.max(Htorre + h1d + hConod + fSupd, 1);
     const torrePx = Htorre * scale;
-    const cubaHalfW = Math.min(85, Math.max(40, (Dcuba / 2) * scale * 0.5));
     yTop = baseY - torrePx;
-    const cubaTopY = yTop - cubaHalfW * 0.9;
+    const cubaTopY = yTop - (h1d + hConod + fSupd) * scale;
 
     const nCol = Math.max(4, Math.round(nv(values, "nCol", 6)));
     const dCol = nv(values, "dCol", 0.5);
@@ -1182,11 +1220,13 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
     const Rcol = nv(values, "Rcol", Dcuba * 0.41);
     const RcolBase = nv(values, "RcolBase", Rcol * 1.35);
 
-    // Ancho visible (semiancho) en la corona (Rcol) y en la base (RcolBase, más ancho por el
-    // abocinado típico de las columnas hacia la cimentación).
-    const topHalfW = Math.min(50, Math.max(20, Rcol * scale * 0.9));
+    const gCubaC = cubaIntzePaths(cx, yTop, scale, values);
+    const topHalfW = gCubaC.rApoyo;
     const baseHalfW = Math.min(90, Math.max(topHalfW + 14, RcolBase * scale * 0.9));
     halfW = baseHalfW;
+    bodyHalfW = Math.max(baseHalfW, gCubaC.Rpx);
+    yWater = gCubaC.aguaTop;
+    hydroCuba = { xWall: cx - gCubaC.Rpx, yTop: gCubaC.aguaTop, yBase: gCubaC.yAnilloSup, pBase: gammaW * nv(values, "HL", h1d) };
 
     // Nº de columnas dibujadas (subconjunto frontal, no las nCol reales) y de niveles de
     // arriostre (siempre base + corona, más hasta 2 niveles intermedios representativos).
@@ -1197,7 +1237,7 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
     levelFracs.push(1);
 
     const levels = levelFracs.map((f) => ({
-      y: baseY + (yTop - baseY) * f,
+      y: baseY + (gCubaC.ySoffit - baseY) * f,
       r: baseHalfW + (topHalfW - baseHalfW) * f,
     }));
     const colXAt = (r: number) =>
@@ -1242,8 +1282,7 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
         {diagonals}
         {beams}
         {columns}
-        <path d={`M ${cx - cubaHalfW * 0.85} ${yTop - 4} Q ${cx} ${cubaTopY} ${cx + cubaHalfW * 0.85} ${yTop - 4} L ${cx + cubaHalfW * 1.15} ${yTop + 18} Q ${cx} ${yTop + 34} ${cx - cubaHalfW * 1.15} ${yTop + 18} Z`}
-          fill="url(#tq-water)" stroke={NAVY} strokeWidth="1.3" />
+        <CubaIntzeElevacion values={values} cx={cx} baseY={yTop} scale={scale} labels={false} />
         <circle cx={cx} cy={(cubaTopY + yTop) / 2} r="2.2" fill={NAVY} />
       </g>
     );
@@ -1251,8 +1290,8 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
 
   const isTorre = variant === "torre" || variant === "torreColumnas";
   const wArrowY0 = isTorre ? yTop - 6 : (yTop + baseY) / 2 - 30;
-  const wArrowX = isTorre ? cx + halfW + 30 : cx;
-  const baseSpread = Math.min(Math.max(halfW + 60, 100), 130);
+  const wArrowX = isTorre ? cx + bodyHalfW + 48 : cx + bodyHalfW + 28;
+  const baseSpread = Math.min(Math.max(bodyHalfW + 70, 110), 150);
 
   // Alturas reales (m) de aplicación de cada carga (centro de masa), convertidas a píxeles con la
   // escala del croquis — en vez de un único vector genérico, cada carga se ubica en su propia altura.
@@ -1314,6 +1353,15 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
               pBase={gammaW * nv(values, "HL", 3.5)}
             />
           )}
+          {hydroCuba ? (
+            <DclPresionHidrostatica
+              xWall={hydroCuba.xWall}
+              yTop={hydroCuba.yTop}
+              yBase={hydroCuba.yBase}
+              maxLenPx={42}
+              pBase={hydroCuba.pBase}
+            />
+          ) : null}
 
           {/* Peso propio W: en torres, separado en fuste (a media altura) y cuba (en su propio
               centroide) en vez de un único vector genérico concentrado arriba */}
@@ -1321,10 +1369,10 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
             <>
               <DclArrow x1={wArrowX} y1={yFusteCG - 20} x2={wArrowX} y2={yFusteCG + 20} color={DCL_LOAD} width={2.4}
                 label={`Wfuste = ${Wfuste.toFixed(1)} t`} labelAnchor="start" labelDx={10} labelDy={4} />
-              <Cota x1={cx + halfW + 150} y1={baseY} x2={cx + halfW + 150} y2={yFusteCG} text={`h=${hFusteCG.toFixed(2)} m`} side={14} vertical />
+              <Cota x1={cx + bodyHalfW + 150} y1={baseY} x2={cx + bodyHalfW + 150} y2={yFusteCG} text={`h=${hFusteCG.toFixed(2)} m`} side={14} vertical />
               <DclArrow x1={wArrowX} y1={yCubaCG - 20} x2={wArrowX} y2={yCubaCG + 20} color={DCL_LOAD} width={2.4}
                 label={`Wcuba = ${WcubaTotal.toFixed(1)} t`} labelAnchor="start" labelDx={10} labelDy={4} />
-              <Cota x1={cx + halfW + 220} y1={baseY} x2={cx + halfW + 220} y2={yCubaCG} text={`h=${hcgAbs.toFixed(2)} m`} side={14} vertical />
+              <Cota x1={cx + bodyHalfW + 220} y1={baseY} x2={cx + bodyHalfW + 220} y2={yCubaCG} text={`h=${hcgAbs.toFixed(2)} m`} side={14} vertical />
             </>
           ) : (
             <DclArrow
@@ -1347,25 +1395,25 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
                 // la torre — igual convención que el resto de fuerzas sísmicas del diagrama — para
                 // que nunca se crucen ni se superpongan las etiquetas con las de Wfuste/Wcuba.
                 <>
-                  <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-                  <DclArrow x1={cx - halfW - 65} y1={yPi} x2={cx - halfW - 8} y2={yPi} color={DCL_LOAD} width={2.4}
+                  <line x1={cx - bodyHalfW * 0.25} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx - bodyHalfW - 92} y1={yPi} x2={cx - bodyHalfW - 14} y2={yPi} color={DCL_LOAD} width={2.4}
                     label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="end" labelDx={-4} labelDy={-5} />
-                  <Cota x1={cx - halfW - 100} y1={baseY} x2={cx - halfW - 100} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={-14} vertical />
-                  <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-                  <DclArrow x1={cx - halfW - 65} y1={yPc} x2={cx - halfW - 8} y2={yPc} color={DCL_WATER} width={2.4}
+                  <Cota x1={cx - bodyHalfW - 128} y1={baseY} x2={cx - bodyHalfW - 128} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={-14} vertical />
+                  <line x1={cx - bodyHalfW * 0.25} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx - bodyHalfW - 92} y1={yPc} x2={cx - bodyHalfW - 14} y2={yPc} color={DCL_WATER} width={2.4}
                     label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="end" labelDx={-4} labelDy={-5} />
-                  <Cota x1={cx - halfW - 130} y1={baseY} x2={cx - halfW - 130} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={-14} vertical />
+                  <Cota x1={cx - bodyHalfW - 158} y1={baseY} x2={cx - bodyHalfW - 158} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={-14} vertical />
                 </>
               ) : (
                 <>
-                  <line x1={cx - halfW * 0.3} y1={yPi} x2={cx + halfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-                  <DclArrow x1={cx + halfW + 70} y1={yPi} x2={cx + halfW + 8} y2={yPi} color={DCL_LOAD} width={2.4}
+                  <line x1={cx - bodyHalfW * 0.3} y1={yPi} x2={cx + bodyHalfW} y2={yPi} stroke={DCL_LOAD} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx + bodyHalfW + 78} y1={yPi} x2={cx + bodyHalfW + 10} y2={yPi} color={DCL_LOAD} width={2.4}
                     label={`Pi = ${Pi.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
-                  <Cota x1={cx + halfW + 155} y1={baseY} x2={cx + halfW + 155} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={14} vertical />
-                  <line x1={cx - halfW * 0.3} y1={yPc} x2={cx + halfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
-                  <DclArrow x1={cx + halfW + 70} y1={yPc} x2={cx + halfW + 8} y2={yPc} color={DCL_WATER} width={2.4}
+                  <Cota x1={cx + bodyHalfW + 168} y1={baseY} x2={cx + bodyHalfW + 168} y2={yPi} text={`hi=${hiIBP.toFixed(2)} m`} side={14} vertical />
+                  <line x1={cx - bodyHalfW * 0.3} y1={yPc} x2={cx + bodyHalfW} y2={yPc} stroke={DCL_WATER} strokeWidth="0.6" strokeDasharray="2,2" opacity="0.4" />
+                  <DclArrow x1={cx + bodyHalfW + 78} y1={yPc} x2={cx + bodyHalfW + 10} y2={yPc} color={DCL_WATER} width={2.4}
                     label={`Pc = ${Pc.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-5} />
-                  <Cota x1={cx + halfW + 185} y1={baseY} x2={cx + halfW + 185} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={14} vertical />
+                  <Cota x1={cx + bodyHalfW + 200} y1={baseY} x2={cx + bodyHalfW + 200} y2={yPc} text={`hc=${hcIBP.toFixed(2)} m`} side={14} vertical />
                 </>
               )}
             </>
@@ -1387,9 +1435,9 @@ export function DiagramaCuerpoLibreFig({ values, variant }: { values: Record<str
 
           {/* Reacciones en la base: N, V, M — separadas con suficiente espacio para que las
               etiquetas (más largas que el ancho de la torre) nunca se superpongan */}
-          <DclArrow x1={cx} y1={baseY + 46} x2={cx} y2={baseY + 8} color={DCL_REACT} width={2.2} label={`N=${Wtotal.toFixed(1)} t`} labelAnchor="middle" labelDy={20} />
-          <DclArrow x1={cx + baseSpread} y1={baseY + 24} x2={cx + baseSpread - 40} y2={baseY + 24} color={DCL_REACT} width={2.2} label={`V=${Vbasal.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-6} />
-          <DclMoment cx={cx - baseSpread} cy={baseY + 20} r={16} color={DCL_REACT} label={`M=${Mvolteo.toFixed(1)} t·m`} />
+          <DclArrow x1={cx} y1={baseY + 52} x2={cx} y2={baseY + 10} color={DCL_REACT} width={2.2} marker="tq-react-arrow" label={`N=${Wtotal.toFixed(1)} t`} labelAnchor="middle" labelDy={22} />
+          <DclArrow x1={cx + baseSpread} y1={baseY + 28} x2={cx + baseSpread - 44} y2={baseY + 28} color={DCL_REACT} width={2.2} marker="tq-react-arrow" label={`V=${Vbasal.toFixed(1)} t`} labelAnchor="start" labelDx={6} labelDy={-6} />
+          <DclMoment cx={cx - baseSpread} cy={baseY + 24} r={18} color={DCL_REACT} label={`M=${Mvolteo.toFixed(1)} t·m`} />
 
           <rect x={W - 178} y={H - 40} width="168" height="30" fill="#f4efe3" stroke="#c4b48a" strokeWidth="0.7" />
           <line x1={W - 172} y1={H - 30} x2={W - 158} y2={H - 30} stroke={DCL_LOAD} strokeWidth="2.4" markerEnd="url(#tq-load-arrow)" />

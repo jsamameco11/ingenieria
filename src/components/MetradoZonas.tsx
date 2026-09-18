@@ -44,6 +44,27 @@ function pointsAttr(pts: Pt[], xy: (p: Pt) => Pt) {
   return pts.map((p) => xy(p).join(",")).join(" ");
 }
 
+/** Spline Catmull–Rom cerrada → cúbicas SVG (casquetes y agua sin facetas). */
+function smoothClosedD(pts: Pt[], xy: (p: Pt) => Pt) {
+  const p = pts.map(xy);
+  const n = p.length;
+  if (n < 3) return "";
+  const at = (i: number) => p[(i + n) % n];
+  let d = `M ${at(0)[0].toFixed(2)} ${at(0)[1].toFixed(2)}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(2)} ${c1y.toFixed(2)} ${c2x.toFixed(2)} ${c2y.toFixed(2)} ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
+  }
+  return `${d} Z`;
+}
+
 function Hatch({ id, kind }: { id: string; kind: MetradoMaterial }) {
   if (kind === "concreto") {
     return (
@@ -202,15 +223,18 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
           {spec.zones.map((z) => {
             if (z.pts.length < 3) return null;
             const meta = MATERIAL_META[z.material];
-            return (
-              <polygon
-                key={`z-${z.n}`}
-                points={pointsAttr(z.pts, xy)}
-                fill={`url(#${uid}-${z.material})`}
-                stroke={meta.stroke}
-                strokeWidth={z.material === "concreto" ? 1.7 : 1.2}
-                opacity={0.95}
-              />
+            const curved = Boolean(z.smooth);
+            const common = {
+              fill: `url(#${uid}-${z.material})`,
+              stroke: meta.stroke,
+              strokeWidth: z.material === "concreto" ? 1.7 : 1.2,
+              strokeLinejoin: "round" as const,
+              opacity: 0.95,
+            };
+            return curved ? (
+              <path key={`z-${z.n}`} d={smoothClosedD(z.pts, xy)} {...common} />
+            ) : (
+              <polygon key={`z-${z.n}`} points={pointsAttr(z.pts, xy)} {...common} />
             );
           })}
 

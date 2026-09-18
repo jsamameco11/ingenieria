@@ -90,6 +90,103 @@ function elegirBarraAnilloDoble(AsReqCm2m: number): { barra: string; s: number; 
   return { barra: porCapa.barra, s: porCapa.s, AsProv: porCapa.AsProv * 2, capas: 2, texto: `2 capas de Ø ${porCapa.barra} @ ${porCapa.s} cm` };
 }
 
+function interpPts(pts: { x: number; M: number }[], x: number) {
+  if (!pts.length) return 0;
+  if (x <= pts[0].x) return pts[0].M;
+  for (let i = 1; i < pts.length; i++) {
+    if (x <= pts[i].x) {
+      const t = (x - pts[i - 1].x) / Math.max(pts[i].x - pts[i - 1].x, 1e-9);
+      return pts[i - 1].M + t * (pts[i].M - pts[i - 1].M);
+    }
+  }
+  return pts[pts.length - 1].M;
+}
+
+function whitneyPasos(Mu_tm: number, bCm: number, dCm: number, fc: number, fy: number, phi = 0.9) {
+  const MuKgCm = Math.abs(Mu_tm) * 1000 * 100;
+  const Rn = MuKgCm / (phi * bCm * dCm * dCm);
+  const disc = 1 - (2 * Rn) / (0.85 * fc);
+  const rho = disc > 0 ? ((0.85 * fc) / fy) * (1 - Math.sqrt(Math.max(0, disc))) : NaN;
+  const As = Number.isFinite(rho) ? rho * bCm * dCm : NaN;
+  const a = Number.isFinite(As) ? (As * fy) / (0.85 * fc * bCm) : NaN;
+  const Asmin = 0.0018 * bCm * dCm;
+  const Asuse = Number.isFinite(As) ? Math.max(As, Asmin) : Asmin;
+  return { MuKgCm, Rn, disc, rho, As, a, Asmin, Asuse, ok: disc > 0 };
+}
+
+function zonasPared(
+  envolN: { x: number; M: number }[],
+  envolM: { x: number; M: number }[],
+  H: number,
+  dCm: number,
+  fc: number,
+  fy: number,
+  Sn: number,
+) {
+  const names = ["Base (empotramiento)", "Cuarto inferior", "Media altura", "Cuarto superior", "Corona (libre)"];
+  return [0, 0.25, 0.5, 0.75, 1].map((f, i) => {
+    const y = f * H;
+    const N = Math.abs(interpPts(envolN, y));
+    const M = Math.abs(interpPts(envolM, y));
+    const asH = Math.max((Sn * N * 1000) / (0.9 * fy), asMinTemp(dCm));
+    const flex = flexionAs(Sn * M, dCm, fc, fy);
+    const asV = Math.max(flex.ok ? flex.As : asMinTemp(dCm), asMinTemp(dCm));
+    const w = whitneyPasos(Sn * M, 100, dCm, fc, fy);
+    return {
+      zona: names[i],
+      y,
+      N,
+      M,
+      asH,
+      asV,
+      w,
+      barH: elegirBarraAnilloDoble(asH),
+      barV: elegirBarraAnilloDoble(asV),
+    };
+  });
+}
+
+function nBarrasAnillo(AsCm2: number, barName: string) {
+  return Math.max(4, Math.ceil(AsCm2 / Math.max(barByName(barName).as, 1e-6)));
+}
+
+function estribosColumna(dColM: number, barLong: string) {
+  const db = barByName(barLong).db;
+  const hCm = dColM * 100;
+  const sConf = Math.max(5, Math.min(8 * db, 0.25 * hCm, 10));
+  const sFuera = Math.max(8, Math.min(16 * db, 0.5 * hCm, 20));
+  const Lp = Math.max(hCm, 45);
+  return { sConf, sFuera, Lp, db, barEstribo: '3/8"' as const };
+}
+
+function nivelesArriostreFuste(Htorre: number) {
+  if (Htorre <= 3.6) return { n: 1, espac: Htorre };
+  let n = Math.max(1, Math.round(Htorre / 3));
+  let espac = Htorre / n;
+  while (espac > 3.5 && n < 20) {
+    n++;
+    espac = Htorre / n;
+  }
+  while (espac < 2.5 && n > 1) {
+    n--;
+    espac = Htorre / n;
+  }
+  return { n, espac };
+}
+
+function elegirLongCol(AsReq: number, Ag: number) {
+  const opciones = ['5/8"', '3/4"', '1"'] as const;
+  for (const b of opciones) {
+    const as1 = barByName(b).as;
+    for (const n of [6, 8, 10, 12, 14, 16]) {
+      if (n * as1 >= AsReq && n * as1 <= 0.04 * Ag) return { barra: b, n, AsProv: n * as1 };
+    }
+  }
+  const as1 = barByName('1"').as;
+  const n = Math.max(8, Math.ceil(AsReq / as1));
+  return { barra: '1"' as const, n, AsProv: n * as1 };
+}
+
 /* ---------------------------------------------------------------------- *
  * 2. Lámina cilíndrica sobre base empotrada — solución de la ecuación    *
  *    diferencial de la placa sobre fundación elástica (viga en cimiento  *
@@ -424,6 +521,11 @@ export const reservorioApoyado: Engine = (raw) => {
   const FSdeslizamiento = (mu * Wtotal) / Math.max(Vbasal, 1e-6);
   const areaLosa = (Math.PI * (D + 0.3) ** 2) / 4;
   const qServicio = Wtotal / areaLosa;
+  const zonasMuroAp = zonasPared(envolNPts, envolMPts, HL, dCmMuro, fc, fy, Sn);
+  const whitneyVertAp = whitneyPasos(Sn * MenvMax, 100, dCmMuro, fc, fy);
+  const whitneyLosaAp = whitneyPasos(Mborde, 100, dCmLosa, fc, fy);
+  const nRingAp = nBarrasAnillo(AsRing, ringPick.barra);
+  const whitneyRingAp = whitneyPasos(Mborde * 0.25, bRing * 100, hRing * 100 - 5, fc, fy);
 
   const steps: CalcStep[] = [
     { n: "01", title: "Volumen de diseño y relación H/D", formula: "D = (4·V/(π·r))^(1/3)   ·   HL = V/(π D²/4)   ·   r = HL/D",
@@ -467,7 +569,11 @@ export const reservorioApoyado: Engine = (raw) => {
       note: "El muro se modela como una viga sobre fundación elástica: w(y) es su deflexión radial. N_θ es la tensión de anillo (tracción horizontal, resistida por el acero de anillo) y M_y el momento de flexión vertical (por el empotramiento en la base), resistido por el acero vertical.",
       table: { caption: "Tensión de anillo N y momento vertical M por hidrostática (y desde la base)",
         headers: ["y/HL", "N (t/m)", "M (t·m/m)"],
-        rows: muestraHs.map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3)]) } },
+        rows: muestraHs.map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3)]) },
+      desarrollo: [
+        `Rigidez de placa D_p=Ec e³/[12(1−ν²)] y resorte de anillo k=Ec e/R². Se integra D_p w''''+k w=p(y) por RK4 (disparo) con w=w'=0 en la base y M=V=0 en la corona — equivalente a las tablas PCA, no a una viga simple.`,
+        `p(y)=γw(HL−y) triangular. De w(y) se obtiene N_θ=Ec e w/R (tracción de anillo) y M_y=−D_p w'' (flexión vertical). Máximos: N_θ=${fmt(NhsMax, 2)} t/m, M_y=${fmt(MhsMax, 2)} t·m/m (el momento vive junto al empotramiento; el anillo crece hacia media altura).`,
+      ] },
     { n: "07", title: "Análisis sísmico — modelo de Housner (masa impulsiva y convectiva)",
       formula: "Wi/Wa = tanh(0,866 D/HL)/(0,866 D/HL)   ·   Wc/Wa = 0,230(D/HL)·tanh(3,68 HL/D)",
       formulaTex: String.raw`\dfrac{W_i}{W_a}=\dfrac{\tanh(0{,}866\,D/H_L)}{0{,}866\,D/H_L}\qquad \dfrac{W_c}{W_a}=0{,}230\left(\dfrac{D}{H_L}\right)\tanh\!\left(3{,}68\,\dfrac{H_L}{D}\right)`,
@@ -508,17 +614,38 @@ export const reservorioApoyado: Engine = (raw) => {
       formulaTex: String.raw`\begin{gathered}A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\\[4pt]S_n=1{,}3\ (\text{ACI 350-06 Tabla 4.1})\\[4pt]\phi=0{,}9\qquad A_{s,min}=0{,}0018\,d\end{gathered}`,
       substitution: `Sn=${fmt(Sn, 2)} · φ=${fmt(PHI_T, 2)} · fy=${fmt(fy, 0)} kg/cm²`,
       result: `As=${fmt(asHorizFinal, 2)} cm²/m → ${barHoriz.texto} (As,prov=${fmt(barHoriz.AsProv, 2)} cm²/m)`,
-      note: `El factor Sn amplifica la carga de servicio en vez de exigir sección no fisurada: controla el ancho de fisura sin sobredimensionar el espesor. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.` },
+      note: `El factor Sn amplifica la carga de servicio en vez de exigir sección no fisurada: controla el ancho de fisura sin sobredimensionar el espesor. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.`,
+      table: {
+        caption: "Pared por zona — N_env, M_env, Whitney y aceros (franja 1,00 m)",
+        headers: ["Zona", "y (m)", "N (t/m)", "M (t·m/m)", "As,h (cm²/m)", "Horiz.", "Rn (kg/cm²)", "As,v (cm²/m)", "Vert."],
+        rows: zonasMuroAp.map((z) => [z.zona, fmt(z.y, 2), fmt(z.N, 2), fmt(z.M, 3), fmt(z.asH, 2), z.barH.texto, fmt(z.w.Rn, 1), fmt(z.asV, 2), z.barV.texto]),
+      },
+      desarrollo: [
+        `As,h=Sn·N_env,máx/(φ·fy)=1,3·${fmt(NenvMax, 2)}·1000/(0,9·${fmt(fy, 0)})=${fmt(asHorizFinal, 2)} cm²/m, comparado con Asmín=0,0018·b·d=${fmt(asMinTemp(dCmMuro), 2)} cm²/m. Gobierna el mayor → ${barHoriz.texto}.`,
+        "La tracción de anillo suele ser máxima a media altura (el empotramiento de la base reduce N cerca de y=0). Cada zona se arma con su propio N y M (Whitney en el vertical):",
+        ...zonasMuroAp.map((z) =>
+          `${z.zona} (y=${fmt(z.y, 2)} m): N=${fmt(z.N, 2)} t/m → As,h=${fmt(z.asH, 2)} cm²/m (${z.barH.texto}). M=${fmt(z.M, 3)} t·m/m → Rn=${fmt(z.w.Rn, 1)} kg/cm², ρ=${fmt(z.w.rho, 5)}, a=${fmt(z.w.a, 2)} cm, As,v=${fmt(z.asV, 2)} cm²/m (${z.barV.texto}).`,
+        ),
+      ] },
     { n: "14", title: "Acero vertical (flexión) de la pared", formula: "Mu=φf'c·b·d²·ω(1−0,59ω)   ·   φ=0,9",
       formulaTex: String.raw`M_u=\phi f'_c\,b\,d^2\,\omega\,(1-0{,}59\,\omega)\qquad \phi=0{,}9`,
-      substitution: `Mu=${fmt(MenvMax, 2)} t·m/m · d=${fmt(dCmMuro, 1)} cm`,
+      substitution: `Mu=${fmt(Sn * MenvMax, 2)} t·m/m · d=${fmt(dCmMuro, 1)} cm · b=100 cm`,
       result: `As=${fmt(asVertFinal, 2)} cm²/m → ${barVert.texto}`,
-      note: "ω es la cuantía mecánica de acero (ω=ρ·fy/f'c); la ecuación de Whitney despeja As a partir del momento último Mu y el peralte efectivo d." },
+      note: "ω es la cuantía mecánica de acero (ω=ρ·fy/f'c); la ecuación de Whitney despeja As a partir del momento último Mu y el peralte efectivo d. El máximo está en la base empotrada.",
+      desarrollo: [
+        `Mu=Sn·M_env,máx=1,3·${fmt(MenvMax, 2)}=${fmt(Sn * MenvMax, 3)} t·m/m (franja de 1,00 m).`,
+        `Whitney: Rn=Mu/(φ b d²)=${fmt(whitneyVertAp.Rn, 2)} kg/cm². Discriminante 1−2Rn/(0,85f'c)=${fmt(whitneyVertAp.disc, 4)} ${whitneyVertAp.ok ? "> 0 (sección no sobre-armada)." : "≤ 0: aumentar espesor."}`,
+        `ρ=(0,85f'c/fy)(1−√disc)=${fmt(whitneyVertAp.rho, 5)} → As=ρ b d=${fmt(whitneyVertAp.As, 2)} cm²/m. Profundidad del bloque a=As fy/(0,85 f'c b)=${fmt(whitneyVertAp.a, 2)} cm. Asmín=${fmt(whitneyVertAp.Asmin, 2)} cm²/m → se adopta ${barVert.texto}.`,
+      ] },
     { n: "15", title: "Diseño de la losa de fondo", formula: "M_borde=0,7·M_y,máx(base)  ·  Mu=φf'c·b·d²ω(1−0,59ω)  ·  Asmín=0,0018·d",
       formulaTex: String.raw`\begin{gathered}M_{borde}=0{,}7\,M_{y,max}(\text{base})\\[4pt]M_u=\phi f'_c\,b\,d^2\,\omega\,(1-0{,}59\,\omega)\\[4pt]A_{s,min}=0{,}0018\,d\end{gathered}`,
       substitution: `M_borde=${fmt(Mborde, 2)} t·m/m · d=${fmt(dCmLosa, 1)} cm`,
       result: `As=${fmt(asLosaFinal, 2)} cm²/m → ${barLosa.texto} (ambos sentidos fuera de la franja de borde)`,
-      note: "Solo la franja de borde (junto al muro) recibe el momento de empotramiento transmitido desde la pared; el resto de la losa lleva acero mínimo por apoyar directamente sobre el terreno mejorado." },
+      note: "Solo la franja de borde (junto al muro) recibe el momento de empotramiento transmitido desde la pared; el resto de la losa lleva acero mínimo por apoyar directamente sobre el terreno mejorado.",
+      desarrollo: [
+        `El empotramiento del muro se transmite a la losa como M_borde≈0,7·M_y,máx=${fmt(Mborde, 2)} t·m/m (el 0,7 reconoce redistribución en el nudo losa-muro).`,
+        `Whitney en d=${fmt(dCmLosa, 1)} cm: Rn=${fmt(whitneyLosaAp.Rn, 2)} kg/cm², ρ=${fmt(whitneyLosaAp.rho, 5)}, a=${fmt(whitneyLosaAp.a, 2)} cm, As=${fmt(whitneyLosaAp.Asuse, 2)} cm²/m → ${barLosa.texto} en la franja de borde, ambos sentidos. Fuera de esa franja: Asmín de temperatura.`,
+      ] },
     { n: "16", title: "Diseño de la cúpula de techo (casquete esférico)", formula: "N_φ, N_θ — teoría de membrana; σc=N_φ/e ≤ 0,05f'c",
       formulaTex: String.raw`N_\varphi,\,N_\theta\ (\text{teoría de membrana})\qquad \sigma_c=\dfrac{N_\varphi}{e}\le 0{,}05\,f'_c`,
       substitution: `Rs=${fmt(domo.Rs, 2)} m · φf=${fmt((domo.phiF * 180) / Math.PI, 1)}° · wu=${fmt(wuDomo, 3)} t/m²`,
@@ -526,9 +653,14 @@ export const reservorioApoyado: Engine = (raw) => {
       note: NthDomoTm > 0 ? `N_φ y N_θ son los esfuerzos de membrana meridional y circunferencial de la cúpula (como en un cascarón de huevo, trabaja mayormente a compresión). N_θ=${fmt(NthDomoTm, 3)} t/m (tracción) → As=${fmt(asDomoAnillo, 2)} cm²/m` : "N_φ y N_θ son los esfuerzos de membrana meridional y circunferencial de la cúpula (como en un cascarón de huevo, trabaja mayormente a compresión). N_θ de compresión: acero mínimo de temperatura." },
     { n: "17", title: "Diseño de la viga collarín (anillo superior)", formula: "H = N_φ(φf)·cos φf   ·   T = H·R   ·   As = Sn·T/(φ·fy)",
       formulaTex: String.raw`H=N_\varphi(\varphi_f)\cos\varphi_f\qquad T=H\,R\qquad A_s=\dfrac{S_n\,T}{\phi\,f_y}`,
-      substitution: `R=${fmt(R, 2)} m`,
-      result: `T=${fmt(Tring, 3)} t → As=${fmt(AsRing, 2)} cm² → sección ${fmt(bRing * 100, 0)}×${fmt(hRing * 100, 0)} cm, ${ringPick.barra} (n≈${Math.max(4, Math.ceil(AsRing / barByName(ringPick.barra).as))})`,
-      note: "La cúpula empuja hacia afuera en su borde (componente horizontal H del esfuerzo meridional); la viga collarín es el anillo de concreto armado que absorbe ese empuje como tracción de anillo T=H·R, evitando que la base de la cúpula se abra." },
+      substitution: `R=${fmt(R, 2)} m · T=${fmt(Tring, 3)} t · sección ${fmt(bRing * 100, 0)}×${fmt(hRing * 100, 0)} cm`,
+      result: `T=${fmt(Tring, 3)} t → As=${fmt(AsRing, 2)} cm² → ${nRingAp} Ø ${ringPick.barra}`,
+      note: "La cúpula empuja hacia afuera en su borde (componente horizontal H del esfuerzo meridional); la viga collarín es el anillo de concreto armado que absorbe ese empuje como tracción de anillo T=H·R, evitando que la base de la cúpula se abra.",
+      desarrollo: [
+        `Empuje H=N_φ cos φf. Tracción de anillo T=H·R=${fmt(Tring, 3)} t. As=Sn·T/(φ fy)=1,3·${fmt(Tring, 3)}·1000/(0,9·${fmt(fy, 0)})=${fmt(AsRing, 2)} cm².`,
+        `Con Ø ${ringPick.barra} (as=${fmt(barByName(ringPick.barra).as, 2)} cm²) se colocan n=${nRingAp} barras en la sección ${fmt(bRing * 100, 0)}×${fmt(hRing * 100, 0)} cm, simétricas, con estribos Ø 3/8\" @ 15 cm cerrados en todo el perímetro.`,
+        `Flexión local residual (≈0,25·M_borde del nudo losa-muro, conservador): Rn=${fmt(whitneyRingAp.Rn, 2)} kg/cm², As,flex=${fmt(whitneyRingAp.Asuse, 2)} cm² — queda cubierto por las ${nRingAp} longitudinales del anillo.`,
+      ] },
     { n: "18", title: "Estabilidad global — volteo y deslizamiento", formula: "FSv = W·(D/2)/Mv ≥ 1,5   ·   FSd = μ·W/V ≥ 1,5",
       formulaTex: String.raw`FS_v=\dfrac{W\,(D/2)}{M_v}\ge 1{,}5\qquad FS_d=\dfrac{\mu\,W}{V}\ge 1{,}5`,
       substitution: `Mv=${fmt(Mvolteo, 2)} t·m · μ=${fmt(mu, 2)}`,
@@ -739,11 +871,20 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     barHoriz, barVert, rhoHoriz, dCmMuro, phiVcMuro, muroCortanteOk,
     SaConv, dMaxOleaje, okBordeLibre,
   } = pasada;
-  void tCono; void HconoInward; void wInfDomo;
+  void tCono;
 
   const Ci = e030C(per.Ti, sismo.Tp, sismo.Tl);
   const Cc = e030C(hns.Tc, sismo.Tp, sismo.Tl);
   const SaImp = sismo.Z * sismo.U * sismo.S * Ci;
+
+  const zonasMuro = zonasPared(envolNPts, envolMPts, h1, dCmMuro, fc, fy, Sn);
+  const bRingSup = 30, hRingSup = Math.max(30, tMuro * 100 + 10), dRingSup = hRingSup - 5;
+  const nSup = nBarrasAnillo(AsRingSup, ringSup.barra);
+  const Mcorona = Math.abs(interpPts(envolMPts, h1));
+  const whitneySup = whitneyPasos(Sn * Mcorona, bRingSup, dRingSup, fc, fy);
+  const bRingInf = 30, hRingInf = 40, dRingInf = 35;
+  const nInf = nBarrasAnillo(AsRingInf, ringInf.barra);
+  const whitneyInf = whitneyPasos(Sn * Math.abs(MhsMax) * 0.35, bRingInf, dRingInf, fc, fy);
 
   const nn = (k: number) => String(nStart + k).padStart(2, "0");
   const steps: CalcStep[] = [
@@ -845,11 +986,20 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     { n: nn(8), title: "Acero de la pared", formula: "Horizontal: As=Sn·N_env/(φ·fy)  ·  Vertical: Mu=Sn·M_env, φf'c b d²ω(1−0,59ω)   ·   Sn=1,3 (ACI 350-06 Tabla 4.1)",
       formulaTex: String.raw`\begin{gathered}\text{Horizontal: }A_s=\dfrac{S_n\,N_{env}}{\phi\,f_y}\\[4pt]\text{Vertical: }M_u=S_n\,M_{env}=\phi f'_c\,b\,d^2\,\omega(1-0{,}59\,\omega)\\[4pt]S_n=1{,}3\end{gathered}`,
       result: `Horizontal: ${barHoriz.texto}  ·  Vertical: ${barVert.texto}`,
-      note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %.`,
+      note: `El factor de durabilidad sanitaria Sn amplifica la carga de servicio para controlar el ancho de fisura, sin forzar el espesor a evitar toda fisuración. ρ_horizontal=${fmt(rhoHoriz * 100, 3)} %. El armado de proyecto se toma de la zona más demandada (base); las demás zonas se verifican en el cuadro.`,
+      table: {
+        caption: "Diseño de la pared por zona (envolvente N y M → Whitney → As horizontal y vertical)",
+        headers: ["Zona", "y (m)", "N (t/m)", "M (t·m/m)", "As,h (cm²/m)", "Horiz.", "Rn (kg/cm²)", "As,v (cm²/m)", "Vert."],
+        rows: zonasMuro.map((z) => [z.zona, fmt(z.y, 2), fmt(z.N, 2), fmt(z.M, 3), fmt(z.asH, 2), z.barH.texto, fmt(z.w.Rn, 1), fmt(z.asV, 2), z.barV.texto]),
+      },
       desarrollo: [
         `Acero horizontal (resiste la tracción de anillo N_env, amplificada por Sn=1,3 para control de fisuración sanitaria): As=Sn·N_env,máx/(φ·fy)=1,3·${fmt(NenvMax, 2)}·1000/(0,9·${fmt(fy, 0)})=${fmt((1.3 * NenvMax * 1000) / (0.9 * fy), 2)} cm²/m → ${barHoriz.texto}${barHoriz.capas === 2 ? " (repartido en 2 capas por congestión de acero, ver nota de espesor)" : ""}.`,
         `Cuantía resultante ρ_horizontal=As/(100·d)=${fmt(rhoHoriz * 100, 3)} % (mínimo normativo 0,18 % por temperatura y retracción, ACI 350/E.060 art. 9.7).`,
-        `Acero vertical (flexión, también amplificada por Sn): Mu=Sn·M_env,máx=1,3·${fmt(MenvMax, 2)}=${fmt(1.3 * MenvMax, 3)} t·m/m, resuelto por el bloque rectangular equivalente (Rn=Mu/(φ·b·d²), ρ=(0,85f'c/fy)·(1−√(1−2Rn/0,85f'c))) → ${barVert.texto}.`,
+        `Acero vertical (flexión, también amplificada por Sn): Mu=Sn·M_env,máx=1,3·${fmt(MenvMax, 2)}=${fmt(1.3 * MenvMax, 3)} t·m/m. Bloque de Whitney: Rn=Mu/(φ b d²)=${fmt(whitneyPasos(Sn * MenvMax, 100, dCmMuro, fc, fy).Rn, 2)} kg/cm², ρ=(0,85f'c/fy)·(1−√(1−2Rn/0,85f'c))=${fmt(whitneyPasos(Sn * MenvMax, 100, dCmMuro, fc, fy).rho, 5)}, a=As fy/(0,85 f'c b)=${fmt(whitneyPasos(Sn * MenvMax, 100, dCmMuro, fc, fy).a, 2)} cm → ${barVert.texto}.`,
+        "La base (empotramiento) gobierna el vertical; la tracción de anillo suele ser máxima a media altura. Cada cota se arma con su propio N y M:",
+        ...zonasMuro.map((z) =>
+          `${z.zona} (y=${fmt(z.y, 2)} m): N=${fmt(z.N, 2)} t/m → As,h=${fmt(z.asH, 2)} cm²/m (${z.barH.texto}). M=${fmt(z.M, 3)} t·m/m → Rn=${fmt(z.w.Rn, 1)} kg/cm², ρ=${fmt(z.w.rho, 5)}, a=${fmt(z.w.a, 2)} cm, As,v=${fmt(z.asV, 2)} cm²/m (${z.barV.texto}).`,
+        ),
       ] },
     { n: nn(9), title: "Cúpula superior (techo) — teoría de membrana", formula: "N_φ, N_θ, empuje H=N_φcos φf",
       formulaTex: String.raw`N_\varphi,\,N_\theta\ (\text{membrana})\qquad H=N_\varphi(\varphi_f)\cos\varphi_f`,
@@ -880,6 +1030,28 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
         `La cúpula de fondo soporta su peso propio más el agua que queda por encima de su huella (altura equivalente de columna h1+h_c−f'≈${fmt(Htotal - fInf - hCono, 2)} m): w=γc·e_domo,inf+1,0·(esa altura)=${fmt(wInfDomo, 3)} t/m². Por membrana esférica, el empuje en el arranque produce tracción de anillo T_domo=${fmt(TringInfDomo, 3)} t.`,
         `El tronco de cono, en su extremo inferior (r'), empuja hacia ADENTRO (a diferencia del empuje hacia afuera de una cúpula): componente horizontal H_cono,inward=N_φ,cono·cos α=${fmt(HconoInward, 3)} t/m → T_cono=H_cono,inward·r'=${fmt(TconoInward, 3)} t (compresión de anillo).`,
         `El anillo inferior resiste la diferencia neta: T_anillo,inf=T_domo−T_cono=${fmt(TringInfDomo, 3)}−${fmt(TconoInward, 3)}=${fmt(TringInf, 3)} t. ${TringInf >= 0 ? `Como el resultado es positivo (tracción neta), se arma con As=Sn·T/(φ·fy)=${fmt(AsRingInf, 2)} cm² → ${ringInf.barra}.` : "Como el resultado es negativo (compresión neta), no se requiere tracción de anillo y se coloca el acero mínimo constructivo."}`,
+      ] },
+    { n: "09b", title: "Viga collarín superior — tracción de anillo y Whitney local",
+      formula: "As_anillo=Sn·T/(φ fy)  ·  si hay M de arranque: Rn=Mu/(φ b d²), ρ=(0,85f'c/fy)(1−√(1−2Rn/0,85f'c))",
+      formulaTex: String.raw`A_{s,anillo}=\dfrac{S_n T}{\phi f_y}\qquad R_n=\dfrac{M_u}{\phi b d^2}`,
+      substitution: `T=${fmt(TringSup, 3)} t · sección ${fmt(bRingSup, 0)}×${fmt(hRingSup, 0)} cm · d=${fmt(dRingSup, 1)} cm · M_corona=${fmt(Mcorona, 3)} t·m`,
+      result: `${nSup} Ø ${ringSup.barra} (As,prov=${fmt(nSup * barByName(ringSup.barra).as, 2)} cm²) · As flexión local=${fmt(whitneySup.Asuse, 2)} cm²`,
+      note: "El collarín superior es un anillo cerrado: el modo principal es tracción circunferencial. El momento de corona de la lámina (borde libre) es pequeño; se verifica Whitney por si el arranque de la cúpula induce flexión local en la viga.",
+      desarrollo: [
+        `Tracción de anillo (modo principal): As=Sn·T/(φ·fy)=1,3·${fmt(TringSup, 3)}·1000/(0,9·${fmt(fy, 0)})=${fmt(AsRingSup, 2)} cm². Con Ø ${ringSup.barra} (as=${fmt(barByName(ringSup.barra).as, 2)} cm²) se requieren n=ceil(As/as)=${nSup} barras, repartidas simétricamente en la sección ${fmt(bRingSup, 0)}×${fmt(hRingSup, 0)} cm (mínimo 4 para cerrar el estribo).`,
+        `Momento de corona de la pared (borde libre de la lámina): M=${fmt(Mcorona, 3)} t·m. Whitney: Rn=Mu/(φ b d²)=${fmt(whitneySup.Rn, 2)} kg/cm², ρ=${fmt(whitneySup.rho, 5)}, a=${fmt(whitneySup.a, 2)} cm, As=${fmt(whitneySup.Asuse, 2)} cm² (incluye Asmín=0,0018 bd=${fmt(whitneySup.Asmin, 2)} cm²).`,
+        "Estribos del collarín: Ø 3/8\" @ 15 cm (cerrados), porque el anillo trabaja en tracción y debe confinar las longitudinales en todo el perímetro.",
+      ] },
+    { n: "11b", title: "Viga collarín inferior — tracción/compresión neta y Whitney",
+      formula: "T_neta=T_domo−T_cono  ·  As=Sn·|T|/(φ fy) si T>0  ·  Whitney local con M de inflexión del cono",
+      formulaTex: String.raw`T_{neta}=T_{domo}-T_{cono}\qquad A_s=\dfrac{S_n |T|}{\phi f_y}`,
+      substitution: `T_neta=${fmt(TringInf, 3)} t · sección ${fmt(bRingInf, 0)}×${fmt(hRingInf, 0)} cm · d=${fmt(dRingInf, 1)} cm`,
+      result: `${nInf} Ø ${ringInf.barra} · As flexión local=${fmt(whitneyInf.Asuse, 2)} cm²`,
+      note: "En el nudo de inflexión (cono + cúpula de fondo) el anillo equilibra dos empujes de signo contrario. Si T_neta>0 gobierna la tracción; si no, se arma mínimo y se verifica compresión del concreto.",
+      desarrollo: [
+        `T_neta=${fmt(TringInf, 3)} t. ${TringInf >= 0 ? `As=1,3·${fmt(TringInf, 3)}·1000/(0,9·${fmt(fy, 0)})=${fmt(AsRingInf, 2)} cm² → ${nInf} Ø ${ringInf.barra}.` : "Compresión neta: el concreto del anillo la toma; se colocan 4 Ø 1/2\" de montaje."}`,
+        `Flexión local de inflexión (estimación 0,35·M_y,máx de la pared, transmitida al nudo): Mu=${fmt(Sn * Math.abs(MhsMax) * 0.35, 3)} t·m. Rn=${fmt(whitneyInf.Rn, 2)} kg/cm², ρ=${fmt(whitneyInf.rho, 5)}, a=${fmt(whitneyInf.a, 2)} cm, As=${fmt(whitneyInf.Asuse, 2)} cm² en la sección ${fmt(bRingInf, 0)}×${fmt(hRingInf, 0)} cm.`,
+        "Estribos Ø 3/8\" @ 12 cm en el nudo (zona de inflexión) y @ 20 cm en el resto del anillo.",
       ] },
   ];
 
@@ -1099,6 +1271,20 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     let MuArrT = 0, VuArrT = 0;
     let perfilViga: { x: number; M: number }[] = [{ x: 0, M: 0 }, { x: 1, M: 0 }];
     let perfilVigaV: { x: number; M: number }[] = [{ x: 0, M: 0 }, { x: 1, M: 0 }];
+    const beamsByLvl: { lvl: number; Mu: number; Vu: number }[] = [];
+    for (let lvl = 1; lvl <= nArr; lvl++) {
+      let MuL = 0, VuL = 0;
+      for (let c = 0; c < nCol; c++) {
+        const ei = modelo.beamElemIdx[(lvl - 1) * nCol + c];
+        const fl = unit.forces[ei];
+        const M1 = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
+        const M2 = Math.hypot(fl.My2, fl.Mz2) * VtorreT;
+        const V1 = Math.hypot(fl.Vy1, fl.Vz1) * VtorreT;
+        MuL = Math.max(MuL, M1, M2);
+        VuL = Math.max(VuL, V1);
+      }
+      beamsByLvl.push({ lvl, Mu: MuL, Vu: VuL });
+    }
     modelo.beamElemIdx.forEach((ei) => {
       const fl = unit.forces[ei];
       const M1 = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
@@ -1166,7 +1352,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       modelo, pesoTorreT, WtotalT, Ttorre, Ct, VtorreT, MtorreT, kEff, hColCG, hcgComb,
       WiTotalT, hIabsT, PiT,
       PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
-      bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
+      bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress, beamsByLvl,
     };
   }
 
@@ -1185,9 +1371,9 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     modelo: modeloFinal, kEff,
     WtotalT: Wtotal, Ttorre, Ct, VtorreT: Vtorre, MtorreT: Mtorre, hColCG, hcgComb, pesoTorreT,
     WiTotalT: WiTotal, hIabsT: hIabs, PiT: Pi,
-    PuColT: PuCol, MuColT: MuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
+    PuColT: PuCol, MuColT: MuCol, VuColT: VuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
-    bArrT: bArr, dArrT: dArr, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress,
+    bArrT: bArr, dArrT: dArr, dDiagT: dDiag, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress, beamsByLvl,
   } = analizarTorreMatricial(dCol);
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
@@ -1209,13 +1395,30 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const asArr = Math.max(flexArr.ok ? flexArr.As : 0, asMinTemp(dArr * 100 - 5, bArr * 100));
   const phiVcArr = (0.85 * 0.53 * Math.sqrt(fc) * bArr * 100 * (dArr * 100 - 5)) / 1000;
   const vigaCortanteOk = VvigaArr <= phiVcArr;
+  const AgCol = (Math.PI * dCol * dCol / 4) * 1e4;
+  const AsColReq = rhoProp * AgCol;
+  const longCol = elegirLongCol(AsColReq, AgCol);
+  const estCol = estribosColumna(dCol, longCol.barra);
+  const phiVcCol = (0.85 * 0.53 * Math.sqrt(fc) * (0.8 * dCol * 100) * (dCol * 100 - 8)) / 1000;
+  const vigasNivel = beamsByLvl.map((b) => {
+    const flex = flexionAs(b.Mu, dArr * 100 - 5, fc, fy, bArr * 100);
+    const as = Math.max(flex.ok ? flex.As : 0, asMinTemp(dArr * 100 - 5, bArr * 100));
+    const bar = elegirBarraAnillo(as);
+    const nLong = Math.max(4, Math.ceil(as / Math.max(barByName(bar.barra).as, 1e-6)));
+    const phiVc = (0.85 * 0.53 * Math.sqrt(fc) * bArr * 100 * (dArr * 100 - 5)) / 1000;
+    const w = whitneyPasos(b.Mu, bArr * 100, dArr * 100 - 5, fc, fy);
+    return { ...b, as, bar, nLong, phiVc, vsOk: b.Vu <= phiVc, w };
+  });
+  const AsDiag = 0.01 * dDiag * dDiag * 1e4;
+  const barDiag = elegirLongCol(AsDiag, dDiag * dDiag * 1e4);
 
   const areaCim = (Math.PI * Dcim * Dcim) / 4;
   const Icim = (Math.PI * Dcim ** 4) / 64;
   const qmax = Wtotal / areaCim + (Mtorre * (Dcim / 2)) / Icim;
   const qmin = Wtotal / areaCim - (Mtorre * (Dcim / 2)) / Icim;
 
-  const nn = (k: number) => String(cuba.steps.length + 1 + k).padStart(2, "0");
+  const nCubaNum = cuba.steps.filter((s) => /^\d+$/.test(s.n)).length;
+  const nn = (k: number) => String(nCubaNum + 1 + k).padStart(2, "0");
   const steps: CalcStep[] = [
     ...cuba.steps,
     { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,75 m en el perímetro · Ø columna crece hasta cumplir esbeltez, interacción P–M y deriva, evaluados con el pórtico espacial completo",
@@ -1297,6 +1500,46 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         `La platea circular se modela como una sección sometida a carga axial excéntrica: área A=πDcim²/4=${fmt(areaCim, 2)} m², inercia I=πDcim⁴/64=${fmt(Icim, 2)} m⁴, con Dcim=${fmt(Dcim, 2)} m (obtenido iterando en pasos de 0,25 m hasta cumplir q_máx≤q_adm y q_mín≥0).`,
         `q_máx=W/A+M·c/I=${fmt(Wtotal, 2)}/${fmt(areaCim, 2)}+${fmt(Mtorre, 2)}·${fmt(Dcim / 2, 2)}/${fmt(Icim, 2)}=${fmt(qmax, 2)} t/m² (${fmt(qmax / 10, 3)} kg/cm²), comparado contra la presión admisible del suelo q_adm=${fmt(qadm, 2)} kg/cm².`,
         `q_mín=W/A−M·c/I=${fmt(qmin, 2)} t/m². ${qmin >= 0 ? "Al ser ≥0, toda la platea permanece en contacto con el suelo (sin tracción neta)." : "Al ser negativo, indicaría tracción neta en el borde de volteo — el suelo no puede tomar tracción, por lo que en la realidad ese borde se despega y la presión se redistribuye sobre un área de contacto menor (análisis de contacto parcial), aumentando la presión real de compresión en el borde opuesto."}`,
+      ] },
+    { n: "16b", title: "Detalle de acero de columnas — longitudinal y confinamiento E.060 21.4",
+      formula: "As=ρ Ag  ·  n·as ≥ As  ·  s_conf=mín(8db, 0,25h, 10 cm) en ℓp  ·  s_fuera=mín(16db, 0,5h, 20 cm)",
+      formulaTex: String.raw`A_s=\rho A_g\qquad s_{\mathrm{conf}}=\min(8d_b,0{,}25h,10)\qquad \ell_p=\max(h,45\,\mathrm{cm})`,
+      substitution: `Ø=${fmt(dCol * 100, 0)} cm · ρ=${fmt(rhoProp * 100, 1)} % · Pu=${fmt(PuCol, 2)} t · Mu=${fmt(MuCol, 2)} t·m · Vu=${fmt(VuCol, 2)} t · h_entre=${fmt(hEntre, 2)} m`,
+      result: `${longCol.n} Ø ${longCol.barra} (As,prov=${fmt(longCol.AsProv, 2)} cm²) · estribos Ø ${estCol.barEstribo} @ ${fmt(estCol.sConf, 0)} cm en ℓp=${fmt(estCol.Lp, 0)} cm y @ ${fmt(estCol.sFuera, 0)} cm fuera`,
+      note: "En torre tipo péndulo invertido cada extremo de tramo (base empotrada y nudo de viga de anillo) es rótula potencial: se confina ℓp en ambos extremos de cada entrepiso. El cortante Vu se verifica contra φVc del núcleo.",
+      desarrollo: [
+        `Área gruesa Ag=π Ø²/4=${fmt(AgCol, 0)} cm². Con cuantía de ensayo ρ=0,02 (E.060 columnas, rango 1–4 %): As,req=0,02·Ag=${fmt(AsColReq, 1)} cm².`,
+        `Se elige un paquete simétrico practicable: ${longCol.n} Ø ${longCol.barra} → As,prov=${fmt(longCol.AsProv, 2)} cm² (dentro de 0,01Ag–0,04Ag). Las barras se reparte en el perímetro de la sección circular, con recubrimiento 4 cm.`,
+        `Longitud de rótula ℓp=máx(h, 45 cm)=${fmt(estCol.Lp, 0)} cm en CADA extremo del tramo (base y nudo de arriostre). Estribos de confinamiento Ø ${estCol.barEstribo} con s=mín(8db, 0,25h, 10 cm)=${fmt(estCol.sConf, 0)} cm. Fuera de ℓp: s=mín(16db, 0,5h, 20 cm)=${fmt(estCol.sFuera, 0)} cm.`,
+        `Cortante de la columna más demandada Vu=${fmt(VuCol, 2)} t frente a φVc≈0,85·0,53√f'c·(0,8Ø)·d=${fmt(phiVcCol, 2)} t. ${VuCol <= phiVcCol ? "El concreto cubre el corte; los estribos son de confinamiento, no de corte." : "Se requiere reducir s por corte además del confinamiento."}`,
+      ] },
+    { n: "16c", title: "Diseño de todas las vigas de anillo (un nivel = un anillo cerrado)",
+      formula: "Por nivel: Mu, Vu de la matriz  ·  Whitney As=ρ b d  ·  Vu ≤ φVc=0,85·0,53√f'c b d",
+      formulaTex: String.raw`M_u=\phi f'_c b d^2\omega(1-0{,}59\omega)\qquad V_u\le\phi V_c`,
+      substitution: `Sección ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm · ${nArr} nivel(es) · ${nCol} tramos por anillo`,
+      result: vigasNivel.map((v) => `N${v.lvl}: Mu=${fmt(v.Mu, 2)} t·m → ${v.nLong} Ø ${v.bar.barra}`).join(" · "),
+      table: {
+        caption: "Vigas de arriostre por nivel — momento, cortante y acero (Whitney)",
+        headers: ["Nivel", "z (m)", "Mu (t·m)", "Vu (t)", "Rn (kg/cm²)", "As (cm²)", "Armado", "φVc (t)", "Vu≤φVc"],
+        rows: vigasNivel.map((v) => [
+          `N${v.lvl}`,
+          fmt(v.lvl * hEntre, 2),
+          fmt(v.Mu, 2),
+          fmt(v.Vu, 2),
+          fmt(v.w.Rn, 1),
+          fmt(v.as, 2),
+          `${v.nLong} Ø ${v.bar.barra}`,
+          fmt(v.phiVc, 2),
+          v.vsOk ? "sí" : "no",
+        ]),
+      },
+      note: "Cada nivel es un anillo cerrado entre las nCol columnas. Se diseña el tramo más solicitado de ese nivel y se replica en todo el anillo (simetría circular). Estribos Ø 3/8\" @ 15 cm (cerrados) en todos los tramos.",
+      desarrollo: [
+        "El análisis matricial entrega Mu y Vu en cada elemento viga. Para cada nivel se toma el máximo del anillo (el tramo a sotavento/barlovento respecto al sismo) y se resuelve flexión simple con el bloque de Whitney.",
+        ...vigasNivel.map((v) =>
+          `Nivel ${v.lvl} (z=${fmt(v.lvl * hEntre, 2)} m): Mu=${fmt(v.Mu, 2)} t·m → Rn=${fmt(v.w.Rn, 1)} kg/cm², ρ=${fmt(v.w.rho, 5)}, a=${fmt(v.w.a, 2)} cm, As=${fmt(v.as, 2)} cm² → ${v.nLong} Ø ${v.bar.barra}. Vu=${fmt(v.Vu, 2)} t ${v.vsOk ? "≤" : ">"} φVc=${fmt(v.phiVc, 2)} t.`,
+        ),
+        `Diagonales en X (Ø ${fmt(dDiag * 100, 0)} cm): trabajan principalmente a axial. As mín. 1 % Ag ≈ ${fmt(AsDiag, 1)} cm² → ${barDiag.n} Ø ${barDiag.barra} con estribos Ø 3/8\" @ 20 cm.`,
       ] },
   ];
 
@@ -1465,7 +1708,16 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const phiVc = (0.85 * 0.53 * Math.sqrt(fc) * Av) / 1000;
   const cortanteOk = VuFuste <= phiVc;
 
-  const nn = (k: number) => String(cuba.steps.length + 1 + k).padStart(2, "0");
+  const nCubaNumF = cuba.steps.filter((s) => /^\d+$/.test(s.n)).length;
+  const nn = (k: number) => String(nCubaNumF + 1 + k).padStart(2, "0");
+  const nivFuste = nivelesArriostreFuste(Htorre);
+  const perimetroMedio = Math.PI * (Dext + Dint) / 2;
+  const asVertM = AsFusteFinal / perimetroMedio;
+  const barFusteV = elegirBarraAnilloDoble(Math.max(asVertM, asMinTemp(eFuste * 100 - 5)));
+  const barFusteH = elegirBarraAnilloDoble(Math.max(0.002 * (eFuste * 100) * 100, asMinTemp(eFuste * 100 - 5)));
+  const LpFuste = Math.max(Dfuste, Htorre / 6, 0.45);
+  const sConfF = Math.max(8, Math.min(6 * barByName(barFusteV.barra).db, eFuste * 100 / 2, 12));
+  const sFueraF = Math.max(10, Math.min(16 * barByName(barFusteV.barra).db, 3 * eFuste * 100, 30));
   const steps: CalcStep[] = [
     ...cuba.steps,
     { n: nn(0), title: "Predimensionamiento del fuste", formula: "Sección anular Aext−Aint; Ø y espesor crecen hasta σ≤0,45f'c y deriva≤0,007",
@@ -1505,13 +1757,39 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       ] },
     { n: nn(3), title: "Acero vertical del fuste", formula: "Asmín=0,25%Ag (E.060 muros) · As,tracción=N_t/(φfy)",
       formulaTex: String.raw`A_{s,min}=0{,}0025\,A_g\ (\text{E.060 muros})\qquad A_{s,tracción}=\dfrac{N_t}{\phi f_y}`,
-      result: `As=${fmt(AsFusteFinal, 1)} cm² repartido en dos capas (ρ=${fmt(cuantiaFuste * 100, 2)}%)`,
+      result: `As=${fmt(AsFusteFinal, 1)} cm² repartido en dos capas → ${barFusteV.texto} por cara (ρ=${fmt(cuantiaFuste * 100, 2)}%)`,
       desarrollo: [
         `Acero mínimo por cuantía de muro (E.060): As,mín=0,0025·Ag=0,0025·${fmt(AfusteCm2, 0)}=${fmt(AsMinFuste, 1)} cm².`,
         sigmaMin < 0
           ? `Como hay tracción neta (paso anterior), se estima la fuerza de tracción resultante integrando el esfuerzo en la mitad traccionada de la sección: Nt≈|σ_mín|·Ag/2=${fmt(NtParedFuste, 2)} t → As,tracción=Nt/(φ·fy)=${fmt(AsTraccionFuste, 2)} cm².`
           : "No hay tracción neta (σ_mín≥0): gobierna directamente el acero mínimo por cuantía, sin necesidad de calcular acero adicional por tracción axial.",
-        `As final=máx(As,mín, As,tracción)=${fmt(AsFusteFinal, 1)} cm², repartido en dos capas (cara interior y exterior de la pared, práctica estándar para muros de espesor moderado). Cuantía resultante ρ=As/Ag=${fmt(cuantiaFuste * 100, 2)} %.`,
+        `As final=máx(As,mín, As,tracción)=${fmt(AsFusteFinal, 1)} cm². Perímetro medio del tubo π(Dext+Dint)/2=${fmt(perimetroMedio, 2)} m → As por metro de pared=${fmt(asVertM, 2)} cm²/m, en dos capas (cara interior y exterior). Armado: ${barFusteV.texto} por cara.`,
+      ] },
+    { n: "16b", title: "Confinamiento y acero horizontal del fuste — anillos cada 2,5 a 3,5 m",
+      formula: "ℓp=máx(Dfuste, H/6, 0,45 m)  ·  s_conf=mín(6db, e/2, 12 cm)  ·  s_fuera=mín(16db, 3e, 30 cm)  ·  As,horiz≥0,20% b e",
+      formulaTex: String.raw`\ell_p=\max(D_{fuste},H/6,0{,}45\,\mathrm{m})\qquad s_{\mathrm{conf}}=\min(6d_b,e/2,12)`,
+      substitution: `H=${fmt(Htorre, 2)} m · e=${fmt(eFuste * 100, 0)} cm · Øfuste=${fmt(Dfuste, 2)} m`,
+      result: `ℓp=${fmt(LpFuste, 2)} m en la base · estribos/horiz. ${barFusteH.texto} @ ${fmt(sConfF, 0)} cm en ℓp y @ ${fmt(sFueraF, 0)} cm fuera · ${nivFuste.n} anillo(s) de arriostre interior cada ${fmt(nivFuste.espac, 2)} m`,
+      table: {
+        caption: "Confinamiento del fuste y anillos de arriostre (regla 2,5–3,5 m)",
+        headers: ["Nivel", "z (m)", "s horiz. (cm)", "Armado", "Rol"],
+        rows: [
+          ["ℓp base", fmt(LpFuste, 2), fmt(sConfF, 0), barFusteH.texto, "Rótula de voladizo"],
+          ...Array.from({ length: nivFuste.n }, (_, i) => [
+            `Anillo ${i + 1}`,
+            fmt((i + 1) * nivFuste.espac, 2),
+            fmt(sFueraF, 0),
+            barFusteH.texto,
+            "Diafragma anti-ovalización",
+          ]),
+        ],
+      },
+      note: "El fuste se arma como muro estructural: verticales en dos caras, horizontales que cierran el tubo, y anillos interiores de arriostre a 2,5–3,5 m para controlar esbeltez de pared y modos locales. La rótula de la base (voladizo) se confina en ℓp.",
+      desarrollo: [
+        `Zona de rótula en la base (voladizo): ℓp=máx(Dfuste, Htorre/6, 0,45 m)=máx(${fmt(Dfuste, 2)}, ${fmt(Htorre / 6, 2)}, 0,45)=${fmt(LpFuste, 2)} m. En esa altura los horizontales se densifican a s=mín(6db, e/2, 12 cm)=${fmt(sConfF, 0)} cm.`,
+        `Fuera de ℓp: s=mín(16db, 3e, 30 cm)=${fmt(sFueraF, 0)} cm. Acero horizontal mínimo 0,20 % de la franja: As,h=0,002·100·e=${fmt(0.002 * 100 * eFuste * 100, 2)} cm²/m → ${barFusteH.texto} en cada cara.`,
+        `Anillos de arriostre interiores: se dispone un diafragma anular cada ${fmt(nivFuste.espac, 2)} m (${nivFuste.n} nivel(es) en H=${fmt(Htorre, 2)} m, regla constructiva 2,5–3,5 m). Cada anillo es una viga circular de canto ≈ e_fuste, armada como el collarín inferior de la cuba, que rigidiza el tubo contra ovalización bajo sismo.`,
+        `Verticales: ${barFusteV.texto} en cada cara, con empalme por traslapo 40db fuera de ℓp (nunca en la rótula de base).`,
       ] },
     { n: nn(4), title: "Verificación por cortante", formula: "Vu ≤ φVc = 0,85·0,53√f'c·Av   ·   Av≈0,5·Ag (sección anular, tubo de pared delgada)",
       formulaTex: String.raw`V_u\le \phi V_c=0{,}85\cdot0{,}53\sqrt{f'_c}\,A_v\qquad A_v\approx0{,}5\,A_g`,

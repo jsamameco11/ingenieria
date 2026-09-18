@@ -17,6 +17,7 @@ PASSWORD = os.environ["VPS_PASS"]
 ROOT = Path(r"C:\Users\Renzo\Desktop\WEB MEMORIAS DESCRIPTIVAS")
 LOCAL_DIST = ROOT / "dist"
 LOCAL_SERVER = ROOT / "server" / "culqi-server.mjs"
+LOCAL_ECOSYSTEM = ROOT / "server" / "ecosystem.mjs"
 LOCAL_PROMPT = ROOT / "server" / "prompt.mjs"
 LOCAL_REVIT = ROOT / "server" / "revit-sync.mjs"
 LOCAL_ENV = ROOT / "server" / ".env"
@@ -178,6 +179,8 @@ EOF""",
 
     print("Subiendo API Culqi + google-session proxy")
     sftp.put(str(LOCAL_SERVER), f"{OPT_ROOT}/culqi-server.mjs")
+    if LOCAL_ECOSYSTEM.exists():
+        sftp.put(str(LOCAL_ECOSYSTEM), f"{OPT_ROOT}/ecosystem.mjs")
     if LOCAL_PROMPT.exists():
         sftp.put(str(LOCAL_PROMPT), f"{OPT_ROOT}/prompt.mjs")
     if LOCAL_REVIT.exists():

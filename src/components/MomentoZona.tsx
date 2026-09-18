@@ -1,7 +1,7 @@
 import { DiagramaCuerpoLibreFig, ElementoDiagramaFig, FichaSeccionFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
 import { DclMuroVoladizo } from "./DclMuroVoladizo";
 import { SteelSectionFig } from "./SteelSectionFig";
-import { DentellonMuroFig, SismoMuroFig } from "./MuroDidactica";
+import { DentellonMuroFig, SismoEstriboFig, SismoMuroFig } from "./MuroDidactica";
 import { specFranja1m, specMuroVoladizo, specVigaRect } from "../lib/steelDraft";
 import {
   specEstriboPantalla,
@@ -12,6 +12,7 @@ import {
 } from "../lib/steelEngine";
 import { parseCorrida, parseGrid } from "../lib/layoutGrid";
 import { CorridaIsoFig } from "./CorridaColumnas";
+import { MaeMomentStrip, MaePunchFromDims } from "./maestria/MaeFigs";
 
 export function unpackMomentos(s: string) {
   return String(s || "")
@@ -634,16 +635,54 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
   }
   if (kind === "estribo") {
     if (part === "mSeccion") return <SteelSectionFig spec={specEstriboPantalla(values)} />;
+    if (part === "mSismo") return <SismoEstriboFig values={values} />;
   }
+  if (part === "mPunch") return <MaePunchFromDims values={values} />;
   if (kind === "losa2d") {
+    if (part === "mStrips") {
+      let figs: { title: string; pts: string; L: number; MuPos: number; MuNeg: number }[] = [];
+      try {
+        figs = JSON.parse(sv(values, "stripFigsJson") || "[]") as typeof figs;
+      } catch {
+        figs = [];
+      }
+      if (!figs.length) {
+        return (
+          <div>
+            <MaeMomentStrip
+              title="Losa — primera franja X"
+              formula="K u = F"
+              ptsRaw={sv(values, "mPtsX")}
+              L={nv(values, "bStripX", 12)}
+              MuPos={nv(values, "mStripXMpos")}
+              MuNeg={nv(values, "mStripXMneg")}
+            />
+            <MaeMomentStrip
+              title="Losa — primera franja Y"
+              formula="K u = F"
+              ptsRaw={sv(values, "mPtsY")}
+              L={nv(values, "bStripY", 10)}
+              MuPos={nv(values, "mStripYMpos")}
+              MuNeg={nv(values, "mStripYMneg")}
+            />
+          </div>
+        );
+      }
+      return (
+        <div>
+          {figs.map((f) => (
+            <MaeMomentStrip key={f.title} title={f.title} formula="K u = F" ptsRaw={f.pts} L={f.L} MuPos={f.MuPos} MuNeg={f.MuNeg} />
+          ))}
+        </div>
+      );
+    }
+    if (part === "mStripX" || part === "mStripY") return null;
     if (part === "mSteel") {
-      const nx = Math.max(1, Math.round(nv(values, "nX", 1)));
-      const ny = Math.max(1, Math.round(nv(values, "nY", 1)));
-      const A = nv(values, "A", 4);
-      const B = nv(values, "B", 5);
+      const nx = Math.max(1, Math.round(nv(values, "nX", 3)));
+      const ny = Math.max(1, Math.round(nv(values, "nY", 2)));
       const grid = parseGrid(sv(values, "gridJson"), {
-        axesX: Array.from({ length: nx + 1 }, (_, i) => i * A),
-        axesY: Array.from({ length: ny + 1 }, (_, i) => i * B),
+        axesX: Array.from({ length: nx + 1 }, (_, i) => i * 4),
+        axesY: Array.from({ length: ny + 1 }, (_, i) => i * 5),
         panes: Array.from({ length: ny }, () => Array.from({ length: nx }, () => true)),
         cols: [],
       });

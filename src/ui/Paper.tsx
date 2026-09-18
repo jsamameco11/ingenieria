@@ -319,7 +319,24 @@ function BlockView({
         ) : null}
         <div className="paso-row paso-res">
           <span className="paso-lab">Resultado</span>
-          <Formula fallback={b.resultado} />
+          {(() => {
+            const resParts = (b.resultado ?? "")
+              .split(/\s+·\s+/)
+              .map((t) => t.trim())
+              .filter(Boolean);
+            if (resParts.length > 1) {
+              return (
+                <ul className="paso-des">
+                  {resParts.map((ln, i) => (
+                    <li key={i}>
+                      <MathLine text={ln} />
+                    </li>
+                  ))}
+                </ul>
+              );
+            }
+            return <MathLine text={b.resultado} />;
+          })()}
         </div>
         {b.interpreta ? (
           <div className="paso-row">
