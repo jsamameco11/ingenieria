@@ -653,11 +653,11 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
             : mod.slug === "muro-contencion-sismo"
               ? "Esta memoria desarrolla el muro de contención en voladizo por metro lineal: geometría de la pantalla y de la zapata (pata, alma y talón), empujes Rankine y de agua, sobrecarga de franja, estabilidad estática y sísmica (Mononobe–Okabe) y el diseño estructural E.060 de cada parte."
             : mod.slug === "losa-2dir"
-              ? "Esta memoria desarrolla la losa en dos direcciones como expediente técnico: identificación de cada paño (ℓx, ℓy, bordes y huecos), peso propio de losa maciza o aligerada, combinación 1,4 D + 1,7 L, momentos ACI-3 y Marcus por paño, pórtico equivalente por cada franja real y acero As distinto por paño (E.060 / ACI 318)."
+              ? "Esta memoria desarrolla la losa en dos direcciones como expediente técnico: identificación de cada paño (ℓx, ℓy, bordes y huecos), Unir/separar que elimina la viga interior, peso propio de losa maciza o aligerada, combinación 1,4 D + 1,7 L, momentos ACI-3 y Marcus por paño, pórtico equivalente por cada franja real y una malla de acero (positivo continuo, negativo solo en viga/muro) según E.060 / ACI 318."
             : mod.slug === "zapata-corrida"
-              ? "Esta memoria desarrolla la zapata corrida de columnas como expediente técnico: geometría de la planta (A, Ixx, Iyy, baricentro), cargas P1–P3 y M1–M3 por columna, combinación última, q = P/A ± Mc/I, esfuerzo neto E.050, prediseño de h (corte 1 dir., punzonamiento 11.12 y flexión de vuelo), viga invertida por tramos (Mu, Vu, As) y longitud de desarrollo."
+              ? "Esta memoria desarrolla la zapata corrida como expediente técnico: geometría de planta, vigas de cimentación colocadas o borradas en el croquis, cargas, q = P/A ± Mc/I (E.050), iteración del peralte h (corte 1 dir., punzonamiento 11.12 y flexión de vuelo), viga invertida por cada tramo de VC (motor de cálculo: V/M, As inf./sup., estribos E.060 11/21 y ℓd), despiece A1 en planta (transversal + lechos inferior y superior) y despiece A1 en elevación de la VC gobernante."
             : mod.slug === "platea"
-              ? "Esta memoria desarrolla la platea de cimentación como expediente técnico: espesor, radio de Westergaard (rígida o flexible), método de fajas con momentos por franja, punzonamiento con perímetro crítico Vu y φVn, mallas de acero y anclaje, según E.060 / ACI 318 y E.050."
+              ? "Esta memoria desarrolla la platea de cimentación como expediente técnico: espesor, radio de Westergaard (rígida o flexible), método de fajas con momentos por franja, punzonamiento con perímetro crítico Vu y φVn, mallas de acero y anclaje, según E.060 / ACI 318 y E.050. Incluye despiece A1 en planta fiel a los paños/columnas/VC dibujados y despiece A1 en elevación de la viga de cimentación gobernante (motor de cálculo VC: V/M, As, estribos y ℓd)."
             : mod.engine === "reservorioApoyado"
               ? "Esta memoria desarrolla el reservorio circular apoyado en el terreno: predimensionamiento por volumen, presión hidrostática, análisis de la pared como lámina cilíndrica empotrada en la base (motor propio, equivalente a las tablas PCA), sismo por el modelo de masas de Housner (componentes impulsiva y convectiva, ACI 350.3-06) y diseño estructural de la pared, la losa de fondo, la cúpula y la viga collarín."
             : mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste"
@@ -713,14 +713,14 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   : []),
                 ...(mod.slug === "losa-2dir"
                   ? [
-                      "Al crear ejes todos los paños quedan techo. Paño on/off marca huecos. El expediente calcula Whitney (Rn, ρ, As, Asmín) y Ø @ s por cara de cada paño.",
-                      "Cada paño lleva su peso (maciza o aligerada), momentos ACI-3/Marcus y As de positivo y negativo. No es un resumen de cuatro Ø globales.",
+                      "Al crear ejes todos los paños quedan techo. Paño on/off marca huecos. Unir/separar en la línea interior quita la viga (un rectángulo) o la restaura. El expediente calcula Whitney (Rn, ρ, As, Asmín) y Ø @ s de norma (3/8…1½) por zona.",
+                      "Positivo inferior continuo en la franja de techos (se corta en huecos), gancho 90° en ambos extremos. Negativo superior un acero por apoyo, sin doblez interior; gancho 90° de un lado solo en extremo de análisis. Cada pieza lleva Ø en pulgadas.",
                     ]
                   : []),
                 ...(mod.slug === "zapata-corrida"
                   ? [
-                      "La planta se arma con Vanos X y Vanos Y (1 a 12). Crear grilla regenera los ejes; cada vano se acota (ℓx, ℓy). Pintar toda o celda a celda; Columnas en nudos coloca un apoyo en cada entrecruce de la zapata pintada, con ficha P1…M3.",
-                      "Los pasos cubren A, Ixx, Iyy, baricentro, combinación, q = P/A ± Mc/I, prediseño de h, viga invertida, As y ℓd.",
+                      "La planta se arma con Vanos X y Vanos Y. Viga cim. coloca o borra cada vano por separado (gruesa = hay viga; discontinua = borde sin viga; el vacío no es estructura). El despiece A1 es en planta: transversal por paño (lecho inf.) y longitudinal inferior continuo.",
+                      "El expediente desarrolla peralte h, punzonamiento 11.12, viga invertida por cada tramo de cimentación (M, V y As), q = P/A ± Mc/I y ℓd.",
                     ]
                   : []),
                 ...(mod.slug === "platea"
@@ -794,9 +794,12 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste") {
         if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
+        if (s.n === "04b") blocks.push({ type: "h3", text: "Masa convectiva Wc (oleaje)" });
+        if (s.n === "05c") blocks.push({ type: "h3", text: "Fuerza convectiva de diseño Pc" });
         if (s.n === "07") blocks.push({ type: "h2", text: "3.c Diseño de acero de la cuba (pared, cúpulas, anillos)" });
         if (s.n === "09b") blocks.push({ type: "h3", text: "Collarines — tracción de anillo y Whitney" });
         if (s.n === "12") blocks.push({ type: "h2", text: mod.engine === "tanqueElevadoColumnas" ? "3.d Torre soportante de columnas" : "3.d Fuste soportante de concreto" });
+        if (s.n === "13c") blocks.push({ type: "h3", text: "Fuerza convectiva Pc sobre el fuste" });
         if (mod.engine === "tanqueElevadoColumnas" && s.n === "16b") blocks.push({ type: "h3", text: "Detalle de columnas, vigas de anillo y diagonales" });
         if (mod.engine === "tanqueElevadoFuste" && s.n === "16b") blocks.push({ type: "h3", text: "Confinamiento del fuste y anillos de arriostre" });
         if (mod.engine === "tanqueElevadoColumnas" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
@@ -860,14 +863,16 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "10") blocks.push({ type: "figure", part: "mTrans" });
       }
       if (mod.diagram === "zapataCorrida") {
-        if (s.n === "05") {
-          blocks.push({ type: "figure", part: "mTrans" });
-          blocks.push({ type: "figure", part: "mSecTrans" });
-        }
-        if (s.n === "07") blocks.push({ type: "figure", part: "mPunch" });
+        if (s.n === "05") blocks.push({ type: "figure", part: "mTrans" });
+        if (s.n === "06") blocks.push({ type: "figure", part: "mShear" });
+        if (s.n === "07" && (liveResult.dims?.punchJson || values.punchJson)) blocks.push({ type: "figure", part: "mPunch" });
         if (s.n === "08") {
           blocks.push({ type: "figure", part: "mLong" });
           blocks.push({ type: "figure", part: "mSecLong" });
+        }
+        if (s.n === "09") {
+          blocks.push({ type: "figure", part: "mSecTrans" });
+          blocks.push({ type: "figure", part: "mVC" });
         }
       }
       if (mod.diagram === "losa2d") {
@@ -886,7 +891,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "mEdgY" });
         }
         if (s.n === "10") blocks.push({ type: "figure", part: "mPunch" });
-        if (s.n === "09") blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "09") {
+          blocks.push({ type: "figure", part: "mSteel" });
+          blocks.push({ type: "figure", part: "mVC" });
+        }
       }
       if (mod.diagram === "escalera") {
         if (s.n === "04") blocks.push({ type: "figure", part: "mT1" });

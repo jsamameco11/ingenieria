@@ -9,7 +9,6 @@ import {
   calloutBeside,
   offsetOpenPolyline,
   pathBothHooks90,
-  pathHook90,
   placeLine,
   ptsStr,
   steelLdCm,
@@ -19,6 +18,9 @@ import {
 } from "./steelDraft";
 import { colLive, gridExtent, paneOn, type CorridaModel, type GridModel } from "./layoutGrid";
 import { buildLosaDraftSpec, parseLosaSteelPack } from "./engines/maestria/losa2dDraw";
+import { buildZapataCorridaDespieceSpec } from "./engines/maestria/zapataCorridaDespiece";
+import { buildPlateaDespieceSpec } from "./engines/maestria/plateaDespiece";
+import { buildVigaCimentacionDespieceSpec } from "./engines/maestria/vigaCimentacionDespiece";
 import { defaultModel, parseMae } from "./engines/maestria/types";
 
 function nv(v: Record<string, string>, k: string, fb = 0) {
@@ -212,8 +214,8 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     Math.max(12 * (dbTal / 100) * sc, 22),
     Math.max(18, D * sc - 2 * recZ - rTal * 2),
   );
-  const hookStemHeel = Math.min((ldP / 100) * sc, Math.max(36, Ltalon * sc * 0.55));
-  const hookStemToe = Math.min((ldI / 100) * sc, Math.max(32, Lp * sc * 0.62));
+  const hookStemBotP = Math.max(12 * (dbP / 100) * sc, 22);
+  const hookStemBotI = Math.max(12 * (dbI / 100) * sc, 22);
 
   const toPx = (face: number[][]) => face.map(([xa, h]) => xy(xa, h));
   const backPx = trimPolylineStart(toPx(backFace), recS + rP);
@@ -229,16 +231,15 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
   const xToeEnd = xy(0, 0).x - recZ - rPun;
   const lastBack = backSteel[backSteel.length - 1] ?? xy(xaBack, D);
   const lastFront = frontSteel[frontSteel.length - 1] ?? xy(Lp, D);
-  const intoHeel: { x: number; y: number } = { x: lastBack.x, y: yTopSteel };
-  const intoToeBot: { x: number; y: number } = { x: lastFront.x, y: yBotSteel - rPun - rI - Math.max(4, sc * 0.012) };
-  const pathStem = appendHook90(backSteel, intoHeel, "left", bendP, hookStemHeel);
-  const pathIntra = appendHook90(frontSteel, intoToeBot, "right", bendI, hookStemToe);
+  const ySitBot = yBotSteel;
+  const intoBackBot: { x: number; y: number } = { x: lastBack.x, y: ySitBot };
+  const intoFrontBot: { x: number; y: number } = { x: lastFront.x, y: ySitBot };
+  const pathStem = appendHook90(backSteel, intoBackBot, "left", bendP, hookStemBotP);
+  const pathIntra = appendHook90(frontSteel, intoFrontBot, "right", bendI, hookStemBotI);
 
-  const xStemBack = xy(xaBack, 0).x;
-  const xStemFront = xy(Lp, 0).x;
   const pathPun = pathBothHooks90(
+    { x: xHeelEnd, y: yBotSteel },
     { x: xToeEnd, y: yBotSteel },
-    { x: Math.min(lastBack.x, xStemBack - recZ), y: yBotSteel },
     "up",
     "up",
     bendPun,
@@ -246,7 +247,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
   );
   const pathTal = pathBothHooks90(
     { x: xHeelEnd, y: yTopSteel },
-    { x: Math.max(lastFront.x, xStemFront + recZ), y: yTopSteel },
+    { x: xToeEnd, y: yTopSteel },
     "down",
     "down",
     bendTal,
@@ -308,7 +309,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     rep({
       mark: 1,
       name: "Pantalla (trasdós)",
-      face: "cara de tierra · gancho 90° al lecho sup. del talón",
+      face: "cara de tierra · penetra la zapata y se apoya en el lecho inf.",
       bar: pant.bar,
       sCm: pant.s,
       color: STEEL_FLEX,
@@ -323,7 +324,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     rep({
       mark: 2,
       name: "Pantalla (intradós)",
-      face: "sigue el talud · ancla en lecho inf. de puntera",
+      face: "sigue el talud · penetra la zapata y se apoya en el lecho inf.",
       bar: intra.bar,
       sCm: intra.s,
       color: STEEL_TEMP,
@@ -338,7 +339,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     rep({
       mark: 3,
       name: "Puntera",
-      face: "lecho inferior · ganchos 90° en ambos extremos",
+      face: "lecho inf. continuo cara a cara · ganchos 90°",
       bar: pun.bar,
       sCm: pun.s,
       color: STEEL_FLEX,
@@ -353,7 +354,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     rep({
       mark: 4,
       name: "Talón",
-      face: "lecho superior · ganchos 90° en ambos extremos",
+      face: "lecho sup. continuo cara a cara · ganchos 90°",
       bar: tal.bar,
       sCm: tal.s,
       color: STEEL_FLEX,
@@ -386,7 +387,7 @@ export function specEstriboPantalla(values: Record<string, string>): SteelDraftS
     title: "CORTE DE SECCIÓN — DESPIECE DE ACEROS",
     subtitle: "Estribo tipo pantalla · franja 1,00 m · aceros en su posición (recubrimiento, ganchos 90°, ℓd)",
     caption: layers.map((l) => `${l.mark}  Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("   ·   "),
-    note: "Vertical de trasdós continúa dentro de la zapata y gancha 90° al lecho superior del talón (ℓd). Intradós sigue el talud, entra a la zapata y ancla en el lecho inferior de la puntera. Puntera (lecho inf.) y talón (lecho sup.) con gancho 90° en ambos extremos y continuidad bajo el fuste. Temperatura de zapata en corte, a lo ancho del peralte.",
+    note: "Los dos longitudinales del alma (trasdós e intradós) penetran la zapata y se apoyan en el lecho inferior con gancho 90°. El lecho superior y el inferior de la cimentación son continuos de cara a cara del peralte D, con gancho 90° en ambos extremos. Temperatura de zapata en corte, a lo ancho.",
     W,
     H: Ht,
     sheet: "a1",
@@ -530,120 +531,12 @@ export function specGridSteelPlan(opts: {
 }
 
 export function specZapataCorridaTrans(values: Record<string, string>): SteelDraftSpec {
-  const B = nv(values, "B", 1.6);
-  const hf = nv(values, "hf", 0.45);
-  const tw = nv(values, "tw", 0.25);
-  const t1 = nv(values, "t1", 0.3);
-  const tipo = sv(values, "tipo", "muro");
-  const c = tipo === "columnas" ? t1 : tw;
-  const ey = nv(values, "eyDraw", 0);
-  const rec = nv(values, "rec", 7.5);
-  const prin = parseBar(sv(values, "asPrin", 'Ø 1/2" @ 15 cm'));
-  const dist = parseBar(sv(values, "asDist", 'Ø 3/8" @ 25 cm'), '3/8"');
-  const beamB = nv(values, "bBeam", 0.4);
-  const beamH = nv(values, "hBeam", 0.6);
-  const hasBeam = tipo === "columnas" && beamH > hf + 0.02;
-  const colH = hasBeam ? 1.2 : 1.4;
-  const xCol = B / 2 + ey;
-  const padL = 160;
-  const padR = 200;
-  const padT = 70;
-  const padB = 90;
-  const Htot = hf + (hasBeam ? beamH - hf : 0) + colH;
-  const sc = Math.min(980 / Math.max(B, 1.2), 820 / Math.max(Htot, 1.4));
-  const W = Math.ceil(padL + B * sc + padR);
-  const Ht = Math.ceil(padT + Htot * sc + padB);
-  const xy = (x: number, y: number) => ({ x: padL + x * sc, y: padT + (Htot - y) * sc });
-  const yTopFoot = hf;
-  const yTopBeam = hasBeam ? beamH : hf;
-  const xBeam0 = Math.max(0, xCol - beamB / 2);
-  const xBeam1 = Math.min(B, xCol + beamB / 2);
-  const outlinePts = hasBeam
-    ? [xy(0, 0), xy(B, 0), xy(B, yTopFoot), xy(xBeam1, yTopFoot), xy(xBeam1, yTopBeam), xy(xCol + c / 2, yTopBeam), xy(xCol + c / 2, yTopBeam + colH), xy(xCol - c / 2, yTopBeam + colH), xy(xCol - c / 2, yTopBeam), xy(xBeam0, yTopBeam), xy(xBeam0, yTopFoot), xy(0, yTopFoot)]
-    : [xy(0, 0), xy(B, 0), xy(B, yTopFoot), xy(xCol + c / 2, yTopFoot), xy(xCol + c / 2, yTopFoot + colH), xy(xCol - c / 2, yTopFoot + colH), xy(xCol - c / 2, yTopFoot), xy(0, yTopFoot)];
-  const recZ = (rec / 100) * sc;
-  const r = Math.max(1.7, (barByName(prin.bar).db / 100) * sc * 0.5);
-  const bend = Math.max(8, 6 * (barByName(prin.bar).db / 100) * sc);
-  const hook = Math.max(20, 12 * (barByName(prin.bar).db / 100) * sc);
-  const yInf = xy(0, 0).y - recZ - r;
-  const pathPrin = pathHook90({ x: xy(0, 0).x + recZ + r, y: yInf }, { x: xy(B, 0).x - recZ - r, y: yInf }, "up", bend, hook);
-  const pathDist = [xy(B * 0.12, hf / 2), xy(B * 0.88, hf / 2)];
-  const longBar = parseBar(sv(values, "asLong", 'Ø 1/2" @ 15 cm'));
-  const yLong = xy(0, hf).y + recZ + r;
-  const pathLong = [{ x: xy(0, hf).x + recZ, y: yLong }, { x: xy(B, hf).x - recZ, y: yLong }];
-  const layers = [
-    rep({ mark: 1, name: "Principal (⊥ eje)", face: "cara del suelo", bar: prin.bar, sCm: prin.s, color: STEEL_FLEX, side: "bottom", path: pathPrin }),
-    rep({ mark: 2, name: "Longitudinal / viga", face: hasBeam ? "viga de cimentación" : "paralelo al muro", bar: longBar.bar, sCm: longBar.s, color: STEEL_TEMP, side: "top", path: pathLong }),
-    rep({ mark: 3, name: "Distribución", face: "temperatura", bar: dist.bar, sCm: dist.s, color: STEEL_DIST, side: "right", path: pathDist }),
-  ];
-  return {
-    title: "CORTE PERPENDICULAR AL EJE",
-    subtitle: tipo === "columnas" ? "Zapata corrida + columna (y viga de cimentación)" : "Zapata corrida de muro",
-    caption: layers.map((l) => `${l.mark} Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("  ·  "),
-    note: ey !== 0 ? `Columna desplazada ey = ${ey.toFixed(2)} m respecto del eje.` : "Columna / muro centrado en el eje de la corrida.",
-    W,
-    H: Ht,
-    sheet: "a1",
-    pxPerM: sc,
-    outline: ptsStr(outlinePts),
-    groundY: xy(0, 0).y + 10,
-    dims: [
-      { x1: xy(0, 0).x, y1: xy(0, 0).y + 26, x2: xy(B, 0).x, y2: xy(0, 0).y + 26, label: `B = ${B.toFixed(2)} m`, side: "bottom" },
-      { x1: xy(0, 0).x - 20, y1: xy(0, hf).y, x2: xy(0, 0).x - 20, y2: xy(0, 0).y, label: `h = ${hf.toFixed(2)} m`, side: "left" },
-    ],
-    layers,
-  };
+  return buildZapataCorridaDespieceSpec(values);
 }
 
-export function specZapataCorridaLong(values: Record<string, string>, model: CorridaModel): SteelDraftSpec {
-  const hf = nv(values, "hf", 0.45);
-  const rec = nv(values, "rec", 7.5);
-  const cols = model.cols;
-  const L = Math.max(cols[cols.length - 1].x - cols[0].x, 1);
-  const colH = 1.15;
-  const padL = 140;
-  const padR = 200;
-  const padT = 70;
-  const padB = 90;
-  const sc = Math.min(1180 / Math.max(L, 2), 420 / Math.max(hf + colH, 1.4));
-  const W = Math.ceil(padL + L * sc + padR);
-  const Ht = Math.ceil(padT + (hf + colH) * sc + padB);
-  const x0 = cols[0].x;
-  const xy = (x: number, y: number) => ({ x: padL + (x - x0) * sc, y: padT + (hf + colH - y) * sc });
-  const outline = ptsStr([xy(x0, 0), xy(x0 + L, 0), xy(x0 + L, hf), xy(x0, hf)]);
-  const recZ = (rec / 100) * sc;
-  const inf = parseBar(sv(values, "asLong", 'Ø 1/2" @ 15 cm'));
-  const sup = parseBar(sv(values, "asBeamSup", sv(values, "asLong", 'Ø 1/2" @ 15 cm')));
-  const r = Math.max(1.7, (barByName(inf.bar).db / 100) * sc * 0.5);
-  const yInf = xy(x0, 0).y - recZ - r;
-  const ySup = xy(x0, hf).y + recZ + r;
-  const pathInf = [{ x: xy(x0, 0).x + recZ, y: yInf }, { x: xy(x0 + L, 0).x - recZ, y: yInf }];
-  const pathSup = [{ x: xy(x0, hf).x + recZ, y: ySup }, { x: xy(x0 + L, hf).x - recZ, y: ySup }];
-  const layers = [
-    rep({ mark: 1, name: "Lecho inf. (vano)", face: "cara del suelo", bar: inf.bar, sCm: inf.s, color: STEEL_FLEX, side: "bottom", path: pathInf }),
-    rep({ mark: 2, name: "Lecho sup. (apoyos)", face: "cara superior", bar: sup.bar, sCm: sup.s, color: STEEL_TEMP, side: "top", path: pathSup }),
-  ];
-  const annos = cols.map((c) => {
-    const p = xy(c.x, hf + colH * 0.55);
-    return { x: p.x, y: p.y, text: c.id, anchor: "middle" as const };
-  });
-  return {
-    title: "CORTE LONGITUDINAL — VIGA DE CIMENTACIÓN",
-    subtitle: `${cols.length} columnas · L = ${L.toFixed(2)} m · h zapata ${hf.toFixed(2)} m`,
-    caption: layers.map((l) => `${l.mark} Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("  ·  "),
-    note: "Un acero representativo por lecho de la viga invertida. Las columnas se dibujan sobre la corrida.",
-    W,
-    H: Ht,
-    sheet: "a1",
-    pxPerM: sc,
-    outline,
-    groundY: xy(x0, 0).y + 10,
-    dims: [
-      { x1: xy(x0, 0).x, y1: xy(x0, 0).y + 24, x2: xy(x0 + L, 0).x, y2: xy(x0, 0).y + 24, label: `L = ${L.toFixed(2)} m`, side: "bottom" },
-    ],
-    layers,
-    annos,
-  };
+export function specZapataCorridaLong(values: Record<string, string>, _model?: CorridaModel): SteelDraftSpec {
+  void _model;
+  return buildZapataCorridaDespieceSpec(values);
 }
 
 export function specLosaFromValues(values: Record<string, string>, grid: GridModel): SteelDraftSpec {
@@ -680,18 +573,13 @@ export function specLosaFromValues(values: Record<string, string>, grid: GridMod
   return buildLosaDraftSpec(model, pack, `PLANTA — DESPIECE DE LOSA ${tipo} (2 DIRECCIONES)`);
 }
 
-export function specPlateaFromValues(values: Record<string, string>, grid: GridModel): SteelDraftSpec {
-  return specGridSteelPlan({
-    title: "PLANTA — DESPIECE DE PLATEA DE CIMENTACIÓN",
-    subtitle: "Mallas inferior / superior · franjas gobernantes · paños con platea",
-    grid,
-    hCm: nv(values, "t", 0.5) * 100,
-    infX: sv(values, "asPos", 'Ø 1/2" @ 15 cm'),
-    infY: sv(values, "asPosY", sv(values, "asPos", 'Ø 1/2" @ 15 cm')),
-    supX: sv(values, "asNeg", 'Ø 1/2" @ 15 cm'),
-    supY: sv(values, "asNegY", sv(values, "asNeg", 'Ø 1/2" @ 15 cm')),
-    note: "Inferior = tracción hacia el suelo (vano). Superior = vuelos y franjas de borde. Un representativo por cálculo.",
-  });
+export function specPlateaFromValues(values: Record<string, string>, _grid?: GridModel): SteelDraftSpec {
+  void _grid;
+  return buildPlateaDespieceSpec(values);
+}
+
+export function specVigaCimentacion(values: Record<string, string>): SteelDraftSpec {
+  return buildVigaCimentacionDespieceSpec(values);
 }
 
 export { colLive, paneOn };

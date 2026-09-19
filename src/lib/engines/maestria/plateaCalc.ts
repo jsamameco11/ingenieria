@@ -37,7 +37,7 @@ function applyGridJson(raw: Record<string, string>, fb: MaeModel): MaeModel {
       axesX?: number[];
       axesY?: number[];
       panes?: boolean[][];
-      cols?: { ix: number; iy: number; t1: number; t2: number; P1: number; P2: number; P3: number; M1: number; M2: number; M3: number }[];
+      cols?: { ix: number; iy: number; t1: number; t2: number; P1: number; P2: number; P3: number; M1: number; M2: number; M3: number; seat?: "nudo" | "esquinera" | "borde" }[];
       placed?: boolean;
     };
     if (Array.isArray(j.axesX) && j.axesX.length >= 2) fb.axesX = j.axesX.map(Number);
@@ -61,6 +61,7 @@ function applyGridJson(raw: Record<string, string>, fb: MaeModel): MaeModel {
           ex: 0,
           ey: 0,
           centered: true,
+          seat: c.seat === "esquinera" || c.seat === "borde" ? c.seat : "nudo",
         }))
       : [];
     if (!j.placed && (!j.cols || j.cols.length === 0)) {
@@ -69,7 +70,7 @@ function applyGridJson(raw: Record<string, string>, fb: MaeModel): MaeModel {
       fb.cols = [];
       for (let iy = 0; iy < fb.axesY.length; iy++) {
         for (let ix = 0; ix < fb.axesX.length; ix++) {
-          fb.cols.push({ id: `C${ix + 1}${iy + 1}`, ix, iy, t1: c, t2: c, P1: 0, P2: 0, P3, M1: 0, M2: 0, M3: 0, ex: 0, ey: 0, centered: true });
+          fb.cols.push({ id: `C${ix + 1}${iy + 1}`, ix, iy, t1: c, t2: c, P1: 0, P2: 0, P3, M1: 0, M2: 0, M3: 0, ex: 0, ey: 0, centered: true, seat: "nudo" });
         }
       }
     }
@@ -129,6 +130,15 @@ export const calcPlatea: Engine = (raw) => {
   const Ly = m.axesY[m.axesY.length - 1] - m.axesY[0];
   const Sx = nxOf(m) ? Lx / nxOf(m) : 5;
   const Sy = nyOf(m) ? Ly / nyOf(m) : 5;
+  const xOrg = m.axesX[0];
+  const yOrg = m.axesY[0];
+  const painted = [] as { x0: number; y0: number; x1: number; y1: number }[];
+  for (let iy = 0; iy < nyOf(m); iy++) {
+    for (let ix = 0; ix < nxOf(m); ix++) {
+      if (!cellOn(m, ix, iy)) continue;
+      painted.push({ x0: m.axesX[ix] - xOrg, y0: m.axesY[iy] - yOrg, x1: m.axesX[ix + 1] - xOrg, y1: m.axesY[iy + 1] - yOrg });
+    }
+  }
 
   const loads = cols.map((c) => {
     const p = puCol(c);
@@ -161,7 +171,7 @@ export const calcPlatea: Engine = (raw) => {
     Put = PpU + 1.4 * (Wslab + Wfill) + 1.7 * sc * A;
     qserv = Pts / A;
     qu = Put / A;
-    const pg = punchGeom(cTyp.x - m.axesX[0], cTyp.y - m.axesY[0], cTyp.c.t1, cTyp.c.t2, d / 100, Ly, Lx);
+    const pg = punchGeom(cTyp.x - m.axesX[0], cTyp.y - m.axesY[0], cTyp.c.t1, cTyp.c.t2, d / 100, Ly, Lx, painted);
     const beta = Math.max(cTyp.c.t1, cTyp.c.t2) / Math.max(Math.min(cTyp.c.t1, cTyp.c.t2), 0.1);
     const cap = punchCapacity(fc, pg.b0, d, beta, pg.alphaS);
     const Vu = Math.max(0, cTyp.Pu - qu * pg.Acrit);
@@ -232,11 +242,11 @@ export const calcPlatea: Engine = (raw) => {
   const sNegY = pickSlabBar(flexNegY.As, t * 100);
 
   const punList = loads.map((c) => {
-    const pg = punchGeom(c.x - m.axesX[0], c.y - m.axesY[0], c.c.t1, c.c.t2, d / 100, Ly, Lx);
+    const pg = punchGeom(c.x - m.axesX[0], c.y - m.axesY[0], c.c.t1, c.c.t2, d / 100, Ly, Lx, painted);
     const beta = Math.max(c.c.t1, c.c.t2) / Math.max(Math.min(c.c.t1, c.c.t2), 0.1);
     const cap = punchCapacity(fc, pg.b0, d, beta, pg.alphaS);
     const Vu = Math.max(0, c.Pu - qu * pg.Acrit);
-    return { id: c.c.id, kind: pg.kind, Vu, phiVn: cap.phiVn, b0: pg.b0, ok: Vu <= cap.phiVn + 1e-6, poly: pg.poly, x: c.x - m.axesX[0], y: c.y - m.axesY[0], t1: c.c.t1, t2: c.c.t2, govern: cap.govern };
+    return { id: c.c.id, kind: pg.kind, Vu, phiVn: cap.phiVn, b0: pg.b0, ok: Vu <= cap.phiVn + 1e-6, poly: pg.poly, segs: pg.segs, x: pg.cx, y: pg.cy, t1: c.c.t1, t2: c.c.t2, govern: cap.govern };
   });
   const worst = punList.reduce((a, b) => (b.Vu / Math.max(b.phiVn, 0.01) > a.Vu / Math.max(a.phiVn, 0.01) ? b : a), punList[0]);
 
@@ -546,6 +556,7 @@ export const calcPlatea: Engine = (raw) => {
         d: d / 100,
         col: { x: worst.x, y: worst.y, t1: worst.t1, t2: worst.t2, id: worst.id },
         poly: worst.poly,
+        segs: worst.segs,
         Vu: worst.Vu,
         phiVn: worst.phiVn,
         b0: worst.b0,

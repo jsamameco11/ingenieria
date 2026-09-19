@@ -19,13 +19,17 @@ Abre http://localhost:5173
 
 ## Publicar (build + VPS + GitHub)
 
-Un solo comando: identifica lo que cambió respecto de HEAD, compila, sube al VPS y hace commit + push en GitHub.
+**Doble clic** en `Publicar.cmd` (raíz del proyecto) o en el acceso **Publicar MemoriaCalc** del Escritorio.
+
+Eso identifica lo que cambió respecto de HEAD, compila, sube al VPS y hace commit + push en GitHub. La ventana se queda abierta para ver ANTES / DESPUÉS.
+
+Desde terminal, equivalente:
 
 ```powershell
 python scripts/publicar.py
 ```
 
-Equivalente: `npm run publicar` o `.\scripts\publicar.ps1`.
+También: `npm run publicar` o `.\scripts\publicar.ps1`.
 
 El script imprime **ANTES** (commit actual + archivos sucios + diff) y **DESPUÉS** (commit nuevo, VPS y GitHub). Si no pasas `-m`, arma el mensaje a partir de los archivos cambiados.
 

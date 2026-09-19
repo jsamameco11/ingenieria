@@ -35,6 +35,8 @@ import {
   type Thread,
 } from "../lib/mercado";
 import { useAuth } from "../ui/AuthProvider";
+import { fetchMyTastes, recordSiteBehavior } from "../lib/siteTaste/store";
+import { rankByCategory, similarLabel, type TasteScore } from "../lib/siteTaste/rank";
 
 export type MercadoVista = "vitrina" | "publicar" | "mios" | "mensajes" | "publicitar";
 
@@ -177,7 +179,7 @@ export function MercadoModule({ vista }: { vista: MercadoVista }) {
 }
 
 function VitrinaView() {
-  const { canEdit, openGoogle, user } = useAuth();
+  const { canEdit, openGoogle, user, track, profile } = useAuth();
   const [items, setItems] = useState<Listing[]>([]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
@@ -186,14 +188,40 @@ function VitrinaView() {
   const [zoom, setZoom] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [tastes, setTastes] = useState<TasteScore[]>([]);
 
   useEffect(() => {
     void fetchVitrina("product").then(setItems);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    void fetchMyTastes("INGENIERIA").then(setTastes);
+  }, [user]);
+
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) return;
+    const id = window.setTimeout(() => {
+      track({
+        event_type: "search",
+        module_slug: "compras",
+        specialty: cat !== "Todas" ? cat : "",
+        meta: { surface: "compras", query: needle, category: cat !== "Todas" ? cat : "" },
+      });
+      void recordSiteBehavior({
+        platform: "INGENIERIA",
+        kind: "search",
+        query: needle,
+        category: cat !== "Todas" ? cat : undefined,
+      });
+    }, 700);
+    return () => window.clearTimeout(id);
+  }, [q, cat, track]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return items.filter((it) => {
+    const list = items.filter((it) => {
       if (cat !== "Todas" && it.category !== cat) return false;
       if (!needle) return true;
       const kind = resolveOfferKind(it);
@@ -202,7 +230,9 @@ function VitrinaView() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [items, q, cat]);
+    const declared = (profile?.buy_categories || []).map((category) => ({ category, score: 10 }));
+    return rankByCategory(list, [...declared, ...tastes]);
+  }, [items, q, cat, tastes, profile?.buy_categories]);
 
   async function messageSeller(item: Listing) {
     if (!user) {
@@ -241,6 +271,7 @@ function VitrinaView() {
             Misma vitrina que Folio PDF: artículos y servicios publicados en cualquiera de las dos apps aparecen aquí.
             El trato se cierra por Mensajes (bandeja única) o WhatsApp, con la misma cuenta Google.
           </p>
+          {similarLabel(tastes) ? <p className="plaza-kicker">{similarLabel(tastes)}</p> : null}
         </div>
         <dl className="plaza-kpis">
           <div>
@@ -261,7 +292,23 @@ function VitrinaView() {
             onChange={(e) => setQ(e.target.value)}
             aria-label="Buscar en la vitrina"
           />
-          <select value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Categoría">
+          <select
+            value={cat}
+            onChange={(e) => {
+              const next = e.target.value;
+              setCat(next);
+              if (next !== "Todas") {
+                track({
+                  event_type: "click",
+                  module_slug: "compras",
+                  specialty: next,
+                  meta: { surface: "compras", category: next },
+                });
+                void recordSiteBehavior({ platform: "INGENIERIA", kind: "category", category: next });
+              }
+            }}
+            aria-label="Categoría"
+          >
             <option>Todas</option>
             {STORE_CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
@@ -271,7 +318,27 @@ function VitrinaView() {
       {err ? <p className="mcd-err">{err}</p> : null}
       <div className="mcd-grid">
         {filtered.map((it) => (
-          <article key={it.id} className="mcd-card" onClick={() => { setOpen(it); setPhoto(0); }}>
+          <article
+            key={it.id}
+            className="mcd-card"
+            onClick={() => {
+              setOpen(it);
+              setPhoto(0);
+              track({
+                event_type: "click",
+                module_slug: "compras",
+                specialty: it.category || "",
+                meta: { surface: "compras", category: it.category, target: it.id, query: it.name },
+              });
+              void recordSiteBehavior({
+                platform: "INGENIERIA",
+                kind: "click",
+                category: it.category,
+                target: it.id,
+                query: it.name,
+              });
+            }}
+          >
             <div
               className={`mcd-cover${it.image ? " is-clickable" : ""}`}
               onClick={(e) => {

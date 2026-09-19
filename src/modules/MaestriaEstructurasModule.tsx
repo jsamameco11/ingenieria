@@ -13,6 +13,7 @@ import {
   exampleModel,
   fillLosaRoof,
   placeColsOnPainted,
+  setAllGradeBeams,
   type MaeMat,
   type MaeMode,
   type MaeModel,
@@ -117,6 +118,7 @@ export function MaestriaEstructurasModule() {
     ];
     return [
       { id: "celda", label: "Pintar planta" },
+      { id: "viga", label: "Viga cim." },
       { id: "columna", label: "Colocar columna" },
     ];
   }, [tab]);
@@ -203,12 +205,18 @@ export function MaestriaEstructurasModule() {
                 >
                   Columnas en nudos
                 </button>
+                <button type="button" onClick={() => { setModel(setAllGradeBeams(model, true)); setResult(null); }}>
+                  Vigas en bordes
+                </button>
               </>
             )}
             <button type="button" onClick={() => { setModel(exampleModel(tab)); setResult(null); }}>
               Cargar ejemplo de planta
             </button>
           </div>
+          {tab !== "losa" && tool === "viga" ? (
+            <p className="mae-hint">Viga cim.: pulse un tramo grueso para borrarlo o un borde discontinuo para colocarlo. Una viga a la vez.</p>
+          ) : null}
           <div className="mae-tools">
             <label>
               {tab === "losa" ? "Paños X" : "Vanos X"}

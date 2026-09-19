@@ -52,6 +52,9 @@ export type UserProfile = {
   inferred_rubros: string[];
   inferred_confidence: number;
   ad_segment: string;
+  tools: string[];
+  buy_categories: string[];
+  email_keywords: string[];
 };
 
 export type UsageEvent = {
@@ -63,6 +66,7 @@ export type UsageEvent = {
     | "save"
     | "dwell"
     | "click"
+    | "search"
     | "heartbeat"
     | "quota_use"
     | "session_start";
@@ -120,6 +124,9 @@ export const emptyProfile = (): UserProfile => ({
   inferred_rubros: [],
   inferred_confidence: 0,
   ad_segment: "",
+  tools: [],
+  buy_categories: [],
+  email_keywords: [],
 });
 
 export function profileComplete(p: UserProfile | null): boolean {
@@ -135,6 +142,8 @@ export function profileComplete(p: UserProfile | null): boolean {
       p.age >= 16 &&
       p.age <= 99 &&
       p.specialty_focus.length > 0 &&
+      (p.tools?.length || 0) > 0 &&
+      (p.buy_categories?.length || 0) > 0 &&
       (p.country_code !== "PE" || (p.department && p.province && p.district)),
   );
 }

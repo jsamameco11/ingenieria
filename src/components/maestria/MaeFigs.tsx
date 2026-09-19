@@ -78,9 +78,13 @@ export function MaePunchFig({ spec }: { spec: PunchSpec }) {
         {v.edges.bot ? <line x1={v.outline[0].x} y1={v.outline[0].y} x2={v.outline[1].x} y2={v.outline[1].y} stroke="#8b1e1e" strokeWidth="3" /> : null}
         {v.edges.right ? <line x1={v.outline[1].x} y1={v.outline[1].y} x2={v.outline[2].x} y2={v.outline[2].y} stroke="#8b1e1e" strokeWidth="3" /> : null}
         {v.edges.top ? <line x1={v.outline[2].x} y1={v.outline[2].y} x2={v.outline[3].x} y2={v.outline[3].y} stroke="#8b1e1e" strokeWidth="3" /> : null}
-        <polygon points={poly} fill={spec.ok ? "rgba(46,120,70,0.22)" : "rgba(139,30,30,0.22)"} stroke={stamp} strokeWidth="2.6" strokeDasharray="7 4" />
-        <polygon points={v.colPoly.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="rgba(26,68,115,0.25)" stroke="#1a4473" strokeWidth="1" strokeDasharray="3 2" />
-        <polygon points={v.colOn.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="#1a4473" />
+        <polygon points={poly} fill={spec.ok ? "rgba(46,120,70,0.18)" : "rgba(139,30,30,0.18)"} stroke="none" />
+        {(v.segs?.length
+          ? v.segs.map((s, i) => (
+              <line key={`b0-${i}`} x1={s.a.x} y1={s.a.y} x2={s.b.x} y2={s.b.y} stroke={stamp} strokeWidth="2.8" strokeDasharray="7 4" />
+            ))
+          : [<polygon key="b0" points={poly} fill="none" stroke={stamp} strokeWidth="2.6" strokeDasharray="7 4" />])}
+        <polygon points={v.colOn.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="#1a4473" stroke="#0d2a4a" strokeWidth="1.2" />
         <text x={v.colOn[2]?.x ?? v.col.x} y={(v.colOn[2]?.y ?? v.col.y) - 8} textAnchor="end" fontSize="11" fill="#1a4473" fontWeight="700">
           {spec.col.id}  {spec.col.t2.toFixed(2)}×{spec.col.t1.toFixed(2)} m
         </text>
@@ -93,7 +97,7 @@ export function MaePunchFig({ spec }: { spec: PunchSpec }) {
         </text>
       </svg>
       <p className="mae-fig-note">
-        Recorte local de la planta ({v.x0.toFixed(2)}–{v.x1.toFixed(2)} m × {v.y0.toFixed(2)}–{v.y1.toFixed(2)} m). Línea discontinua: perímetro crítico recortado al borde (trazo rojo = borde libre). Vu = Pu − qu Acrit frente a φVn de E.060 11.12.
+        Recorte de planta ({v.x0.toFixed(2)}–{v.x1.toFixed(2)} m × {v.y0.toFixed(2)}–{v.y1.toFixed(2)} m). La columna queda entera sobre la zapata. Trazos discontinuos: perímetro crítico b0 a d/2 (L en esquina, U en borde). Trazo rojo = borde libre. Vu = Pu − qu Acrit frente a φVn (E.060 11.12).
       </p>
     </figure>
   );

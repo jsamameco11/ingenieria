@@ -151,8 +151,11 @@ export function barByName(name: string): BarDef {
   const extra: BarDef[] = [
     { name: '1/4"', db: 0.64, as: 0.32 },
     { name: "8 mm", db: 0.8, as: 0.5 },
+    { name: '1 1/4"', db: 3.18, as: 7.92 },
+    { name: '1 1/2"', db: 3.81, as: 11.4 },
   ];
-  return BARS.find((b) => b.name === name) ?? extra.find((b) => b.name === name) ?? BARS[0];
+  const key = String(name || "").replace(/[Øø]/g, "").trim();
+  return BARS.find((b) => b.name === key) ?? extra.find((b) => b.name === key) ?? BARS[0];
 }
 
 export function layoutSteel(As: number, bar: BarDef, kind: "joist" | "slab", h = 15) {

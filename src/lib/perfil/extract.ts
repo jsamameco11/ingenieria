@@ -258,10 +258,12 @@ export function extractFromProfile(profile: UserProfile): ExtractionPacket {
 }
 
 export function extractFromEvent(ev: UsageEvent): ExtractionPacket | null {
-  const skip = new Set(["heartbeat", "click", "dwell", "session_start", "edit_field"]);
+  const skip = new Set(["heartbeat", "dwell", "session_start", "edit_field"]);
   if (skip.has(ev.event_type)) return null;
   const evidence: EvidenceDraft[] = [];
   const answers: AnswerDraft[] = [];
+  const plaza = ev.module_slug === "compras" || String(ev.meta?.surface || "") === "compras";
+  if (ev.event_type === "click" && !plaza && !ev.meta?.category) return null;
   const interest = interestFromSpecialty(ev.specialty) || interestFromSpecialty(ev.module_slug);
   const tech = technologyFromModule(ev.module_slug) || (ev.meta?.tool ? String(ev.meta.tool) : "");
   const isCalc = ev.event_type === "quota_use" || ev.event_type === "save";
@@ -329,6 +331,31 @@ export function extractFromEvent(ev: UsageEvent): ExtractionPacket | null {
       raw_answer: ev.event_type,
       source_type: "EVENT",
     });
+  }
+  const cat = String(ev.meta?.category || "");
+  const query = String(ev.meta?.query || ev.meta?.label || "");
+  if (plaza || ev.event_type === "search" || cat) {
+    answers.push({
+      question_id: ev.event_type === "search" ? "q.plaza_search" : "q.plaza_click",
+      module_id: ev.module_slug || "compras",
+      raw_answer: cat || query,
+      source_type: "EVENT",
+      normalized: normalizeAnswer(cat || query, "TEXT"),
+    });
+    if (cat) {
+      push(evidence, {
+        catalog_code: interestFromSpecialty(cat) || cat.toLowerCase().replace(/\s+/g, "-"),
+        target_type: "interest",
+        evidence_kind: "observed",
+        strength: ev.event_type === "search" ? 0.7 : 0.5,
+        confidence: ev.event_type === "search" ? 0.68 : 0.55,
+        evidence_text: `${ev.event_type}:${cat}:${query}`.slice(0, 180),
+        source_type: "EVENT",
+        interaction_level: "HIGH",
+        weight_code: ev.event_type === "search" ? "SEARCH_PERFORMED" : "FEATURE_USED",
+        rule_id: plaza ? "plaza.observed" : "event.category",
+      });
+    }
   }
   if (!evidence.length && !answers.length) return null;
   const debug: PipelineDebug = {

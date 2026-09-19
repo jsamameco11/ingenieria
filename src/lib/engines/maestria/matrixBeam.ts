@@ -14,6 +14,8 @@ export type StripResult = {
   Vend: number;
   xMmax: number;
   xMmin: number;
+  q0?: number;
+  qL?: number;
 };
 
 function gauss(A: number[][], b: number[]): number[] {
@@ -147,17 +149,32 @@ export function solveStrip(spans: SpanLoad[], supportV: boolean[], supportTh: bo
   return { pts, Mmax, Mmin, Vmax, Vend: pts[pts.length - 1]?.V ?? 0, xMmax, xMmin };
 }
 
-/** Viga invertida rígida (suelo ↑, columnas ↓). w se calibra a ΣP/L si no se pasa. */
+/** Viga invertida rígida: suelo ↑, columnas ↓. q(x) lineal que cumple ΣV=0 y ΣM=0 (extremos libres). */
 export function invertBeam(L: number, wIn: number, loads: { x: number; P: number; M?: number }[]): StripResult {
   const Luse = Math.max(L, 0.2);
+  const ptsX = new Set<number>([0, Luse]);
+  for (const p of loads) ptsX.add(Math.min(Luse, Math.max(0, p.x)));
+  for (let i = 1; i < 32; i++) ptsX.add((i / 32) * Luse);
   const sumP = loads.reduce((s, p) => s + p.P, 0);
-  const w = Math.abs(wIn) > 1e-9 ? wIn : sumP / Luse;
-  const xs = new Set<number>([0, Luse]);
-  for (const p of loads) xs.add(Math.min(Luse, Math.max(0, p.x)));
-  for (let i = 1; i < 24; i++) xs.add((i / 24) * Luse);
-  const pts = [...xs].sort((a, b) => a - b).map((x) => {
-    let V = w * x;
-    let M = (w * x * x) / 2;
+  const sumPx = loads.reduce((s, p) => s + p.P * Math.min(Luse, Math.max(0, p.x)), 0);
+  const sumMc = loads.reduce((s, p) => s + (p.M ?? 0), 0);
+  if (Math.abs(sumP) < 1e-9) {
+    const empty = [
+      { x: 0, V: 0, M: 0 },
+      { x: Luse, V: 0, M: 0 },
+    ];
+    return { pts: empty, Mmax: 0, Mmin: 0, Vmax: 0, Vend: 0, xMmax: 0, xMmin: 0, q0: 0, qL: 0 };
+  }
+  void wIn;
+  const L2 = Luse * Luse;
+  const L3 = L2 * Luse;
+  const L4 = L3 * Luse;
+  const Q = sumPx + sumMc;
+  const a = (sumP * (L3 / 3) - Q * (L2 / 2)) / (L4 / 12);
+  const b = (Luse * Q - sumP * (L2 / 2)) / (L4 / 12);
+  const pts = [...ptsX].sort((x, y) => x - y).map((x) => {
+    let V = a * x + (b * x * x) / 2;
+    let M = (a * x * x) / 2 + (b * x * x * x) / 6;
     for (const p of loads) {
       if (p.x <= x + 1e-8) {
         V -= p.P;
@@ -183,7 +200,7 @@ export function invertBeam(L: number, wIn: number, loads: { x: number; P: number
     }
     Vmax = Math.max(Vmax, Math.abs(p.V));
   }
-  return { pts, Mmax, Mmin, Vmax, Vend: pts[pts.length - 1]?.V ?? 0, xMmax, xMmin };
+  return { pts, Mmax, Mmin, Vmax, Vend: pts[pts.length - 1]?.V ?? 0, xMmax, xMmin, q0: a, qL: a + b * Luse };
 }
 
 export function packPts(pts: { x: number; M: number }[]) {

@@ -228,7 +228,8 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
               fill: `url(#${uid}-${z.material})`,
               stroke: meta.stroke,
               strokeWidth: z.material === "concreto" ? 1.7 : 1.2,
-              strokeLinejoin: "round" as const,
+              strokeLinejoin: (z.smooth ? "round" : "miter") as "round" | "miter",
+              strokeLinecap: "butt" as const,
               opacity: 0.95,
             };
             return curved ? (
@@ -286,7 +287,7 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
             }
             const color = MATERIAL_META[z.material].stroke;
             return (
-              <g key={`b-${z.n}`}>
+              <g key={`b-${zi}-${z.n}`}>
                 {leader ? (
                   <line x1={leader[0]} y1={leader[1]} x2={bx} y2={by} stroke={color} strokeWidth="1" />
                 ) : null}
@@ -302,8 +303,8 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
           })}
         </svg>
         <ol className="mz-legend">
-          {spec.zones.map((z) => (
-            <li key={`L-${z.n}`}>
+          {spec.zones.filter((z, i, arr) => arr.findIndex((x) => x.n === z.n && x.label === z.label) === i).map((z, i) => (
+            <li key={`L-${i}-${z.n}`}>
               <span className={`mz-swatch mz-${z.material}`}>{z.n}</span>
               <span>
                 <strong>{z.label}</strong>

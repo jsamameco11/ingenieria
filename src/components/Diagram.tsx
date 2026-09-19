@@ -1037,32 +1037,48 @@ function ZapataComb({ values, active, onFocus }: { values: Record<string, string
 
 function ZapataCorrida({ values, active, onFocus }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
   const B = n(values, "B", 1.6);
+  const L = n(values, "L", 4);
   const hf = n(values, "hf", 0.45);
-  const tw = n(values, "tw", 0.25);
-  const t1 = n(values, "t1", 0.3);
   const tipo = String(values.tipo ?? "muro");
-  const c = tipo === "columnas" ? t1 : tw;
-  const Df = n(values, "Df", 1.5);
-  const sc = 180 / Math.max(B, 1.2);
+  const nPanes = Math.max(2, Math.round(L / Math.max(B > 0 ? 1 : 1, 1)));
+  const sc = Math.min(380 / Math.max(L, 2), 200 / Math.max(B, 0.8));
   const ox = 70;
-  const oy = 90;
-  const w = B * sc;
-  const cw = c * sc;
+  const oy = 48;
+  const w = L * sc;
+  const h = B * sc;
   return (
-    <SvgFrame compact viewBox="0 0 520 300" caption={tipo === "columnas" ? "Sección — corrida de columnas" : "Sección — zapata corrida de muro"}>
-      <rect x={ox} y={oy + 90} width={w} height="50" fill="url(#soil)" />
-      <rect x={ox} y={oy + 90 - hf * 80} width={w} height={hf * 80} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.5" />
-      <rect x={ox + w / 2 - cw / 2} y={50} width={cw} height={oy + 90 - hf * 80 - 50} fill="url(#conc)" stroke="#1a4473" />
-      <text x={ox + w / 2} y={42} textAnchor="middle" fontSize="11" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
-        {tipo === "columnas" ? "Columna" : "Muro"}
+    <SvgFrame compact viewBox="0 0 520 300" caption={tipo === "columnas" ? "Planta — zapata corrida de columnas" : "Planta — zapata corrida de muro"}>
+      <rect x={ox} y={oy} width={w} height={h} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.6" />
+      {Array.from({ length: nPanes - 1 }, (_, i) => {
+        const x = ox + ((i + 1) * w) / nPanes;
+        return <line key={i} x1={x} y1={oy} x2={x} y2={oy + h} stroke="#1a4473" strokeWidth="0.8" strokeDasharray="5 3" />;
+      })}
+      {Array.from({ length: nPanes }, (_, i) => (
+        <text key={`p-${i}`} x={ox + ((i + 0.5) * w) / nPanes} y={oy + h / 2 + 4} textAnchor="middle" fontSize="10" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
+          {`P${i + 1}`}
+        </text>
+      ))}
+      <line x1={ox + 12} y1={oy + h * 0.28} x2={ox + w - 12} y2={oy + h * 0.28} stroke="#5a4a28" strokeWidth="2.2" />
+      <line x1={ox + 12} y1={oy + h * 0.72} x2={ox + w - 12} y2={oy + h * 0.72} stroke="#5a4a28" strokeWidth="2.2" />
+      <line x1={ox + 10} y1={oy + h * 0.18} x2={ox + w * 0.22} y2={oy + h * 0.18} stroke="#1a4473" strokeWidth="1.8" />
+      <line x1={ox + w * 0.78} y1={oy + h * 0.18} x2={ox + w - 10} y2={oy + h * 0.18} stroke="#1a4473" strokeWidth="1.8" />
+      {Array.from({ length: nPanes }, (_, i) => {
+        const x = ox + ((i + 0.5) * w) / nPanes;
+        return <line key={`t-${i}`} x1={x} y1={oy + 10} x2={x} y2={oy + h - 10} stroke="#8b1e1e" strokeWidth="1.6" />;
+      })}
+      <Dim x1={ox} y1={oy + h} x2={ox + w} y2={oy + h} label={L.toFixed(2)} field="L" unit="m" side={24} active={active} onFocus={onFocus} />
+      <Dim x1={ox} y1={oy} x2={ox} y2={oy + h} label={B.toFixed(2)} field="B" unit="m" side={28} active={active} onFocus={onFocus} />
+      <text x={ox + w + 10} y={oy + 14} fontSize="10" fill="#8b1e1e" fontFamily="IBM Plex Sans, sans-serif">
+        1 transv. inf. por paño
       </text>
-      <Dim x1={ox} y1={oy + 90} x2={ox + w} y2={oy + 90} label={B.toFixed(2)} field="B" unit="m" side={28} active={active} onFocus={onFocus} />
-      <Dim x1={ox + w / 2 - cw / 2} y1={oy + 90 - hf * 80} x2={ox + w / 2 + cw / 2} y2={oy + 90 - hf * 80} label={c.toFixed(2)} field={tipo === "columnas" ? "t1" : "tw"} unit="m" side={-16} active={active} onFocus={onFocus} />
-      <text x={ox + w + 16} y={oy + 40} fontSize="10" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
-        h={hf.toFixed(2)} m
+      <text x={ox + w + 10} y={oy + 30} fontSize="10" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
+        2 long. inf. continuo
       </text>
-      <text x={ox + w + 16} y={oy + 56} fontSize="10" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
-        Df={Df.toFixed(2)} m
+      <text x={ox + w + 10} y={oy + 46} fontSize="10" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
+        3–4 lecho superior
+      </text>
+      <text x={ox + w + 10} y={oy + 62} fontSize="10" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
+        h={hf.toFixed(2)} m · sin intermedio
       </text>
     </SvgFrame>
   );

@@ -2,7 +2,7 @@
 
 export type MaeMode = "losa" | "zapata" | "platea";
 export type AxisKind = "viga" | "muro" | "libre";
-export type MaeTool = "celda" | "columna" | "unir" | "apoyo";
+export type MaeTool = "celda" | "columna" | "unir" | "apoyo" | "viga";
 export type LosaTipo = "maciza" | "aligerada";
 export type LosaRelleno = "ladrillo" | "eps";
 export type EdgeKind = "continuo" | "discontinuo" | "libre";
@@ -28,6 +28,8 @@ export type MaeCol = {
   ex: number;
   ey: number;
   centered: boolean;
+  /** nudo = en el entrecruce; esquinera / borde = pedestal entero sobre el concreto (punzonamiento). */
+  seat?: "nudo" | "esquinera" | "borde";
 };
 
 export type MaeModel = {
@@ -41,6 +43,10 @@ export type MaeModel = {
   cols: MaeCol[];
   axisXKind: AxisKind[];
   axisYKind: AxisKind[];
+  /** Viga de cimentación vertical (eje X constante): [iy][iEjeX], ny × (nx+1). */
+  beamV: boolean[][];
+  /** Viga de cimentación horizontal (eje Y constante): [iEjeY][ix], (ny+1) × nx. */
+  beamH: boolean[][];
   volN: number;
   volS: number;
   volE: number;
@@ -92,8 +98,24 @@ export type IdentifiedStrip = {
   i0: number;
   i1: number;
   spans: number[];
+  /** Índices de eje de cada nudo del pórtico (longitud = spans+1). Unir omite el apoyo interior. */
+  nodes: number[];
   paneIds: string[];
   b: number;
+  why: string;
+};
+
+export type LosaBarRun = {
+  kind: "pos" | "neg";
+  dir: "x" | "y";
+  line: number;
+  i0: number;
+  i1: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  paneIds: string[];
   why: string;
 };
 
@@ -111,6 +133,293 @@ export type XY = { x: number; y: number };
 
 export function emptyBool(ny: number, nx: number, on = false): boolean[][] {
   return Array.from({ length: Math.max(1, ny) }, () => Array.from({ length: Math.max(1, nx) }, () => on));
+}
+
+/** Vecino pintado de un segmento de eje: vertical (constante X) u horizontal (constante Y). */
+export function beamSegTouchesPaint(m: MaeModel, kind: "v" | "h", iAxis: number, iCell: number) {
+  if (kind === "v") {
+    const left = iAxis > 0 && cellOn(m, iAxis - 1, iCell);
+    const right = iAxis < nxOf(m) && cellOn(m, iAxis, iCell);
+    return left || right;
+  }
+  const bot = iAxis > 0 && cellOn(m, iCell, iAxis - 1);
+  const top = iAxis < nyOf(m) && cellOn(m, iCell, iAxis);
+  return bot || top;
+}
+
+export function hasGradeBeam(m: MaeModel, kind: "v" | "h", iAxis: number, iCell: number) {
+  if (!beamSegTouchesPaint(m, kind, iAxis, iCell)) return false;
+  if (kind === "v") return Boolean(m.beamV[iCell]?.[iAxis]);
+  return Boolean(m.beamH[iAxis]?.[iCell]);
+}
+
+/** Tamaño correcto y, si faltan datos, vigas en todo borde de zapata pintada. */
+export function ensureGradeBeams(m: MaeModel, opts?: { reset?: boolean }): MaeModel {
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  const storedV = !opts?.reset && m.beamV?.length === ny && (m.beamV[0]?.length ?? 0) === nx + 1;
+  const storedH = !opts?.reset && m.beamH?.length === ny + 1 && (m.beamH[0]?.length ?? 0) === nx;
+  const beamV = emptyBool(ny, nx + 1, false);
+  const beamH = emptyBool(ny + 1, nx, false);
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix <= nx; ix++) {
+      if (!beamSegTouchesPaint(m, "v", ix, iy)) continue;
+      beamV[iy][ix] = storedV ? Boolean(m.beamV[iy][ix]) : true;
+    }
+  }
+  for (let iy = 0; iy <= ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      if (!beamSegTouchesPaint(m, "h", iy, ix)) continue;
+      beamH[iy][ix] = storedH ? Boolean(m.beamH[iy][ix]) : true;
+    }
+  }
+  return { ...m, beamV, beamH };
+}
+
+export function toggleGradeBeam(m: MaeModel, hit: { kind: "v" | "h"; iAxis: number; iCell: number }): MaeModel {
+  const next = ensureGradeBeams(m);
+  if (hit.kind === "v") {
+    const iy = hit.iCell;
+    const ix = hit.iAxis;
+    if (next.beamV[iy] && ix >= 0 && ix < next.beamV[iy].length) {
+      next.beamV[iy] = next.beamV[iy].slice();
+      next.beamV[iy][ix] = !next.beamV[iy][ix];
+    }
+  } else {
+    const iy = hit.iAxis;
+    const ix = hit.iCell;
+    if (next.beamH[iy] && ix >= 0 && ix < next.beamH[iy].length) {
+      next.beamH[iy] = next.beamH[iy].slice();
+      next.beamH[iy][ix] = !next.beamH[iy][ix];
+    }
+  }
+  return next;
+}
+
+/** Al pintar una celda se encienden sus cuatro bordes; al apagar, se limpian los que ya no tocan zapata. */
+export function markCellBeams(m: MaeModel, ix: number, iy: number, on: boolean): MaeModel {
+  const next = ensureGradeBeams(m);
+  if (on && next.beamV[iy] && next.beamH[iy]) {
+    next.beamV[iy] = next.beamV[iy].slice();
+    next.beamV[iy][ix] = true;
+    next.beamV[iy][ix + 1] = true;
+    next.beamH[iy] = next.beamH[iy].slice();
+    next.beamH[iy][ix] = true;
+    if (next.beamH[iy + 1]) {
+      next.beamH[iy + 1] = next.beamH[iy + 1].slice();
+      next.beamH[iy + 1][ix] = true;
+    }
+  }
+  return ensureGradeBeams(next);
+}
+
+export type GradeBeamRun = {
+  id: string;
+  kind: "h" | "v";
+  iAxis: number;
+  i0: number;
+  i1: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  L: number;
+  b: number;
+};
+
+function nHOnCell(m: MaeModel, ix: number, iy: number) {
+  return (hasGradeBeam(m, "h", iy, ix) ? 1 : 0) + (hasGradeBeam(m, "h", iy + 1, ix) ? 1 : 0);
+}
+
+function nVOnCell(m: MaeModel, ix: number, iy: number) {
+  return (hasGradeBeam(m, "v", ix, iy) ? 1 : 0) + (hasGradeBeam(m, "v", ix + 1, iy) ? 1 : 0);
+}
+
+function tribH(m: MaeModel, ay: number, i0: number, i1: number) {
+  let sum = 0;
+  let n = 0;
+  for (let ix = i0; ix <= i1; ix++) {
+    let t = 0;
+    if (ay > 0 && cellOn(m, ix, ay - 1)) {
+      t += (m.axesY[ay] - m.axesY[ay - 1]) / Math.max(nHOnCell(m, ix, ay - 1), 1);
+    }
+    if (ay < nyOf(m) && cellOn(m, ix, ay)) {
+      t += (m.axesY[ay + 1] - m.axesY[ay]) / Math.max(nHOnCell(m, ix, ay), 1);
+    }
+    if (t > 0) {
+      sum += t;
+      n += 1;
+    }
+  }
+  return Math.max(n ? sum / n : 0.4, 0.3);
+}
+
+function tribV(m: MaeModel, ax: number, i0: number, i1: number) {
+  let sum = 0;
+  let n = 0;
+  for (let iy = i0; iy <= i1; iy++) {
+    let t = 0;
+    if (ax > 0 && cellOn(m, ax - 1, iy)) {
+      t += (m.axesX[ax] - m.axesX[ax - 1]) / Math.max(nVOnCell(m, ax - 1, iy), 1);
+    }
+    if (ax < nxOf(m) && cellOn(m, ax, iy)) {
+      t += (m.axesX[ax + 1] - m.axesX[ax]) / Math.max(nVOnCell(m, ax, iy), 1);
+    }
+    if (t > 0) {
+      sum += t;
+      n += 1;
+    }
+  }
+  return Math.max(n ? sum / n : 0.4, 0.3);
+}
+
+/** Tramos continuos de viga de cimentación sobre la zapata pintada. */
+export function collectGradeBeams(m: MaeModel): GradeBeamRun[] {
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  const runs: GradeBeamRun[] = [];
+  let n = 0;
+  for (let ay = 0; ay <= ny; ay++) {
+    let i = 0;
+    while (i < nx) {
+      while (i < nx && !hasGradeBeam(m, "h", ay, i)) i += 1;
+      if (i >= nx) break;
+      const i0 = i;
+      while (i + 1 < nx && hasGradeBeam(m, "h", ay, i + 1)) i += 1;
+      const i1 = i;
+      n += 1;
+      runs.push({
+        id: `VC${n}`,
+        kind: "h",
+        iAxis: ay,
+        i0,
+        i1,
+        x0: m.axesX[i0],
+        y0: m.axesY[ay],
+        x1: m.axesX[i1 + 1],
+        y1: m.axesY[ay],
+        L: m.axesX[i1 + 1] - m.axesX[i0],
+        b: tribH(m, ay, i0, i1),
+      });
+      i += 1;
+    }
+  }
+  for (let ax = 0; ax <= nx; ax++) {
+    let i = 0;
+    while (i < ny) {
+      while (i < ny && !hasGradeBeam(m, "v", ax, i)) i += 1;
+      if (i >= ny) break;
+      const i0 = i;
+      while (i + 1 < ny && hasGradeBeam(m, "v", ax, i + 1)) i += 1;
+      const i1 = i;
+      n += 1;
+      runs.push({
+        id: `VC${n}`,
+        kind: "v",
+        iAxis: ax,
+        i0,
+        i1,
+        x0: m.axesX[ax],
+        y0: m.axesY[i0],
+        x1: m.axesX[ax],
+        y1: m.axesY[i1 + 1],
+        L: m.axesY[i1 + 1] - m.axesY[i0],
+        b: tribV(m, ax, i0, i1),
+      });
+      i += 1;
+    }
+  }
+  return runs;
+}
+
+/** Columnas sobre el eje del tramo (se asignan al VC más cercano de esa dirección). */
+export function loadsOnGradeBeam(
+  run: GradeBeamRun,
+  loads: { x: number; y: number; P: number; M2?: number; M3?: number }[],
+  peers: GradeBeamRun[] = [run],
+): { x: number; P: number; M?: number }[] {
+  const family = peers.filter((r) => r.kind === run.kind);
+  const dist = (c: { x: number; y: number }, r: GradeBeamRun) => distToSeg(c.x, c.y, r.x0, r.y0, r.x1, r.y1);
+  const along = (c: { x: number; y: number }, r: GradeBeamRun) => (r.kind === "h" ? c.x : c.y);
+  const tol = Math.max(run.b + 0.15, 0.85);
+  return loads
+    .filter((c) => {
+      const s = along(c, run);
+      const lo = run.kind === "h" ? Math.min(run.x0, run.x1) : Math.min(run.y0, run.y1);
+      const hi = run.kind === "h" ? Math.max(run.x0, run.x1) : Math.max(run.y0, run.y1);
+      if (s < lo - 0.35 || s > hi + 0.35) return false;
+      const dThis = dist(c, run);
+      if (dThis > tol) return false;
+      const nearest = family.reduce((a, r) => (dist(c, r) < dist(c, a) ? r : a), run);
+      return nearest.id === run.id;
+    })
+    .map((c) =>
+      run.kind === "h"
+        ? { x: c.x - run.x0, P: c.P, M: c.M3 }
+        : { x: c.y - run.y0, P: c.P, M: c.M2 },
+    );
+}
+
+export function setAllGradeBeams(m: MaeModel, on: boolean): MaeModel {
+  const next = ensureGradeBeams(m, { reset: true });
+  if (on) return next;
+  return {
+    ...next,
+    beamV: next.beamV.map((row) => row.map(() => false)),
+    beamH: next.beamH.map((row) => row.map(() => false)),
+  };
+}
+
+/** Apaga todos los vanos de un tramo continuo (una viga, no toda la planta). */
+export function clearGradeBeamRun(m: MaeModel, run: GradeBeamRun): MaeModel {
+  const next = ensureGradeBeams(m);
+  if (run.kind === "h") {
+    const row = (next.beamH[run.iAxis] ?? []).slice();
+    for (let ix = run.i0; ix <= run.i1; ix++) row[ix] = false;
+    const beamH = next.beamH.slice();
+    beamH[run.iAxis] = row;
+    return { ...next, beamH };
+  }
+  const beamV = next.beamV.map((row) => row.slice());
+  for (let iy = run.i0; iy <= run.i1; iy++) {
+    if (beamV[iy]) beamV[iy][run.iAxis] = false;
+  }
+  return { ...next, beamV };
+}
+
+function distToSeg(x: number, y: number, ax: number, ay: number, bx: number, by: number) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const L2 = dx * dx + dy * dy || 1e-9;
+  let t = ((x - ax) * dx + (y - ay) * dy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+}
+
+export function hitGradeBeam(
+  m: MaeModel,
+  x: number,
+  y: number,
+  tol: number,
+): { kind: "v" | "h"; iAxis: number; iCell: number } | null {
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  let best: { kind: "v" | "h"; iAxis: number; iCell: number; d: number } | null = null;
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix <= nx; ix++) {
+      if (!beamSegTouchesPaint(m, "v", ix, iy)) continue;
+      const d = distToSeg(x, y, m.axesX[ix], m.axesY[iy], m.axesX[ix], m.axesY[iy + 1]);
+      if (d <= tol && (!best || d < best.d)) best = { kind: "v", iAxis: ix, iCell: iy, d };
+    }
+  }
+  for (let iy = 0; iy <= ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      if (!beamSegTouchesPaint(m, "h", iy, ix)) continue;
+      const d = distToSeg(x, y, m.axesX[ix], m.axesY[iy], m.axesX[ix + 1], m.axesY[iy]);
+      if (d <= tol && (!best || d < best.d)) best = { kind: "h", iAxis: iy, iCell: ix, d };
+    }
+  }
+  return best ? { kind: best.kind, iAxis: best.iAxis, iCell: best.iCell } : null;
 }
 
 export const MIN_VANO_M = 0.3;
@@ -136,6 +445,8 @@ export function defaultModel(mode: MaeMode): MaeModel {
       cols: [],
       axisXKind: Array.from({ length: axesX.length }, () => "viga"),
       axisYKind: Array.from({ length: axesY.length }, () => "viga"),
+      beamV: emptyBool(ny, nx + 1, false),
+      beamH: emptyBool(ny + 1, nx, false),
       volN: 0,
       volS: 0,
       volE: 0,
@@ -156,6 +467,8 @@ export function defaultModel(mode: MaeMode): MaeModel {
       cols: [],
       axisXKind: Array.from({ length: axesX.length }, () => "viga"),
       axisYKind: Array.from({ length: axesY.length }, () => "viga"),
+      beamV: emptyBool(ny, nx + 1, false),
+      beamH: emptyBool(ny + 1, nx, false),
       volN: 0,
       volS: 0,
       volE: 0,
@@ -175,6 +488,8 @@ export function defaultModel(mode: MaeMode): MaeModel {
     cols: [],
     axisXKind: Array.from({ length: axesX.length }, () => "viga"),
     axisYKind: Array.from({ length: axesY.length }, () => "viga"),
+    beamV: emptyBool(ny, nx + 1, false),
+    beamH: emptyBool(ny + 1, nx, false),
     volN: 0,
     volS: 0,
     volE: 0,
@@ -201,7 +516,7 @@ export function exampleModel(mode: MaeMode): MaeModel {
     m.volS = 0;
     m.volE = 0;
     m.volW = 0;
-    return m;
+    return ensureGradeBeams(m, { reset: true });
   }
   const nx = m.axesX.length - 1;
   const ny = m.axesY.length - 1;
@@ -209,7 +524,7 @@ export function exampleModel(mode: MaeMode): MaeModel {
   if (mode === "zapata" && ny > 1) {
     for (let ix = 0; ix < nx - 1; ix++) m.cells[1][ix] = false;
   }
-  return placeColsOnPainted(m, mode);
+  return ensureGradeBeams(placeColsOnPainted(m, mode), { reset: true });
 }
 
 export function plantReady(m: MaeModel, mode: MaeMode): boolean {
@@ -247,6 +562,8 @@ export function dumpMae(m: MaeModel): string {
     cols: m.cols,
     axisXKind: m.axisXKind,
     axisYKind: m.axisYKind,
+    beamV: m.beamV,
+    beamH: m.beamH,
     volN: m.volN,
     volS: m.volS,
     volE: m.volE,
@@ -300,23 +617,30 @@ export function parseMae(raw: string | undefined, fallback: MaeModel): MaeModel 
       ex: Number(c.ex) || 0,
       ey: Number(c.ey) || 0,
       centered: c.centered !== false && Math.abs(Number(c.ex) || 0) < 1e-4 && Math.abs(Number(c.ey) || 0) < 1e-4,
+      seat: c.seat === "esquinera" || c.seat === "borde" ? c.seat : "nudo",
     }));
     const axisXKind = Array.from({ length: axesX.length }, (_, i) => (j.axisXKind?.[i] as AxisKind) || "viga");
     const axisYKind = Array.from({ length: axesY.length }, (_, i) => (j.axisYKind?.[i] as AxisKind) || "viga");
-    return {
-      axesX,
-      axesY,
-      cells,
-      mergeH,
-      mergeV,
-      cols,
-      axisXKind,
-      axisYKind,
-      volN: Number(j.volN) || 0,
-      volS: Number(j.volS) || 0,
-      volE: Number(j.volE) || 0,
-      volW: Number(j.volW) || 0,
-    };
+    const stored = Array.isArray(j.beamV) && Array.isArray(j.beamH);
+    return ensureGradeBeams(
+      {
+        axesX,
+        axesY,
+        cells,
+        mergeH,
+        mergeV,
+        cols,
+        axisXKind,
+        axisYKind,
+        beamV: stored ? boolGrid(j.beamV, ny, nx + 1, false) : emptyBool(ny, nx + 1, false),
+        beamH: stored ? boolGrid(j.beamH, ny + 1, nx, false) : emptyBool(ny + 1, nx, false),
+        volN: Number(j.volN) || 0,
+        volS: Number(j.volS) || 0,
+        volE: Number(j.volE) || 0,
+        volW: Number(j.volW) || 0,
+      },
+      { reset: !stored },
+    );
   } catch {
     return fallback;
   }
@@ -333,9 +657,39 @@ export function cellOn(m: MaeModel, ix: number, iy: number) {
   return Boolean(m.cells[iy]?.[ix]);
 }
 
+/** Unión horizontal entre (ix, iy) y (ix+1, iy): quita la viga vertical de esa arista. */
+export function mergedH(m: MaeModel, ix: number, iy: number) {
+  return Boolean(m.mergeH[iy]?.[ix]);
+}
+
+/** Unión vertical entre (ix, iy) y (ix, iy+1): quita la viga horizontal de esa arista. */
+export function mergedV(m: MaeModel, ix: number, iy: number) {
+  return Boolean(m.mergeV[iy]?.[ix]);
+}
+
+/**
+ * Segmento de eje con viga o muro (no libre y no unido).
+ * dir "x" = eje vertical en axesX[axis], tramo de la fila iy.
+ * dir "y" = eje horizontal en axesY[axis], tramo de la columna ix.
+ */
+export function segmentHasBeam(m: MaeModel, dir: "x" | "y", axis: number, cell: number) {
+  if (dir === "x") {
+    const left = axis > 0 && cellOn(m, axis - 1, cell);
+    const right = axis < nxOf(m) && cellOn(m, axis, cell);
+    if (!left && !right) return false;
+    if (axis > 0 && axis < nxOf(m) && left && right && mergedH(m, axis - 1, cell)) return false;
+    return (m.axisXKind[axis] ?? "viga") !== "libre";
+  }
+  const bot = axis > 0 && cellOn(m, cell, axis - 1);
+  const top = axis < nyOf(m) && cellOn(m, cell, axis);
+  if (!bot && !top) return false;
+  if (axis > 0 && axis < nyOf(m) && bot && top && mergedV(m, cell, axis - 1)) return false;
+  return (m.axisYKind[axis] ?? "viga") !== "libre";
+}
+
 /** Pinta todos los vanos como techo (`true`) o hueco (`false`). */
 export function fillLosaRoof(m: MaeModel, on = true): MaeModel {
-  return { ...m, cells: m.cells.map((row) => row.map(() => on)) };
+  return ensureGradeBeams({ ...m, cells: m.cells.map((row) => row.map(() => on)) }, { reset: true });
 }
 
 /** Una grilla de solo huecos no es losa: se adopta techo en todos los vanos. */
@@ -394,17 +748,20 @@ export function createGridAxes(
       }
     }
   }
-  return {
-    ...m,
-    axesX,
-    axesY,
-    cells,
-    mergeH,
-    mergeV,
-    cols: m.cols.filter((c) => c.ix <= nx && c.iy <= ny),
-    axisXKind: Array.from({ length: nx + 1 }, (_, i) => m.axisXKind[i] ?? "viga"),
-    axisYKind: Array.from({ length: ny + 1 }, (_, i) => m.axisYKind[i] ?? "viga"),
-  };
+  return ensureGradeBeams(
+    {
+      ...m,
+      axesX,
+      axesY,
+      cells,
+      mergeH,
+      mergeV,
+      cols: m.cols.filter((c) => c.ix <= nx && c.iy <= ny),
+      axisXKind: Array.from({ length: nx + 1 }, (_, i) => m.axisXKind[i] ?? "viga"),
+      axisYKind: Array.from({ length: ny + 1 }, (_, i) => m.axisYKind[i] ?? "viga"),
+    },
+    { reset: resetCells },
+  );
 }
 
 /** Arma la grilla de losa. `resetCells` pinta todos los paños como techo (flujo Crear ejes). */
@@ -413,7 +770,33 @@ export function createLosaAxes(m: MaeModel, nBayX: number, nBayY: number, resetC
 }
 
 export function colXY(m: MaeModel, c: MaeCol): XY {
-  return { x: m.axesX[c.ix] + (c.centered ? 0 : c.ex), y: m.axesY[c.iy] + (c.centered ? 0 : c.ey) };
+  const nudo = { x: m.axesX[c.ix], y: m.axesY[c.iy] };
+  if (c.seat === "esquinera" || c.seat === "borde") {
+    const o = colInwardOffset(m, c);
+    return { x: nudo.x + o.ex, y: nudo.y + o.ey };
+  }
+  return { x: nudo.x + (c.centered ? 0 : c.ex), y: nudo.y + (c.centered ? 0 : c.ey) };
+}
+
+/** Desplaza el centro del pedestal hacia el concreto pintado para que quede entero sobre la zapata/platea. */
+export function colInwardOffset(m: MaeModel, c: Pick<MaeCol, "ix" | "iy" | "t1" | "t2" | "seat">): { ex: number; ey: number } {
+  const paintedR = (c.ix < nxOf(m) && c.iy < nyOf(m) && cellOn(m, c.ix, c.iy)) || (c.ix < nxOf(m) && c.iy > 0 && cellOn(m, c.ix, c.iy - 1));
+  const paintedL = (c.ix > 0 && c.iy < nyOf(m) && cellOn(m, c.ix - 1, c.iy)) || (c.ix > 0 && c.iy > 0 && cellOn(m, c.ix - 1, c.iy - 1));
+  const paintedT = (c.iy < nyOf(m) && c.ix < nxOf(m) && cellOn(m, c.ix, c.iy)) || (c.iy < nyOf(m) && c.ix > 0 && cellOn(m, c.ix - 1, c.iy));
+  const paintedB = (c.iy > 0 && c.ix < nxOf(m) && cellOn(m, c.ix, c.iy - 1)) || (c.iy > 0 && c.ix > 0 && cellOn(m, c.ix - 1, c.iy - 1));
+  let sx = 0;
+  if (paintedR && !paintedL) sx = 1;
+  else if (paintedL && !paintedR) sx = -1;
+  let sy = 0;
+  if (paintedT && !paintedB) sy = 1;
+  else if (paintedB && !paintedT) sy = -1;
+  const hx = Math.max(c.t2 / 2, 0.05);
+  const hy = Math.max(c.t1 / 2, 0.05);
+  if (c.seat === "borde") {
+    if (Math.abs(sx) >= Math.abs(sy)) return { ex: sx * hx, ey: 0 };
+    return { ex: 0, ey: sy * hy };
+  }
+  return { ex: sx * hx, ey: sy * hy };
 }
 
 export function nodeTouchesPaint(m: MaeModel, ix: number, iy: number) {
@@ -444,6 +827,7 @@ export function defaultCol(mode: MaeMode, ix: number, iy: number, nAxesX: number
     ex: 0,
     ey: 0,
     centered: true,
+    seat: "nudo",
   };
 }
 
@@ -650,11 +1034,25 @@ export function voidsOf(m: MaeModel): IdentifiedVoid[] {
   return out;
 }
 
-/** Paños techo, huecos y franjas de pórtico equivalente a analizar (no son siempre 2). */
+function paneAt(
+  panes: { id: string; ix0: number; iy0: number; ix1: number; iy1: number }[],
+  ix: number,
+  iy: number,
+) {
+  return panes.find((p) => ix >= p.ix0 && ix <= p.ix1 && iy >= p.iy0 && iy <= p.iy1);
+}
+
+function pushPaneId(ids: string[], pan?: { id: string }) {
+  if (pan && !ids.includes(pan.id)) ids.push(pan.id);
+}
+
+/** Paños techo, huecos, franjas y tramos de acero (positivo continuo vs negativo en apoyos). */
 export function identifyLosa(m: MaeModel, tipo: LosaTipo = "maciza"): {
   panes: IdentifiedPane[];
   strips: IdentifiedStrip[];
   voids: IdentifiedVoid[];
+  posRuns: LosaBarRun[];
+  negCuts: LosaBarRun[];
   nAnalisis: number;
 } {
   const panes0 = rectPanes(m).filter((p) => p.lx > 0.05 && p.ly > 0.05);
@@ -680,14 +1078,22 @@ export function identifyLosa(m: MaeModel, tipo: LosaTipo = "maciza"): {
       const i0 = ix;
       const paneIds: string[] = [];
       const spans: number[] = [];
+      const nodes: number[] = [ix];
       while (ix < nx && cellOn(m, ix, iy)) {
-        const pan = panes.find((p) => ix >= p.ix0 && ix <= p.ix1 && iy >= p.iy0 && iy <= p.iy1);
-        if (pan && !paneIds.includes(pan.id)) paneIds.push(pan.id);
-        spans.push(m.axesX[ix + 1] - m.axesX[ix]);
+        pushPaneId(paneIds, paneAt(panes, ix, iy));
+        let L = m.axesX[ix + 1] - m.axesX[ix];
+        while (ix + 1 < nx && cellOn(m, ix + 1, iy) && mergedH(m, ix, iy)) {
+          ix += 1;
+          L += m.axesX[ix + 1] - m.axesX[ix];
+          pushPaneId(paneIds, paneAt(panes, ix, iy));
+        }
+        spans.push(L);
+        nodes.push(ix + 1);
         ix += 1;
       }
       const i1 = ix - 1;
-      const nSpan = i1 - i0 + 1;
+      const nSpan = spans.length;
+      const nMerged = i1 - i0 + 1 - nSpan;
       strips.push({
         id: `FX-Y${iy + 1}-${i0 + 1}a${i1 + 1}`,
         dir: "x",
@@ -695,12 +1101,13 @@ export function identifyLosa(m: MaeModel, tipo: LosaTipo = "maciza"): {
         i0,
         i1,
         spans,
+        nodes,
         paneIds,
         b: m.axesY[iy + 1] - m.axesY[iy],
         why:
           nSpan === 1
-            ? `Franja X en vano Y${iy + 1}: 1 tramo (${paneIds.join(", ") || "celda"}) — no cruza el hueco.`
-            : `Franja X en vano Y${iy + 1}: ${nSpan} tramos continuos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ")}). El hueco corta otras franjas.`,
+            ? `Franja X en vano Y${iy + 1}: 1 tramo (${paneIds.join(", ") || "celda"})${nMerged ? " — paños unidos, sin viga interior" : " — no cruza el hueco"}.`
+            : `Franja X en vano Y${iy + 1}: ${nSpan} tramos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ")}). El hueco corta; Unir elimina apoyos interiores.`,
       });
     }
   }
@@ -712,14 +1119,22 @@ export function identifyLosa(m: MaeModel, tipo: LosaTipo = "maciza"): {
       const i0 = iy;
       const paneIds: string[] = [];
       const spans: number[] = [];
+      const nodes: number[] = [iy];
       while (iy < ny && cellOn(m, ix, iy)) {
-        const pan = panes.find((p) => ix >= p.ix0 && ix <= p.ix1 && iy >= p.iy0 && iy <= p.iy1);
-        if (pan && !paneIds.includes(pan.id)) paneIds.push(pan.id);
-        spans.push(m.axesY[iy + 1] - m.axesY[iy]);
+        pushPaneId(paneIds, paneAt(panes, ix, iy));
+        let L = m.axesY[iy + 1] - m.axesY[iy];
+        while (iy + 1 < ny && cellOn(m, ix, iy + 1) && mergedV(m, ix, iy)) {
+          iy += 1;
+          L += m.axesY[iy + 1] - m.axesY[iy];
+          pushPaneId(paneIds, paneAt(panes, ix, iy));
+        }
+        spans.push(L);
+        nodes.push(iy + 1);
         iy += 1;
       }
       const i1 = iy - 1;
-      const nSpan = i1 - i0 + 1;
+      const nSpan = spans.length;
+      const nMerged = i1 - i0 + 1 - nSpan;
       strips.push({
         id: `FY-X${ix + 1}-${i0 + 1}a${i1 + 1}`,
         dir: "y",
@@ -727,26 +1142,130 @@ export function identifyLosa(m: MaeModel, tipo: LosaTipo = "maciza"): {
         i0,
         i1,
         spans,
+        nodes,
         paneIds,
         b: m.axesX[ix + 1] - m.axesX[ix],
         why:
           nSpan === 1
-            ? `Franja Y en vano X${ix + 1}: 1 tramo (${paneIds.join(", ") || "celda"}) — no cruza el hueco.`
-            : `Franja Y en vano X${ix + 1}: ${nSpan} tramos continuos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ")}). El hueco corta otras franjas.`,
+            ? `Franja Y en vano X${ix + 1}: 1 tramo (${paneIds.join(", ") || "celda"})${nMerged ? " — paños unidos, sin viga interior" : " — no cruza el hueco"}.`
+            : `Franja Y en vano X${ix + 1}: ${nSpan} tramos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ")}). El hueco corta; Unir elimina apoyos interiores.`,
       });
     }
   }
   const voids = voidsOf(m);
-  return { panes, strips, voids, nAnalisis: panes.length + strips.length };
+  const { posRuns, negCuts } = identifySteelRuns(m, panes);
+  return { panes, strips, voids, posRuns, negCuts, nAnalisis: panes.length + strips.length };
 }
 
-function distToSeg(x: number, y: number, ax: number, ay: number, bx: number, by: number) {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const L2 = dx * dx + dy * dy || 1e-9;
-  let t = ((x - ax) * dx + (y - ay) * dy) / L2;
-  t = Math.max(0, Math.min(1, t));
-  return Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+/** Tramos de positivo (continuo en techos sin hueco) y cortes de negativo (solo viga/muro). */
+export function identifySteelRuns(
+  m: MaeModel,
+  panes?: { id: string; ix0: number; iy0: number; ix1: number; iy1: number }[],
+): { posRuns: LosaBarRun[]; negCuts: LosaBarRun[] } {
+  const found = panes ?? rectPanes(m);
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  const posRuns: LosaBarRun[] = [];
+  const negCuts: LosaBarRun[] = [];
+  for (let iy = 0; iy < ny; iy++) {
+    let ix = 0;
+    while (ix < nx) {
+      while (ix < nx && !cellOn(m, ix, iy)) ix += 1;
+      if (ix >= nx) break;
+      const i0 = ix;
+      const paneIds: string[] = [];
+      while (ix < nx && cellOn(m, ix, iy)) {
+        pushPaneId(paneIds, paneAt(found, ix, iy));
+        ix += 1;
+      }
+      const i1 = ix - 1;
+      posRuns.push({
+        kind: "pos",
+        dir: "x",
+        line: iy,
+        i0,
+        i1,
+        x0: m.axesX[i0],
+        y0: m.axesY[iy],
+        x1: m.axesX[i1 + 1],
+        y1: m.axesY[iy + 1],
+        paneIds,
+        why: `+X continuo en Y${iy + 1}, vanos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ") || "techo"}). Se corta en hueco o borde, no en viga interior.`,
+      });
+    }
+  }
+  for (let ix = 0; ix < nx; ix++) {
+    let iy = 0;
+    while (iy < ny) {
+      while (iy < ny && !cellOn(m, ix, iy)) iy += 1;
+      if (iy >= ny) break;
+      const i0 = iy;
+      const paneIds: string[] = [];
+      while (iy < ny && cellOn(m, ix, iy)) {
+        pushPaneId(paneIds, paneAt(found, ix, iy));
+        iy += 1;
+      }
+      const i1 = iy - 1;
+      posRuns.push({
+        kind: "pos",
+        dir: "y",
+        line: ix,
+        i0,
+        i1,
+        x0: m.axesX[ix],
+        y0: m.axesY[i0],
+        x1: m.axesX[ix + 1],
+        y1: m.axesY[i1 + 1],
+        paneIds,
+        why: `+Y continuo en X${ix + 1}, vanos ${i0 + 1}–${i1 + 1} (${paneIds.join(", ") || "techo"}). Se corta en hueco o borde, no en viga interior.`,
+      });
+    }
+  }
+  for (let ax = 0; ax < m.axesX.length; ax++) {
+    for (let iy = 0; iy < ny; iy++) {
+      if (!segmentHasBeam(m, "x", ax, iy)) continue;
+      const paneIds: string[] = [];
+      if (ax > 0) pushPaneId(paneIds, paneAt(found, ax - 1, iy));
+      if (ax < nx) pushPaneId(paneIds, paneAt(found, ax, iy));
+      const kind = m.axisXKind[ax] ?? "viga";
+      negCuts.push({
+        kind: "neg",
+        dir: "x",
+        line: iy,
+        i0: ax,
+        i1: ax,
+        x0: m.axesX[ax],
+        y0: m.axesY[iy],
+        x1: m.axesX[ax],
+        y1: m.axesY[iy + 1],
+        paneIds,
+        why: `−X en apoyo ${kind} x=${m.axesX[ax].toFixed(2)} m, vano Y${iy + 1}. No hay negativo si Unir quitó la viga o el eje es libre.`,
+      });
+    }
+  }
+  for (let ay = 0; ay < m.axesY.length; ay++) {
+    for (let ix = 0; ix < nx; ix++) {
+      if (!segmentHasBeam(m, "y", ay, ix)) continue;
+      const paneIds: string[] = [];
+      if (ay > 0) pushPaneId(paneIds, paneAt(found, ix, ay - 1));
+      if (ay < ny) pushPaneId(paneIds, paneAt(found, ix, ay));
+      const kind = m.axisYKind[ay] ?? "viga";
+      negCuts.push({
+        kind: "neg",
+        dir: "y",
+        line: ix,
+        i0: ay,
+        i1: ay,
+        x0: m.axesX[ix],
+        y0: m.axesY[ay],
+        x1: m.axesX[ix + 1],
+        y1: m.axesY[ay],
+        paneIds,
+        why: `−Y en apoyo ${kind} y=${m.axesY[ay].toFixed(2)} m, vano X${ix + 1}. No hay negativo si Unir quitó la viga o el eje es libre.`,
+      });
+    }
+  }
+  return { posRuns, negCuts };
 }
 
 /** Línea interior entre dos paños techo (para Unir/separar). */
@@ -778,11 +1297,56 @@ export function hitMergeLine(
   return best ? { dir: best.dir, ix: best.ix, iy: best.iy } : null;
 }
 
+/** Hit-test en coordenadas de pantalla/SVG (misma que las líneas doradas dibujadas). */
+export function hitMergeLineFromPx(
+  m: MaeModel,
+  px: number,
+  py: number,
+  worldToPx: (x: number, y: number) => { x: number; y: number },
+  tolPx: number,
+): { dir: "h" | "v"; ix: number; iy: number } | null {
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  let best: { dir: "h" | "v"; ix: number; iy: number; d: number } | null = null;
+  for (let ix = 1; ix < nx; ix++) {
+    for (let iy = 0; iy < ny; iy++) {
+      if (!cellOn(m, ix - 1, iy) || !cellOn(m, ix, iy)) continue;
+      const a = worldToPx(m.axesX[ix], m.axesY[iy]);
+      const b = worldToPx(m.axesX[ix], m.axesY[iy + 1]);
+      const d = distToSeg(px, py, a.x, a.y, b.x, b.y);
+      if (d <= tolPx && (!best || d < best.d)) best = { dir: "h", ix: ix - 1, iy, d };
+    }
+  }
+  for (let iy = 1; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      if (!cellOn(m, ix, iy - 1) || !cellOn(m, ix, iy)) continue;
+      const a = worldToPx(m.axesX[ix], m.axesY[iy]);
+      const b = worldToPx(m.axesX[ix + 1], m.axesY[iy]);
+      const d = distToSeg(px, py, a.x, a.y, b.x, b.y);
+      if (d <= tolPx && (!best || d < best.d)) best = { dir: "v", ix, iy: iy - 1, d };
+    }
+  }
+  return best ? { dir: best.dir, ix: best.ix, iy: best.iy } : null;
+}
+
 export function toggleMerge(m: MaeModel, hit: { dir: "h" | "v"; ix: number; iy: number }): MaeModel {
-  const mergeH = m.mergeH.map((r) => r.slice());
-  const mergeV = m.mergeV.map((r) => r.slice());
-  if (hit.dir === "h") mergeH[hit.iy][hit.ix] = !mergeH[hit.iy][hit.ix];
-  else mergeV[hit.iy][hit.ix] = !mergeV[hit.iy][hit.ix];
+  const nx = nxOf(m);
+  const ny = nyOf(m);
+  const mergeH = emptyBool(ny, nx, false);
+  const mergeV = emptyBool(ny, nx, false);
+  for (let iy = 0; iy < ny; iy++) {
+    for (let ix = 0; ix < nx; ix++) {
+      mergeH[iy][ix] = Boolean(m.mergeH[iy]?.[ix]);
+      mergeV[iy][ix] = Boolean(m.mergeV[iy]?.[ix]);
+    }
+  }
+  if (hit.dir === "h") {
+    if (hit.iy >= 0 && hit.iy < ny && hit.ix >= 0 && hit.ix < nx - 1) {
+      mergeH[hit.iy][hit.ix] = !mergeH[hit.iy][hit.ix];
+    }
+  } else if (hit.iy >= 0 && hit.iy < ny - 1 && hit.ix >= 0 && hit.ix < nx) {
+    mergeV[hit.iy][hit.ix] = !mergeV[hit.iy][hit.ix];
+  }
   return { ...m, mergeH, mergeV };
 }
 

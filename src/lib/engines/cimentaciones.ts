@@ -484,3 +484,4 @@ export const zapataCombinada: Engine = (raw) => {
 
 export { calcZapataCorrida as zapataCorrida } from "./maestria/zapataCalc";
 export { calcPlatea as platea } from "./maestria/plateaCalc";
+export { calcVigaCimentacion as vigaCimentacion } from "./maestria/vigaCimentacionCalc";

@@ -6,7 +6,7 @@ Catálogo vivo de lo que hace el sitio. Actualizar esta carpeta cuando cambie el
 | --- | --- |
 | Sitio público | `ingenieria.miacademiapreu.com` |
 | Panel de control | `control-ingenieria.miacademiapreu.com` |
-| Publicar | `python scripts/publicar.py -m "…"` (build + VPS + GitHub) |
+| Publicar | Doble clic en `Publicar.cmd` (build + VPS + GitHub) |
 
 ## Memorias de cálculo
 
@@ -16,7 +16,7 @@ Catálogo vivo de lo que hace el sitio. Actualizar esta carpeta cuando cambie el
 - El muro de contención lleva croquis acotado con cada valor y un **diagrama de cuerpo libre 2D** (no isométrico). Pa, Pw, Pq y q(x) se dibujan como **carga distribuida** (envolvente + flechas).
 - La **deflexión de servicio** de la pantalla se calcula paso a paso (Branson + elástica). Si no cumple Hs/150, el espesor F se aumenta automáticamente hasta cumplir.
 - El **alma se dibuja con talud** (F en la base, B′ en coronación) en metrados, DCL, geometría y despiece. Si el muro desliza, se prediseña y verifica un **dentellón** (taco) bajo el fuste (paso 07b). El despiece de aceros se renderiza grande, con barras visibles y cotas de plano. El sismo se dibuja con las posiciones de Pa (H/3), ΔPae (0,6 H) y PIR (centro de gravedad).
-- **Motor de despiece A1**: un Ø representativo por cálculo (estribo pantalla y muro en voladizo con verticales anclados en la zapata, losa 2 dir. con aceros **por paño** sobre la planta real — ejes, techos y huecos —, zapata corrida con columnas 6 GDL y dos cortes, platea por franjas, reservorios por zona). Cajas de marca pegadas al acero.
+- **Motor de despiece A1**: un Ø representativo por cálculo (estribo pantalla y muro en voladizo con verticales anclados en la zapata, losa 2 dir. en planta con As+ **continuo** (gancho 90° en extremos) y As− **un acero por apoyo** sin doblez interior — Ø en pulgadas en el cuadro de marca —, zapata corrida **en planta** con vigas de cimentación colocables/borrables, lechos inf./sup. y punzonamiento de esquina con pedestal asentado, platea por franjas, reservorios por zona). Cajas de marca pegadas al acero.
 - **Losa 2 dir., zapata corrida y platea** viven en las memorias clásicas (`losa-2dir`, `zapata-corrida`, `platea`): expediente con fórmula KaTeX, sustitución, resultado y criterio (E.060 / ACI / E.050). Si no hay planta pintada se carga un ejemplo y se calcula completo; no hay pestaña «Taller de maestría».
 - **Líneas de influencia** (`linea-influencia`): viga de 2 a 7 apoyos, η_M/η_V con salto, cota móvil s₀, integral de faja por trapecios, envelope HL-93 y flota MTC (1 o 2 vehículos). Croquis a ancho completo en el papel.
 

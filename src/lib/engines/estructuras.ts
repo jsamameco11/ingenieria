@@ -38,7 +38,7 @@ import {
 } from "../colpro";
 import { resolveSection, tipoById } from "../columnaTipos";
 import { generateColumnPM } from "../pmMotor";
-import { platea, zapataCombinada, zapataCorrida } from "./cimentaciones";
+import { platea, vigaCimentacion, zapataCombinada, zapataCorrida } from "./cimentaciones";
 import { calcLosa2d } from "./maestria/losa2dCalc";
 import { e030C as e030CTabla } from "../e030/tablas";
 import { resolveE030 } from "../e030/resolve";
@@ -3049,6 +3049,7 @@ export const estructuras: Record<string, Engine> = {
   zapataCombinada,
   zapataCorrida,
   platea,
+  vigaCimentacion,
   pilotes,
   escalera,
   viguetas,

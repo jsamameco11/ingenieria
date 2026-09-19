@@ -1271,7 +1271,7 @@ export const MODULES: ModuleDef[] = [
   {
     slug: "losa-2dir",
     title: "Losa en dos direcciones",
-    short: "Memoria de expediente: identificación de paños, pesos maciza/aligerada, ACI-3 + Marcus + franjas, As por paño.",
+    short: "Memoria de expediente: Unir quita la viga interior, pesos maciza/aligerada, ACI-3 + Marcus + franjas, malla Ø 3/8–1½; despiece A1 en planta con As+ continuo y As− sin doblez interior.",
     specialty: "edificaciones",
     norma: "ACI método 3 · E.060",
     source: "DIS LOSA MZ.xls",
@@ -2213,7 +2213,7 @@ export const MODULES: ModuleDef[] = [
   {
     slug: "zapata-corrida",
     title: "Zapata corrida",
-    short: "Memoria de expediente: geometría A-Ixx-Iyy, 6 GDL por columna, q=P/A±Mc/I, E.050, prediseño de h, viga invertida y As.",
+    short: "Expediente: peralte h, M/V/punzonamiento, viga invertida por cada tramo de cimentación (colocar/borrar en planta), despiece A1 inf./sup.",
     specialty: "edificaciones",
     norma: "E.060 · ACI 318",
     source: "ZAPATA CORRIDA",

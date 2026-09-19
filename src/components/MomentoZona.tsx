@@ -7,10 +7,10 @@ import {
   specEstriboPantalla,
   specLosaFromValues,
   specPlateaFromValues,
-  specZapataCorridaLong,
+  specVigaCimentacion,
   specZapataCorridaTrans,
 } from "../lib/steelEngine";
-import { parseCorrida, parseGrid } from "../lib/layoutGrid";
+import { parseGrid } from "../lib/layoutGrid";
 import { CorridaIsoFig } from "./CorridaColumnas";
 import { MaeMomentStrip, MaePunchFromDims } from "./maestria/MaeFigs";
 
@@ -48,6 +48,7 @@ type Props = {
   note?: string;
   leftLabel?: string;
   rightLabel?: string;
+  kind?: "M" | "V";
 };
 
 function sampleShape(shape: Shape, L: number, MuPos: number, MuNeg: number, n = 32) {
@@ -79,6 +80,7 @@ export function MomentoZonaFig({
   note,
   leftLabel = "Libre / arranque",
   rightLabel = "Cara / apoyo",
+  kind = "M",
 }: Props) {
   const Luse = Math.max(L, 0.05);
   const raw = ptsIn && ptsIn.length >= 2 ? ptsIn : sampleShape(shape, Luse, MuPos, MuNeg);
@@ -101,7 +103,7 @@ export function MomentoZonaFig({
   return (
     <div className="croquis croquis-compact" data-fig-part="momento">
       <div className="croquis-head">
-        <p>{`Momento flector · ${zona}`}</p>
+        <p>{`${kind === "V" ? "Cortante" : "Momento flector"} · ${zona}`}</p>
       </div>
       <div className="croquis-stage">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
@@ -395,20 +397,42 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
   }
   if (kind === "zapataCorrida") {
     if (part === "mTrans") {
+      const pts = unpackMomentos(sv(values, "mPtsTrans"));
       return (
         <MomentoZonaFig
           zona="Zapata corrida — voladizos transversales"
-          formula="Mu = qu · ℓv² / 2   (por metro de corrida)"
+          formula="Mu(x) = qu · x² / 2   (x desde el borde libre, t·m/m)"
           L={Math.max(nv(values, "lvL"), nv(values, "lvR"), 0.3)}
-          shape="cantilever"
+          shape={pts.length >= 2 ? "polyline" : "cantilever"}
+          pts={pts.length >= 2 ? pts : undefined}
           MuPos={nv(values, "MuCorr")}
           acero={sv(values, "asPrin", 'Ø 1/2"')}
           As={sv(values, "AsPrin")}
-          cara="inferior · perpendicular al muro"
+          cara="inferior · perpendicular al eje · un juego por paño"
           unidad="t·m/m"
           leftLabel="Borde de zapata"
-          rightLabel="Cara del muro"
-          note="Acero principal continuo de vuelo a vuelo, cara del suelo, con gancho en los extremos."
+          rightLabel="Cara del muro / columna"
+          note="El vuelo se arma en el lecho inferior (cara del suelo). El despiece se dibuja en planta: no hay corte transversal de la sección T ni acero a media altura."
+        />
+      );
+    }
+    if (part === "mShear") {
+      const pts = unpackMomentos(sv(values, "vPtsTrans"));
+      return (
+        <MomentoZonaFig
+          kind="V"
+          zona="Zapata corrida — cortante en una dirección"
+          formula="Vu(x) = qu · x    ·    sección crítica a d de la cara"
+          L={Math.max(nv(values, "lvL"), nv(values, "lvR"), 0.3)}
+          shape={pts.length >= 2 ? "polyline" : "cantilever"}
+          pts={pts.length >= 2 ? pts : undefined}
+          MuPos={nv(values, "lvL") * Math.max(nv(values, "MuCorr"), 0.1)}
+          acero={sv(values, "asPrin", 'Ø 1/2"')}
+          cara="flujo transversal · E.060 11.3"
+          unidad="t/m"
+          leftLabel="Borde libre"
+          rightLabel="Cara (x = ℓv)"
+          note="V = 0 en el borde. La verificación φVc se hace a d de la cara, no en el arranque del muro."
         />
       );
     }
@@ -416,8 +440,8 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
       const pts = unpackMomentos(sv(values, "mPts"));
       return (
         <MomentoZonaFig
-          zona="Zapata corrida — viga invertida (línea de columnas)"
-          formula="M(x) = w x²/2 − Σ Pu (x − xi)"
+          zona="Zapata corrida — viga invertida (momento)"
+          formula="M(x)  ·  q(x)=a+bx con ΣV=0 y ΣM=0 (extremos libres)"
           L={nv(values, "Lbeam", nv(values, "L", 12))}
           shape={pts.length >= 2 ? "polyline" : "fixed"}
           pts={pts.length >= 2 ? pts : undefined}
@@ -425,39 +449,42 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
           MuNeg={nv(values, "Msoil")}
           acero={sv(values, "asLong", 'Ø 1/2"')}
           As={sv(values, "AsLong")}
-          cara="inferior entre apoyos · superior en extremos"
+          cara="inferior continuo entre apoyos · superior en extremos"
           unidad="t·m"
           leftLabel="Columna 1"
           rightLabel="Última columna"
-          note="Columnas puntuales y reacción del suelo en el ancho B. Si es muro continuo, esta zona no gobierna: rige el voladizo transversal."
+          note="Viga invertida de extremos libres: q(x) se calibra a las columnas (ΣV=0, ΣM=0). M(0)=M(L)=0. Inferior continuo (M− cara del suelo); superior cortado L_teo+ℓd (M+ en vuelos). Un VC sin columnas no gobierna."
         />
       );
     }
     if (part === "mSecTrans") return <SteelSectionFig spec={specZapataCorridaTrans(values)} />;
     if (part === "mSecLong") {
-      const n = Math.max(1, Math.round(nv(values, "nTramos", 3)));
-      const s = nv(values, "sCol", 4);
-      const model = parseCorrida(sv(values, "corridaJson"), {
-        cols: Array.from({ length: n + 1 }, (_, i) => ({
-          id: `C${i + 1}`,
-          x: i * s,
-          ey: 0,
-          centered: true,
-          t1: nv(values, "t1", 0.3),
-          t2: nv(values, "t2", 0.4),
-          P1: 0,
-          P2: 0,
-          P3: 64,
-          M1: 0,
-          M2: 0,
-          M3: 0,
-        })),
-        hBeam: nv(values, "hBeam", 0.6),
-        bBeam: nv(values, "bBeam", 0.4),
-      });
-      return <SteelSectionFig spec={specZapataCorridaLong(values, model)} />;
+      const pts = unpackMomentos(sv(values, "vPts"));
+      if (pts.length >= 2) {
+        return (
+          <MomentoZonaFig
+            kind="V"
+            zona="Zapata corrida — cortante de viga invertida"
+            formula="V(x) = w x − Σ Pu"
+            L={nv(values, "Lbeam", nv(values, "L", 12))}
+            shape="polyline"
+            pts={pts}
+            acero={sv(values, "asLong", 'Ø 1/2"')}
+            As={sv(values, "AsLong")}
+            cara="equilibrio de la línea de columnas"
+            unidad="t"
+            leftLabel="Extremo 1"
+            rightLabel="Extremo 2"
+            note="Saltos en V en cada columna. En x = L el cortante debe cerrar el equilibrio."
+          />
+        );
+      }
+      return <SteelSectionFig spec={specZapataCorridaTrans(values)} />;
     }
     if (part === "mIso") return <CorridaIsoFig values={values} />;
+    if (part === "mVC") {
+      return <SteelSectionFig spec={specVigaCimentacion(values)} />;
+    }
   }
   if (kind === "platea") {
     const map: Record<string, { zona: string; key: string; b: string }> = {
@@ -503,6 +530,9 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         cols: [],
       });
       return <SteelSectionFig spec={specPlateaFromValues(values, grid)} />;
+    }
+    if (part === "mVC") {
+      return <SteelSectionFig spec={specVigaCimentacion(values)} />;
     }
   }
   if (kind === "escalera") {

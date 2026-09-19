@@ -2,6 +2,8 @@ import { folio } from "../folio";
 import { analyzeUsage } from "./engine";
 import { fetchMasterIdentity, saveMasterIdentity } from "./masterIdentity";
 import { ingestOnboarding } from "../perfil/pipeline";
+import { saveSiteOnboarding, fetchSiteOnboarding } from "../siteTaste/store";
+import { storeCategoryFromRubro } from "../siteTaste/rank";
 import { adSegmentOf, emptyProfile, profileComplete, type CraftFamily, type UsageEvent, type UserInsight, type UserProfile } from "./types";
 
 const PROFILE_KEY = "memorcalc-profile-v1";
@@ -130,15 +132,19 @@ export function mergeUserProfile(
     inferred_rubros: pick("inferred_rubros", []),
     inferred_confidence: pick("inferred_confidence", 0),
     ad_segment: pick("ad_segment", ""),
+    tools: pick("tools", []),
+    buy_categories: pick("buy_categories", []),
+    email_keywords: pick("email_keywords", []),
   };
   next.onboarding_done = Boolean(localOk?.onboarding_done || cloud?.onboarding_done || profileComplete({ ...next, onboarding_done: true }));
   return next;
 }
 
 export async function fetchCloudProfile(userId: string): Promise<UserProfile | null> {
-  const [mcRes, master] = await Promise.all([
+  const [mcRes, master, site] = await Promise.all([
     folio.from("memorcalc_profiles").select("*").eq("user_id", userId).maybeSingle(),
     fetchMasterIdentity(userId).catch(() => null),
+    fetchSiteOnboarding("INGENIERIA").catch(() => null),
   ]);
   const row = !mcRes.error && mcRes.data ? (mcRes.data as Record<string, unknown>) : null;
   if (!row && !master) return null;
@@ -194,6 +200,9 @@ export async function fetchCloudProfile(userId: string): Promise<UserProfile | n
     experience_years: master?.experience_years ?? fromMc.experience_years ?? null,
     birth_year: master?.birth_year ?? fromMc.birth_year ?? null,
     onboarding_done: Boolean(fromMc.onboarding_done),
+    tools: asStringList((site?.answers as Record<string, unknown> | undefined)?.tools) || [],
+    buy_categories: asStringList((site?.answers as Record<string, unknown> | undefined)?.buy_categories),
+    email_keywords: Array.isArray(site?.email_keywords) ? (site!.email_keywords as string[]) : [],
   };
 }
 
@@ -286,6 +295,25 @@ export async function saveCloudProfile(p: UserProfile, events: UsageEvent[]): Pr
     /* Folio aún sin la RPC */
   }
   void ingestOnboarding(saved).catch(() => undefined);
+  const buy = saved.buy_categories.length
+    ? saved.buy_categories
+    : saved.specialty_focus.map(storeCategoryFromRubro).filter(Boolean);
+  void saveSiteOnboarding({
+    platform: "INGENIERIA",
+    email: saved.email,
+    answers: {
+      craft_family: saved.craft_family,
+      profession: saved.profession_label,
+      age: saved.age,
+      city: saved.district || saved.city,
+      department: saved.department,
+      organization: saved.organization,
+      role: saved.workplace_role,
+      tools: saved.tools,
+      buy_categories: buy,
+      specialty_focus: saved.specialty_focus,
+    },
+  }).catch(() => undefined);
   return insight;
 }
 

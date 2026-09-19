@@ -38,10 +38,10 @@ Si el muro ya cumple al deslizamiento, **no** se dibuja ni se vierte concreto de
 
 Una marca por lecho. El corte se dibuja grande, a escala de plano. Barras **delgadas** (cerca de la escala real, levemente exageradas):
 
-- **1** longitudinal vertical al **trasdós** (flexión, continúa en la zapata, gancho 90° al lecho superior del talón, ℓd).
-- **2** longitudinal vertical al **intradós** (reparto, sigue el talud, entra a la zapata y ancla en el lecho inferior de la puntera).
+- **1** longitudinal vertical al **trasdós** (flexión, penetra la zapata y se apoya en el lecho inferior, gancho 90°).
+- **2** longitudinal vertical al **intradós** (reparto, sigue el talud, penetra la zapata y se apoya en el lecho inferior).
 - **3** temperatura horizontal en corte, **interior** a los verticales, ambas caras.
-- **4 / 5** zapata inferior (puntera, flexión) y **superior** (reparto / talón), ganchos 90° **en ambos extremos**, continuidad bajo el fuste.
+- **4 / 5** zapata **inferior y superior continuos de cara a cara**, ganchos 90° en ambos extremos.
 - **6** transversales de zapata en corte, a lo ancho (incluido bajo el alma).
 - **7 / 8 / 9** dentellón si hay llave: **7** cara de suelo (dowel al alma, capa interior, sin coincidir con el intradós); **8** cara interior (gancho 90° en la zapata, no llega al fuste); **9** longitudinales del taco en corte, interiores al recubrimiento y desfasados de los verticales.
 

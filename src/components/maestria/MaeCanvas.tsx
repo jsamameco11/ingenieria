@@ -10,6 +10,10 @@ import {
 } from "../../lib/engines/maestria/drawCommon";
 import {
   adoptRoofIfEmpty,
+  beamSegTouchesPaint,
+  cellOn,
+  collectGradeBeams,
+  colXY,
   createGridAxes,
   createLosaAxes,
   cycleKind,
@@ -17,14 +21,24 @@ import {
   edgeLabel,
   exampleModel,
   fillLosaRoof,
+  hasGradeBeam,
+  hitGradeBeam,
   hitMergeLine,
+  hitMergeLineFromPx,
   identifyLosa,
+  markCellBeams,
+  mergedH,
+  mergedV,
+  nodeTouchesPaint,
   nxOf,
   nyOf,
   paintedInertia,
   parseMae,
   placeColsOnPainted,
+  setAllGradeBeams,
   setSpan,
+  toggleGradeBeam,
+  clearGradeBeamRun,
   toggleMerge,
   type MaeCol,
   type MaeMode,
@@ -41,14 +55,21 @@ type Props = {
   onSelect: (id: string | null) => void;
 };
 
-function svgPoint(e: React.MouseEvent<SVGSVGElement>) {
+function svgPoint(e: React.MouseEvent<SVGSVGElement>, W: number, H: number) {
   const svg = e.currentTarget;
-  const pt = svg.createSVGPoint();
-  pt.x = e.clientX;
-  pt.y = e.clientY;
   const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: 0, y: 0 };
-  return pt.matrixTransform(ctm.inverse());
+  if (ctm && typeof svg.createSVGPoint === "function") {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    if (Number.isFinite(p.x) && Number.isFinite(p.y)) return { x: p.x, y: p.y };
+  }
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: ((e.clientX - rect.left) / Math.max(rect.width, 1)) * W,
+    y: ((e.clientY - rect.top) / Math.max(rect.height, 1)) * H,
+  };
 }
 
 export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props) {
@@ -67,12 +88,19 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
   }
 
   function onSvgClick(ev: React.MouseEvent<SVGSVGElement>) {
-    const p = svgPoint(ev);
+    const p = svgPoint(ev, W, H);
     const m = fromPx(p.x, p.y);
-    const tol = 0.22 * Math.max(1, 80 / sc);
+    const tol = 0.35 * Math.max(1, 80 / sc);
     const ax = nearestAxis(model, m.x, m.y, tol);
 
+    if (tool === "viga" && needsCols) {
+      const hit = hitGradeBeam(model, m.x, m.y, Math.max(tol, 20 / sc));
+      if (hit) commit(toggleGradeBeam(model, hit));
+      return;
+    }
+
     if (tool === "columna" && needsCols && ax.hitX && ax.hitY) {
+      if (!nodeTouchesPaint(model, ax.iX, ax.iY)) return;
       const hit = colAtHit(model, ax.iX, ax.iY);
       if (hit) {
         onSelect(hit.id);
@@ -94,6 +122,7 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
         ex: 0,
         ey: 0,
         centered: true,
+        seat: "nudo",
       };
       commit({ ...model, cols: [...model.cols, col] }, { maeSel: col.id });
       onSelect(col.id);
@@ -116,7 +145,8 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
     }
 
     if (tool === "unir") {
-      const hit = hitMergeLine(model, m.x, m.y, Math.max(tol, 0.18));
+      const worldToPx = (x: number, y: number) => toPx(model, x, y, pad, sc);
+      const hit = hitMergeLineFromPx(model, p.x, p.y, worldToPx, 16) ?? hitMergeLine(model, m.x, m.y, Math.max(tol, 0.4));
       if (!hit) return;
       commit(toggleMerge(model, hit));
       return;
@@ -126,14 +156,16 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
       const cell = cellHit(model, m.x, m.y);
       if (!cell) return;
       const cells = model.cells.map((r) => r.slice());
-      cells[cell.iy][cell.ix] = !cells[cell.iy][cell.ix];
-      commit({ ...model, cells });
+      const on = !cells[cell.iy][cell.ix];
+      cells[cell.iy][cell.ix] = on;
+      commit(markCellBeams({ ...model, cells }, cell.ix, cell.iy, on));
       return;
     }
 
     if (tool === "columna" && needsCols) {
       const hit = model.cols.find((c) => {
-        const q = toPx(model, model.axesX[c.ix] + c.ex, model.axesY[c.iy] + c.ey, pad, sc);
+        const xy = colXY(model, c);
+        const q = toPx(model, xy.x, xy.y, pad, sc);
         return Math.hypot(q.x - p.x, q.y - p.y) < 14;
       });
       if (hit) onSelect(hit.id);
@@ -164,14 +196,12 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
   return (
     <div className="mae-canvas">
       <p className="mae-hint">{modeHint(mode)}</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mae-svg" role="img" onClick={onSvgClick}>
+      <svg viewBox={`0 0 ${W} ${H}`} className={`mae-svg${tool === "viga" ? " is-viga" : ""}`} role="application" aria-label="Planta de losa" onClick={onSvgClick}>
         <rect x="0" y="0" width={W} height={H} fill="#f7f3ea" />
         {model.cells.map((row, iy) =>
           row.map((on, ix) => {
             const a = toPx(model, model.axesX[ix], model.axesY[iy + 1], pad, sc);
             const b = toPx(model, model.axesX[ix + 1], model.axesY[iy], pad, sc);
-            const mergedH = Boolean(model.mergeH[iy]?.[ix]);
-            const mergedV = Boolean(model.mergeV[iy]?.[ix]);
             return (
               <rect
                 key={`p-${ix}-${iy}`}
@@ -180,48 +210,167 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
                 width={Math.max(3, b.x - a.x)}
                 height={Math.max(3, b.y - a.y)}
                 fill={on ? (mode === "losa" ? "#d9e4d0" : "#d5c9a8") : "#efe8dc"}
-                stroke="#1a4473"
+                stroke={on ? "none" : "#1a4473"}
                 strokeWidth={1.1}
                 strokeDasharray={on ? undefined : "5 4"}
-                opacity={mergedH || mergedV ? 1 : 1}
               />
             );
           }),
         )}
-        {model.axesX.map((x, i) => {
-          const a = toPx(model, x, e.y0, pad, sc);
-          const b = toPx(model, x, e.y1, pad, sc);
-          const k = model.axisXKind[i];
-          return (
-            <line
-              key={`vx-${i}`}
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={k === "muro" ? "#8b1e1e" : k === "libre" ? "#b8a078" : "#1a4473"}
-              strokeWidth={k === "muro" ? 3 : 1.2}
-              strokeDasharray={k === "libre" ? "4 4" : undefined}
-            />
-          );
-        })}
-        {model.axesY.map((y, i) => {
-          const a = toPx(model, e.x0, y, pad, sc);
-          const b = toPx(model, e.x1, y, pad, sc);
-          const k = model.axisYKind[i];
-          return (
-            <line
-              key={`hy-${i}`}
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={k === "muro" ? "#8b1e1e" : k === "libre" ? "#b8a078" : "#1a4473"}
-              strokeWidth={k === "muro" ? 3 : 1.2}
-              strokeDasharray={k === "libre" ? "4 4" : undefined}
-            />
-          );
-        })}
+        {mode === "losa"
+          ? model.axesX.map((x, i) =>
+              Array.from({ length: ny }, (_, iy) => {
+                const joined = i > 0 && i < nx && cellOn(model, i - 1, iy) && cellOn(model, i, iy) && mergedH(model, i - 1, iy);
+                if (joined) return null;
+                const a = toPx(model, x, model.axesY[iy], pad, sc);
+                const b = toPx(model, x, model.axesY[iy + 1], pad, sc);
+                const k = model.axisXKind[i];
+                return (
+                  <line
+                    key={`vx-${i}-${iy}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke={k === "muro" ? "#8b1e1e" : k === "libre" ? "#b8a078" : "#1a4473"}
+                    strokeWidth={k === "muro" ? 3 : 1.2}
+                    strokeDasharray={k === "libre" ? "4 4" : undefined}
+                  />
+                );
+              }),
+            )
+          : model.axesX.map((x, i) =>
+              Array.from({ length: ny }, (_, iy) => {
+                if (!beamSegTouchesPaint(model, "v", i, iy)) return null;
+                const on = hasGradeBeam(model, "v", i, iy);
+                const a = toPx(model, x, model.axesY[iy], pad, sc);
+                const b = toPx(model, x, model.axesY[iy + 1], pad, sc);
+                const toggle = (ev: React.MouseEvent) => {
+                  ev.stopPropagation();
+                  if (tool !== "viga") return;
+                  commit(toggleGradeBeam(model, { kind: "v", iAxis: i, iCell: iy }));
+                };
+                return (
+                  <g key={`vcv-${i}-${iy}`}>
+                    <line
+                      x1={a.x}
+                      y1={a.y}
+                      x2={b.x}
+                      y2={b.y}
+                      stroke="transparent"
+                      strokeWidth={18}
+                      pointerEvents="stroke"
+                      onClick={toggle}
+                    />
+                    <line
+                      x1={a.x}
+                      y1={a.y}
+                      x2={b.x}
+                      y2={b.y}
+                      stroke={on ? "#163a63" : "#8a7344"}
+                      strokeWidth={on ? (tool === "viga" ? 5.6 : 4.4) : tool === "viga" ? 3.2 : 1.7}
+                      strokeDasharray={on ? undefined : "7 5"}
+                      strokeLinecap="square"
+                      opacity={on ? 1 : 0.9}
+                      pointerEvents="stroke"
+                      onClick={toggle}
+                    />
+                  </g>
+                );
+              }),
+            )}
+        {mode === "losa"
+          ? model.axesY.map((y, i) =>
+              Array.from({ length: nx }, (_, ix) => {
+                const joined = i > 0 && i < ny && cellOn(model, ix, i - 1) && cellOn(model, ix, i) && mergedV(model, ix, i - 1);
+                if (joined) return null;
+                const a = toPx(model, model.axesX[ix], y, pad, sc);
+                const b = toPx(model, model.axesX[ix + 1], y, pad, sc);
+                const k = model.axisYKind[i];
+                return (
+                  <line
+                    key={`hy-${i}-${ix}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke={k === "muro" ? "#8b1e1e" : k === "libre" ? "#b8a078" : "#1a4473"}
+                    strokeWidth={k === "muro" ? 3 : 1.2}
+                    strokeDasharray={k === "libre" ? "4 4" : undefined}
+                  />
+                );
+              }),
+            )
+          : model.axesY.map((y, i) =>
+              Array.from({ length: nx }, (_, ix) => {
+                if (!beamSegTouchesPaint(model, "h", i, ix)) return null;
+                const on = hasGradeBeam(model, "h", i, ix);
+                const a = toPx(model, model.axesX[ix], y, pad, sc);
+                const b = toPx(model, model.axesX[ix + 1], y, pad, sc);
+                const toggle = (ev: React.MouseEvent) => {
+                  ev.stopPropagation();
+                  if (tool !== "viga") return;
+                  commit(toggleGradeBeam(model, { kind: "h", iAxis: i, iCell: ix }));
+                };
+                return (
+                  <g key={`vch-${i}-${ix}`}>
+                    <line
+                      x1={a.x}
+                      y1={a.y}
+                      x2={b.x}
+                      y2={b.y}
+                      stroke="transparent"
+                      strokeWidth={18}
+                      pointerEvents="stroke"
+                      onClick={toggle}
+                    />
+                    <line
+                      x1={a.x}
+                      y1={a.y}
+                      x2={b.x}
+                      y2={b.y}
+                      stroke={on ? "#163a63" : "#8a7344"}
+                      strokeWidth={on ? (tool === "viga" ? 5.6 : 4.4) : tool === "viga" ? 3.2 : 1.7}
+                      strokeDasharray={on ? undefined : "7 5"}
+                      strokeLinecap="square"
+                      opacity={on ? 1 : 0.9}
+                      pointerEvents="stroke"
+                      onClick={toggle}
+                    />
+                  </g>
+                );
+              }),
+            )}
+        {needsCols
+          ? collectGradeBeams(model).map((run) => {
+              const a = toPx(model, run.x0, run.y0, pad, sc);
+              const b = toPx(model, run.x1, run.y1, pad, sc);
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+              const L = Math.hypot(dx, dy) || 1;
+              const nxn = -dy / L;
+              const nyn = dx / L;
+              return (
+                <text
+                  key={`id-${run.id}`}
+                  x={(a.x + b.x) / 2 + nxn * 10}
+                  y={(a.y + b.y) / 2 + nyn * 10}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#163a63"
+                  style={{ cursor: tool === "viga" ? "pointer" : "default" }}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    if (tool !== "viga") return;
+                    commit(clearGradeBeamRun(model, run));
+                  }}
+                >
+                  {run.id}
+                </text>
+              );
+            })
+          : null}
         {Array.from({ length: ny }, (_, iy) =>
           Array.from({ length: Math.max(0, nx - 1) }, (_, ix) => {
             const left = Boolean(model.cells[iy]?.[ix]);
@@ -230,20 +379,38 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
             const merged = Boolean(model.mergeH[iy]?.[ix]);
             const a = toPx(model, model.axesX[ix + 1], model.axesY[iy], pad, sc);
             const b = toPx(model, model.axesX[ix + 1], model.axesY[iy + 1], pad, sc);
-            const show = tool === "unir" || merged;
+            const show = tool === "unir";
             if (!show) return null;
+            const onJoin = (ev: React.MouseEvent) => {
+              ev.stopPropagation();
+              if (tool !== "unir") return;
+              commit(toggleMerge(model, { dir: "h", ix, iy }));
+            };
             return (
-              <line
-                key={`mh-${ix}-${iy}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke={merged ? "#8b1e1e" : "#c4a35a"}
-                strokeWidth={tool === "unir" ? 6 : 3.2}
-                strokeDasharray={merged ? "8 4" : undefined}
-                opacity={tool === "unir" ? 0.95 : 0.85}
-              />
+              <g key={`mh-${ix}-${iy}`}>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke="transparent"
+                  strokeWidth={18}
+                  pointerEvents="stroke"
+                  onClick={onJoin}
+                />
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={merged ? "#8b1e1e" : "#c4a35a"}
+                  strokeWidth={tool === "unir" ? 6 : 3.2}
+                  strokeDasharray={merged ? "8 4" : undefined}
+                  opacity={tool === "unir" ? 0.95 : 0.85}
+                  pointerEvents="stroke"
+                  onClick={onJoin}
+                />
+              </g>
             );
           }),
         )}
@@ -255,20 +422,38 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
             const merged = Boolean(model.mergeV[iy]?.[ix]);
             const a = toPx(model, model.axesX[ix], model.axesY[iy + 1], pad, sc);
             const b = toPx(model, model.axesX[ix + 1], model.axesY[iy + 1], pad, sc);
-            const show = tool === "unir" || merged;
+            const show = tool === "unir";
             if (!show) return null;
+            const onJoin = (ev: React.MouseEvent) => {
+              ev.stopPropagation();
+              if (tool !== "unir") return;
+              commit(toggleMerge(model, { dir: "v", ix, iy }));
+            };
             return (
-              <line
-                key={`mv-${ix}-${iy}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke={merged ? "#8b1e1e" : "#c4a35a"}
-                strokeWidth={tool === "unir" ? 6 : 3.2}
-                strokeDasharray={merged ? "8 4" : undefined}
-                opacity={tool === "unir" ? 0.95 : 0.85}
-              />
+              <g key={`mv-${ix}-${iy}`}>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke="transparent"
+                  strokeWidth={18}
+                  pointerEvents="stroke"
+                  onClick={onJoin}
+                />
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={merged ? "#8b1e1e" : "#c4a35a"}
+                  strokeWidth={tool === "unir" ? 6 : 3.2}
+                  strokeDasharray={merged ? "8 4" : undefined}
+                  opacity={tool === "unir" ? 0.95 : 0.85}
+                  pointerEvents="stroke"
+                  onClick={onJoin}
+                />
+              </g>
             );
           }),
         )}
@@ -291,6 +476,7 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
         {needsCols
           ? model.axesX.flatMap((x, ix) =>
               model.axesY.map((y, iy) => {
+                if (!nodeTouchesPaint(model, ix, iy)) return null;
                 const p = toPx(model, x, y, pad, sc);
                 const has = colAtHit(model, ix, iy);
                 return (
@@ -309,7 +495,8 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
             )
           : null}
         {model.cols.map((c) => {
-          const p = toPx(model, model.axesX[c.ix] + (c.centered ? 0 : c.ex), model.axesY[c.iy] + (c.centered ? 0 : c.ey), pad, sc);
+          const xy = colXY(model, c);
+          const p = toPx(model, xy.x, xy.y, pad, sc);
           const on = c.id === sel;
           return (
             <g key={c.id}>
@@ -329,6 +516,22 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
           );
         })}
       </svg>
+      {needsCols ? (
+        <ul className="mae-legend">
+          <li>
+            <span className="mae-leg-on" />
+            Viga de cimentación (VC)
+          </li>
+          <li>
+            <span className="mae-leg-off" />
+            Borde de zapata sin viga
+          </li>
+          <li>
+            <span className="mae-leg-empty" />
+            Celda vacía — no hay estructura
+          </li>
+        </ul>
+      ) : null}
       <div className="mae-spans">
         {model.axesX.slice(0, -1).map((_, i) => (
           <label key={`sx-${i}`}>
@@ -371,20 +574,28 @@ export function MaeCanvas({ mode, model, tool, sel, onChange, onSelect }: Props)
           <label>
             Posición
             <select
-              value={selected.centered ? "c" : "e"}
-              onChange={(ev) => patchCol({ centered: ev.target.value === "c", ey: ev.target.value === "c" ? 0 : selected.ey || 0.15 })}
+              value={selected.seat === "esquinera" || selected.seat === "borde" ? selected.seat : selected.centered ? "nudo" : "desf"}
+              onChange={(ev) => {
+                const v = ev.target.value;
+                if (v === "nudo") patchCol({ seat: "nudo", centered: true, ex: 0, ey: 0 });
+                else if (v === "esquinera") patchCol({ seat: "esquinera", centered: true, ex: 0, ey: 0 });
+                else if (v === "borde") patchCol({ seat: "borde", centered: true, ex: 0, ey: 0 });
+                else patchCol({ seat: "nudo", centered: false, ey: selected.ey || 0.15 });
+              }}
             >
-              <option value="c">Centrada en el nudo</option>
-              <option value="e">Desfasada / borde</option>
+              <option value="nudo">Nudo (entrecuerce)</option>
+              <option value="esquinera">Esquinera (pedestal entero dentro)</option>
+              <option value="borde">Borde (pedestal entero dentro)</option>
+              <option value="desf">Desfasada (ex, ey)</option>
             </select>
           </label>
           <label>
             ex (m)
-            <input type="number" step="0.05" value={selected.ex} disabled={selected.centered} onChange={(ev) => patchCol({ ex: Number(ev.target.value) || 0, centered: false })} />
+            <input type="number" step="0.05" value={selected.ex} disabled={selected.seat === "esquinera" || selected.seat === "borde" || selected.centered} onChange={(ev) => patchCol({ ex: Number(ev.target.value) || 0, centered: false, seat: "nudo" })} />
           </label>
           <label>
             ey (m)
-            <input type="number" step="0.05" value={selected.ey} disabled={selected.centered} onChange={(ev) => patchCol({ ey: Number(ev.target.value) || 0, centered: false })} />
+            <input type="number" step="0.05" value={selected.ey} disabled={selected.seat === "esquinera" || selected.seat === "borde" || selected.centered} onChange={(ev) => patchCol({ ey: Number(ev.target.value) || 0, centered: false, seat: "nudo" })} />
           </label>
           <label>
             P1 FX (t)
@@ -450,6 +661,13 @@ export function LosaIdentificacion({ model, tipo = "maciza" }: { model: MaeModel
           ))}
         </ul>
       ) : null}
+      {found.posRuns.length || found.negCuts.length ? (
+        <ul>
+          <li>
+            Positivo continuo: {found.posRuns.length} tramo(s). Negativo solo en viga/muro: {found.negCuts.length} apoyo(s), L = L_teo + máx(12 db, d, ℓn/16).
+          </li>
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -480,6 +698,7 @@ export function PlantIdentificacion({ mode, model }: { mode: MaeMode; model: Mae
     .slice(0, -1)
     .map((y, i) => (model.axesY[i + 1] - y).toFixed(2))
     .join(" + ");
+  const beams = collectGradeBeams(model);
   const kind = mode === "platea" ? "platea" : "zapata";
   if (nCells < 1) {
     return (
@@ -492,7 +711,7 @@ export function PlantIdentificacion({ mode, model }: { mode: MaeMode; model: Mae
     <div className="mae-ident">
       <p>
         <strong>
-          Grilla {nx}×{ny} vanos · {nCells} celda(s) · A={geom.A.toFixed(2)} m² · {model.cols.length} columna(s)
+          Grilla {nx}×{ny} vanos · {nCells} celda(s) · A={geom.A.toFixed(2)} m² · {model.cols.length} columna(s) · {beams.length} viga(s) de cimentación
         </strong>
         {nudosLive > model.cols.length
           ? ` — faltan ${nudosLive - model.cols.length} columna(s) en nudos pintados.`
@@ -504,6 +723,13 @@ export function PlantIdentificacion({ mode, model }: { mode: MaeMode; model: Mae
         <li>
           Centroide xc={geom.xc.toFixed(2)} m · yc={geom.yc.toFixed(2)} m · Ixx={geom.Ixx.toFixed(2)} m⁴ · Iyy={geom.Iyy.toFixed(2)} m⁴
         </li>
+        {beams.length ? (
+          <li>
+            Vigas de cimentación: {beams.map((b) => `${b.id} ${b.kind === "h" ? "H" : "V"} L=${b.L.toFixed(2)} m b=${b.b.toFixed(2)} m`).join(" · ")}
+          </li>
+        ) : (
+          <li>Sin vigas de cimentación. Use «Viga cim.» (tramo a tramo) o «Vigas en bordes».</li>
+        )}
       </ul>
     </div>
   );
@@ -551,6 +777,7 @@ export function MaeCatalogHost({
         ]
       : [
           { id: "celda", label: "Pintar planta" },
+          { id: "viga", label: "Viga cim." },
           { id: "columna", label: "Colocar columna" },
         ];
   return (
@@ -628,6 +855,9 @@ export function MaeCatalogHost({
             >
               Columnas en nudos
             </button>
+            <button type="button" onClick={() => onPatch(patchStudio(setAllGradeBeams(model, true)))}>
+              Vigas en bordes
+            </button>
           </>
         )}
         {tools.map((t) => (
@@ -646,7 +876,10 @@ export function MaeCatalogHost({
         </button>
       </div>
       {mode === "losa" && tool === "unir" ? (
-        <p className="mae-hint">Modo unir: pulse la línea interior dorada entre dos paños verdes. Rojo discontinuo = ya unidos (clic otra vez separa). No une contra un hueco.</p>
+        <p className="mae-hint">Modo unir: pulse la línea interior dorada entre dos paños verdes. Eso ELIMINA la viga de esa arista (un solo paño, sin eje interior). Rojo discontinuo = ya unidos (clic otra vez separa y vuelve la viga). No une contra un hueco.</p>
+      ) : null}
+      {mode !== "losa" && tool === "viga" ? (
+        <p className="mae-hint">Viga cim.: pulse un tramo grueso para borrarlo, o un borde discontinuo para colocarlo. Una viga (un vano) a la vez. Clic en la etiqueta VC1… borra ese tramo continuo. El vacío no es estructura.</p>
       ) : null}
       <MaeCanvas
         mode={mode}

@@ -82,6 +82,10 @@ export type SteelDraftSpec = {
   guides?: { x1: number; y1: number; x2: number; y2: number; color?: string; dash?: string; width?: number }[];
   /** Oculta llamadas laterales (el cuadro de marcas basta). */
   hideCallouts?: boolean;
+  /** Cajas compactas de marca + Ø pegadas a cada pieza (planta A1). */
+  markBoxes?: boolean;
+  /** Factor de afinado de varilla (0.55 = trazo fino profesional en planta). */
+  lineScale?: number;
 };
 
 export const STEEL_FLEX = "#8b1e1e";
@@ -446,30 +450,21 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
   const ySoffit = xy(0, 0).y;
   const yBotMat = ySoffit - recZ - rPata;
   const yTopMat = pP.y + recZ + rDist;
-  const yHeelSteel = pP.y + recZ + rAlma;
-  const intoBack: SteelBarPt = { x: pBaseB.x - inB, y: yHeelSteel };
-  const intoFrontBot: SteelBarPt = { x: pBaseF.x + inF, y: yBotMat - (rPata + rIntra + 4) };
-  const ldAlmaPx = Math.min(
-    (steelLdCm(nv(values, "fy", 4200), nv(values, "fc", 210), dbAlma) / 100) * sc,
-    Math.max(hookAlma, A * sc * 0.72),
-  );
-  const ldIntraPx = Math.min(
-    (steelLdCm(nv(values, "fy", 4200), nv(values, "fc", 210), dbIntra) / 100) * sc,
-    Math.max(hookIntra, C * sc * 0.55),
-  );
+  const intoBackBot: SteelBarPt = { x: pBaseB.x - inB, y: yBotMat };
+  const intoFrontBot: SteelBarPt = { x: pBaseF.x + inF, y: yBotMat };
   const pathAlma = appendHook90(
     [topBack, { x: pBaseB.x - inB, y: pBaseB.y + recZ * 0.2 }],
-    intoBack,
+    intoBackBot,
     "right",
     bendAlma,
-    ldAlmaPx,
+    hookAlma,
   );
   const pathIntra = appendHook90(
     [topFront, { x: pBaseF.x + inF, y: pBaseF.y + recZ * 0.2 }],
     intoFrontBot,
     "left",
     bendIntra,
-    ldIntraPx,
+    hookIntra,
   );
 
   const xFootL = pP0.x + recZ + rPata;
@@ -583,7 +578,7 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     {
       mark: 1,
       name: "Longitudinal trasdós",
-      face: "trasdós · ancla en la zapata",
+      face: "trasdós · penetra y se apoya en lecho inf.",
       bar: barByName(barAlma).name,
       dbCm: dbAlma,
       sCm: sAlma,
@@ -605,7 +600,7 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     {
       mark: 2,
       name: "Longitudinal intradós",
-      face: "intradós · ancla en la zapata",
+      face: "intradós · penetra y se apoya en lecho inf.",
       bar: barByName(barIntraN).name,
       dbCm: dbIntra,
       sCm: sIntra,
@@ -856,7 +851,7 @@ export function specMuroVoladizo(values: Record<string, string>): SteelDraftSpec
     title: "Corte de sección — despiece de aceros",
     subtitle: "Muro en voladizo · corte A-A · franja de 1,00 m · una marca por lecho",
     caption: `Trasdós Ø ${barAlma} @ ${sAlma.toFixed(0)} · Intradós Ø ${barIntraN} @ ${sIntra.toFixed(0)} · Zapata inf. Ø ${barPata} @ ${sPata.toFixed(0)} · Zapata sup. Ø ${barDistN} @ ${sDist.toFixed(0)} · Transv. zapata Ø ${barTalon} @ ${sTalon.toFixed(0)} · Temp. Ø ${barTemp} @ ${sTemp.toFixed(0)}${hkUse > 0.02 ? ` · Dentellón ${bkUse.toFixed(2)}×${hkUse.toFixed(2)} m` : ""}`,
-    note: "Verticales del alma anclan en la zapata con gancho 90° y no bajan al dentellón. El taco lleva armadura propia: la cara de suelo entra al alma por una capa interior (sin coincidir con el intradós) y la cara interior se queda en la zapata con gancho 90°. Longitudinales del dentellón en corte, dentro del recubrimiento y desfasados de los verticales. hk típico 0,30–0,60 m.",
+    note: "Los dos verticales del alma penetran la zapata y se apoyan en el lecho inferior con gancho 90°. El taco lleva armadura propia: la cara de suelo entra al alma por una capa interior (sin coincidir con el intradós) y la cara interior se queda en la zapata con gancho 90°. Longitudinales del dentellón en corte, dentro del recubrimiento y desfasados de los verticales. hk típico 0,30–0,60 m.",
     W,
     H: Ht,
     outline,

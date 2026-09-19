@@ -19,6 +19,8 @@ import {
 import { roleLabel } from "../lib/auth/engine";
 import { SOPORTE_LABEL, SOPORTE_WA } from "../lib/support";
 import { useAuth } from "./AuthProvider";
+import { INGENIERIA_BUY_CATS, INGENIERIA_TOOLS } from "../lib/siteTaste/questionnaires";
+import { emailKeywordsFrom, organizationHintFromEmail } from "../lib/siteTaste/emailKeywords";
 
 function GoogleMark() {
   return (
@@ -131,7 +133,7 @@ function GoogleModal() {
   );
 }
 
-const STEPS = ["Oficio", "Persona", "Ejercicio", "Territorio", "Intereses"];
+const STEPS = ["Oficio", "Persona", "Ejercicio", "Territorio", "Intereses", "Plaza"];
 
 function ProfileModal() {
   const { profile, user, saveProfile, busy, error, signOut, insight } = useAuth();
@@ -159,6 +161,8 @@ function ProfileModal() {
         user_id: user?.id || incoming?.user_id || s.user_id,
         full_name: incoming?.full_name || s.full_name,
         avatar_url: incoming?.avatar_url || s.avatar_url,
+        organization: s.organization || incoming?.organization || organizationHintFromEmail(user?.email || incoming?.email || s.email),
+        email_keywords: incoming?.email_keywords?.length ? incoming.email_keywords : emailKeywordsFrom(user?.email || incoming?.email || s.email),
       };
     });
   }, [profile, user]);
@@ -199,6 +203,10 @@ function ProfileModal() {
       }
     }
     if (n === 4 && form.specialty_focus.length === 0) return "Elija al menos un rubro de interés. Sirve para avisos pertinentes.";
+    if (n === 5) {
+      if ((form.tools || []).length === 0) return "Indique el software que usa con más frecuencia.";
+      if ((form.buy_categories || []).length === 0) return "Indique qué busca en Compras (al menos una categoría).";
+    }
     return "";
   };
 
@@ -231,6 +239,8 @@ function ProfileModal() {
       ubigeo: form.country_code === "PE" ? ubigeoCode(form.department, form.province, form.district) : "",
       birth_year: form.age ? new Date().getFullYear() - form.age : null,
       onboarding_done: true,
+      email_keywords: emailKeywordsFrom(form.email),
+      organization: form.organization || organizationHintFromEmail(form.email),
     };
     try {
       await saveProfile(nextProfile);
@@ -244,10 +254,11 @@ function ProfileModal() {
       <div className="auth-modal auth-modal-wide" role="dialog" aria-labelledby="auth-profile-title">
         <header>
           <p className="auth-kicker">Ficha profesional · paso {step + 1} de {STEPS.length}</p>
-          <h3 id="auth-profile-title">Categorización de cuenta</h3>
+          <h3 id="auth-profile-title">Servicio gratuito y personalizado</h3>
           <p>
-            Estos datos habilitan la edición y permiten enviar avisos acordes a su oficio, edad, territorio y rubros.
-            No se puede omitir: sin ficha no se modifican plantillas ni cálculos.
+            Ingeniería es un servicio gratuito. Oficio (ingeniero o arquitecto), especialidad, edad, territorio y lo que
+            consulta en Compras sirven para ordenar módulos, avisos y la vitrina. No se vende su ficha a terceros.
+            Sin ficha no se habilita la edición.
           </p>
           {user?.email ? (
             <div className="auth-who">
@@ -484,6 +495,58 @@ function ProfileModal() {
               Lectura de uso: {insight.summary || "aún sin señales de navegación."} Confianza {(insight.confidence * 100).toFixed(0)} %.
               {insight.role_guess ? ` Rol inferido: ${roleLabel(insight.role_guess)}.` : ""}
             </p>
+          </div>
+        ) : null}
+
+        {step === 5 ? (
+          <div className="auth-field wide">
+            <span>Software que usa y lo que busca en Compras</span>
+            <p className="auth-fine">
+              El correo de Google de empresa (no Gmail genérico) aporta palabras clave del dominio para priorizar avisos.
+              {form.email_keywords.length ? ` Lectura del correo: ${form.email_keywords.join(", ")}.` : " Cuenta personal: no se infiere empresa."}
+            </p>
+            <p className="auth-fine">Herramientas</p>
+            <div className="auth-chips">
+              {INGENIERIA_TOOLS.map((r) => {
+                const on = (form.tools || []).includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className={`auth-chip${on ? " on" : ""}`}
+                    onClick={() =>
+                      patch({
+                        tools: on ? (form.tools || []).filter((x) => x !== r.id) : [...(form.tools || []), r.id],
+                      })
+                    }
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="auth-fine">Categorías de Compras</p>
+            <div className="auth-chips">
+              {INGENIERIA_BUY_CATS.map((r) => {
+                const on = (form.buy_categories || []).includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className={`auth-chip${on ? " on" : ""}`}
+                    onClick={() =>
+                      patch({
+                        buy_categories: on
+                          ? (form.buy_categories || []).filter((x) => x !== r.id)
+                          : [...(form.buy_categories || []), r.id],
+                      })
+                    }
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : null}
 

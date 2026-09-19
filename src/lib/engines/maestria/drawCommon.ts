@@ -41,6 +41,7 @@ export type PunchSpec = {
   d: number;
   col: { x: number; y: number; t1: number; t2: number; id: string };
   poly: { x: number; y: number }[];
+  segs?: { x1: number; y1: number; x2: number; y2: number }[];
   Vu: number;
   phiVn: number;
   b0: number;
@@ -102,12 +103,12 @@ export function cellHit(m: MaeModel, x: number, y: number) {
 
 export function modeHint(mode: MaeMode) {
   if (mode === "losa") {
-    return "1) Crear ejes (todos los paños quedan techo). 2) Paño on/off = pulse un paño verde para marcarlo hueco. 3) Unir/separar = clic en la línea interior entre dos techos. 4) Apoyo = viga / muro / libre.";
+    return "1) Crear ejes (todos los paños quedan techo). 2) Paño on/off = pulse un paño verde para marcarlo hueco. 3) Unir/separar = clic en la línea interior entre dos techos: quita la viga y fusiona el paño. 4) Apoyo = viga / muro / libre.";
   }
   if (mode === "zapata") {
-    return "1) Vanos X / Vanos Y = número de tramos (1 a 12). 2) Crear grilla rehace los ejes. 3) Cada vano se acota abajo (ℓx, ℓy). 4) Pintar planta y Columnas en nudos. Clic en una columna abre P1…M3.";
+    return "1) Vanos X / Vanos Y = número de tramos (1 a 12). 2) Crear grilla rehace los ejes. 3) Cada vano se acota abajo (ℓx, ℓy). 4) Pintar planta. 5) Viga cim.: clic en un tramo grueso para borrarlo (uno a uno) o en un borde discontinuo para colocarlo. El vacío no es estructura. 6) Columnas en nudos. En la ficha: esquinera / borde mete el pedestal entero en la zapata (punzonamiento αs=20/30). Clic en una columna abre P1…M3.";
   }
-  return "1) Vanos X / Vanos Y definen la malla. 2) Crear grilla. 3) Pintar platea y Columnas en nudos. El gráfico de punzonamiento muestra b0, Vu, φVn y OK/NO.";
+  return "1) Vanos X / Vanos Y definen la malla. 2) Crear grilla. 3) Pintar platea. 4) Columnas en nudos. Esquinera / borde: pedestal entero sobre el concreto para punzonamiento. El gráfico muestra b0, Vu, φVn y OK/NO.";
 }
 
 export function axisCaption(m: MaeModel) {

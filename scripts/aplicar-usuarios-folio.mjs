@@ -133,7 +133,14 @@ if (!client) {
   process.exit(1);
 }
 
-const files = ["memorcalc-users.sql", "memorcalc-quotas-onboarding.sql", "memorcalc-billing.sql", "memorcalc-device-lock.sql", "memorcalc-admin.sql"];
+const files = [
+  "memorcalc-users.sql",
+  "memorcalc-quotas-onboarding.sql",
+  "memorcalc-billing.sql",
+  "memorcalc-device-lock.sql",
+  "memorcalc-admin.sql",
+  "migrations/20260918013000_site_taste_engine.sql",
+];
 try {
   for (const file of files) {
     const sql = readFileSync(join(ROOT, "supabase", file), "utf8");

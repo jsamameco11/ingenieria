@@ -1,6 +1,10 @@
 import { useId } from "react";
 import { centroid, type LeaderSide, type SteelDraftSpec, type SteelLayer } from "../lib/steelDraft";
 
+function fmtSep(s: number) {
+  return Math.abs(s - Math.round(s)) < 0.051 ? String(Math.round(s)) : s.toFixed(1).replace(".", ",");
+}
+
 function filletedD(pts: { x: number; y: number }[], radius: number) {
   if (pts.length < 2) return "";
   if (pts.length === 2) return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
@@ -102,20 +106,54 @@ function BarCut({ x, y, r, color }: { x: number; y: number; r: number; color: st
 function RebarLine({ pts, color, width }: { pts: { x: number; y: number }[]; color: string; width: number }) {
   if (pts.length < 2) return null;
   const d = polyD(pts, width);
-  const cap = Math.max(1.1, width * 0.42);
+  const cap = Math.max(0.7, width * 0.42);
   const first = pts[0];
   const last = pts[pts.length - 1];
   const t0 = endTick(first, pts[1], Math.max(1.6, width * 0.7));
   const t1 = endTick(last, pts[pts.length - 2], Math.max(1.6, width * 0.7));
   return (
     <g>
-      <path d={d} fill="none" stroke="#120808" strokeWidth={width + 1.05} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="#120808" strokeWidth={width + 0.7} strokeLinecap="round" strokeLinejoin="round" />
       <path d={d} fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={d} fill="none" stroke="#f6e6d0" strokeWidth={Math.max(0.5, width * 0.22)} strokeLinecap="round" strokeLinejoin="round" opacity="0.75" />
-      <line {...t0} stroke="#120808" strokeWidth="0.7" />
-      <line {...t1} stroke="#120808" strokeWidth="0.7" />
+      <path d={d} fill="none" stroke="#f6e6d0" strokeWidth={Math.max(0.35, width * 0.18)} strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+      <line {...t0} stroke="#120808" strokeWidth="0.6" />
+      <line {...t1} stroke="#120808" strokeWidth="0.6" />
       <circle cx={first.x} cy={first.y} r={cap} fill={color} stroke="#120808" strokeWidth="0.55" />
       <circle cx={last.x} cy={last.y} r={cap} fill={color} stroke="#120808" strokeWidth="0.55" />
+    </g>
+  );
+}
+
+function MarkBox({
+  layer,
+  from,
+  box,
+  a1 = false,
+}: {
+  layer: SteelLayer;
+  from: { x: number; y: number };
+  box: { x: number; y: number; anchor: "start" | "middle" | "end" };
+  a1?: boolean;
+}) {
+  const w = a1 ? 122 : 96;
+  const h = a1 ? 40 : 32;
+  const x = box.x - w / 2;
+  const y = box.y - h / 2;
+  const r = a1 ? 11 : 8.5;
+  return (
+    <g>
+      <path d={`M ${from.x} ${from.y} L ${box.x} ${box.y}`} fill="none" stroke={layer.color} strokeWidth={a1 ? 1.15 : 0.95} />
+      <rect x={x} y={y} width={w} height={h} rx="2.5" fill="#fffcf6" stroke={layer.color} strokeWidth="1.35" />
+      <circle cx={x + 16} cy={box.y} r={r} fill="#fff" stroke={layer.color} strokeWidth="1.8" />
+      <text x={x + 16} y={box.y + 4} textAnchor="middle" fontSize={a1 ? 12 : 9.5} fontWeight="700" fill={layer.color} fontFamily="IBM Plex Sans, sans-serif">
+        {layer.mark}
+      </text>
+      <text x={x + 32} y={box.y - 4} textAnchor="start" fontSize={a1 ? 13.5 : 10.5} fontWeight="700" fill={layer.color} fontFamily="IBM Plex Mono, ui-monospace, monospace">
+        Ø {layer.bar}
+      </text>
+      <text x={x + 32} y={box.y + 12} textAnchor="start" fontSize={a1 ? 10.5 : 8.5} fill="#5a4a28" fontFamily="IBM Plex Mono, ui-monospace, monospace">
+        @{fmtSep(layer.sCm)} cm
+      </text>
     </g>
   );
 }
@@ -162,7 +200,7 @@ function LayerCallout({
         {layer.name}
       </text>
       <text x={tx} y={nameY + (a1 ? 22 : 13)} textAnchor={textAnchor} fontSize={a1 ? 19 : 10.5} fontWeight={a1 ? 700 : 500} fill={layer.color} fontFamily="IBM Plex Mono, ui-monospace, monospace">
-        Ø {layer.bar} @ {layer.sCm.toFixed(0)} cm
+        Ø {layer.bar} @ {fmtSep(layer.sCm)} cm
       </text>
       {extra ? (
         <>
@@ -215,6 +253,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   const a1 = spec.sheet === "a1";
   const plan = spec.mode === "plan";
   const scale = spec.barScale ?? 1;
+  const thin = spec.lineScale ?? 1;
   const leftLayers = spec.layers.filter((l) => l.side === "left");
   const rightLayers = spec.layers.filter((l) => l.side === "right");
   const gy = spec.groundY ?? spec.H - 28;
@@ -295,7 +334,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             return (
               <g key={`rb-${layer.mark}`}>
                 {paths.map((pts, i) => (
-                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM, a1)} />
+                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM, a1, thin)} />
                 ))}
               </g>
             );
@@ -304,7 +343,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
           {cutLayers.map((layer) => (
             <g key={`ct-${layer.mark}`}>
               {layer.bars.map((p, i) => (
-                <BarCut key={`${layer.mark}-${i}`} x={p.x} y={p.y} r={barRadiusOf(layer, scale, spec.pxPerM, a1)} color={layer.color} />
+                <BarCut key={`${layer.mark}-${i}`} x={p.x} y={p.y} r={barRadiusOf(layer, scale, spec.pxPerM, a1, thin)} color={layer.color} />
               ))}
             </g>
           ))}
@@ -312,14 +351,46 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
           {spec.dims.map((d, i) => (
             <g key={`d-${i}`}>{dimTicks(d.x1, d.y1, d.x2, d.y2, d.side, d.label, a1)}</g>
           ))}
-          {spec.hideCallouts
-            ? null
-            : spec.layers.map((layer) => {
-            const slot =
-              layer.side === "right" ? rightLayers.indexOf(layer) : layer.side === "left" ? leftLayers.indexOf(layer) : spec.layers.indexOf(layer);
-            const box = calloutOf(layer, slot, spec.W, spec.H);
-            return <LayerCallout key={`ld-${layer.mark}`} layer={layer} from={attachOf(layer)} box={box} a1={a1} />;
-          })}
+          {spec.markBoxes
+            ? spec.layers
+                .filter((layer) => layer.callout)
+                .map((layer) => {
+                  const from = attachOf(layer);
+                  const box = layer.callout!;
+                  return <MarkBox key={`mk-${layer.mark}`} layer={layer} from={from} box={box} a1={a1} />;
+                })
+            : spec.hideCallouts
+              ? null
+              : spec.layers.map((layer) => {
+                  const slot =
+                    layer.side === "right" ? rightLayers.indexOf(layer) : layer.side === "left" ? leftLayers.indexOf(layer) : spec.layers.indexOf(layer);
+                  const box = calloutOf(layer, slot, spec.W, spec.H);
+                  return <LayerCallout key={`ld-${layer.mark}`} layer={layer} from={attachOf(layer)} box={box} a1={a1} />;
+                })}
+          {spec.markBoxes
+            ? spec.layers
+                .filter((layer) => !layer.callout)
+                .map((layer) => {
+                  const p = attachOf(layer);
+                  return (
+                    <text
+                      key={`oz-${layer.mark}`}
+                      x={p.x}
+                      y={p.y - 7}
+                      textAnchor="middle"
+                      fontSize={a1 ? 11 : 9}
+                      fontWeight="700"
+                      fill={layer.color}
+                      stroke="#f4efe4"
+                      strokeWidth="3"
+                      paintOrder="stroke"
+                      fontFamily="IBM Plex Mono, ui-monospace, monospace"
+                    >
+                      Ø {layer.bar}
+                    </text>
+                  );
+                })
+            : null}
           {(spec.annos ?? []).map((a, i) => (
             <text
               key={`an-${i}`}
@@ -352,7 +423,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
                 {plan ? "PLANTA · HOJA A1" : "CORTE A-A · HOJA A1"}
               </text>
               <text x={spec.W / 2 - 108} y={spec.H - 17} fontSize="11" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
-                {plan ? "Despiece · aceros por paño" : "Despiece de aceros · 1,00 m"}
+                {plan ? "Despiece en planta · Ø en pulgadas" : "Despiece de aceros · 1,00 m"}
               </text>
             </g>
           ) : (
@@ -386,7 +457,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               <td>{l.face}</td>
               <td>Ø {l.bar}</td>
               <td>{l.dbCm.toFixed(2)} cm</td>
-              <td>{l.sCm.toFixed(0)} cm</td>
+              <td>{fmtSep(l.sCm)} cm</td>
               <td>{l.nReal}</td>
               <td>{l.asReq != null ? `${l.asReq.toFixed(2)} ${l.asUnit}` : "—"}</td>
               <td>
@@ -403,19 +474,19 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   );
 }
 
-function barRadiusOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false) {
+function barRadiusOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false, lineScale = 1) {
   const dbM = layer.dbCm / 100;
-  const lo = a1 ? 2.6 : 2.0;
-  const hi = a1 ? 6.2 : 4.0;
-  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 1.85 : 1.25)));
-  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.35 : 1.05)));
+  const lo = (a1 ? 2.6 : 2.0) * lineScale;
+  const hi = (a1 ? 6.2 : 4.0) * lineScale;
+  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 1.85 : 1.25) * lineScale));
+  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.35 : 1.05) * lineScale));
 }
 
-function barWidthOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false) {
+function barWidthOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false, lineScale = 1) {
   const dbM = layer.dbCm / 100;
-  const lo = a1 ? 3.4 : 2.2;
-  const hi = a1 ? 9.2 : 5.0;
-  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 2.35 : 1.45)));
-  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.55 : 1.2)));
+  const lo = (a1 ? 3.4 : 2.2) * lineScale;
+  const hi = (a1 ? 9.2 : 5.0) * lineScale;
+  if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 2.35 : 1.45) * lineScale));
+  return Math.max(lo, Math.min(hi, layer.dbCm * (a1 ? 1.55 : 1.2) * lineScale));
 }
 

@@ -8,10 +8,10 @@ El gráfico de zonas DC (concreto 1–7) es metrado de peso, no armado. El despi
 
 Aceros en el corte (franja 1,00 m):
 
-- **1** pantalla trasdós: vertical contra la cara de tierra (sigue el fuste y el chaflán), **continúa dentro de la zapata** y gancha 90° al **lecho superior del talón** con ℓd. No muere en la junta pantalla–cimiento.
-- **2** pantalla intradós: sigue el talud y el espesor (parapeto → cajuela → trapecio), entra a la zapata y ancla con gancho 90° en el **lecho inferior de la puntera** (flexión de la puntera).
-- **3** puntera: lecho **inferior** (reacción del suelo), gancho 90° **en ambos extremos**, con continuidad bajo el fuste.
-- **4** talón: lecho **superior** (relleno), gancho 90° **en ambos extremos**, con continuidad bajo el fuste.
+- **1** pantalla trasdós: vertical contra la cara de tierra, **penetra la zapata** y se **apoya en el lecho inferior** con gancho 90°. No muere en la junta ni en el lecho superior.
+- **2** pantalla intradós: sigue el talud, **penetra la zapata** y se **apoya en el lecho inferior** con gancho 90° (ambos verticales del alma).
+- **3** lecho **inferior** de cimentación: **continuo de cara a cara** del peralte D (talón ↔ puntera), gancho 90° en ambos extremos.
+- **4** lecho **superior** de cimentación: **continuo de cara a cara** del peralte D, gancho 90° en ambos extremos.
 - **5** temperatura / distribución de zapata: cortes ⊥ a la flexión en **ambos lechos**, a lo ancho (incluido bajo el fuste).
 
 Las cajas de marca se pegan al acero que describen (relleno junto al fuste, talud de intradós, talón izquierdo, puntera derecha), con líderes cortos. No tapan el concreto ni las cotas B, H, Lp, D.
@@ -22,13 +22,13 @@ Sismo (paso 25, croquis `mSismo`): mismas posiciones que el muro de contención 
 
 ## Losa en 2 direcciones
 
-Flujo: **Crear ejes** → marcar techos (verde) y huecos → **Unir/separar** con clic en la línea interior entre dos techos. Vanos editables (0,5 m, 1,2 m). Geometría de los ejes, no de un par A×B.
+Flujo: **Crear ejes** → marcar techos (verde) y huecos → **Unir/separar** con clic en la línea interior entre dos techos (**quita la viga**; un rectángulo). Vanos editables (0,5 m, 1,2 m). Geometría de los ejes, no de un par A×B.
 
-El motor identifica paños y franjas **antes** de analizar: un hueco (patio) corta las franjas; no son 2 análisis X e Y para toda la planta. Maciza (2,4 t/m³ × h) o aligerada (nervio + loseta + ladrillo/EPS, e típico 0,20–0,25). Aceros distintos por paño. El despiece dibuja la misma planta (ejes, techos, hueco) y emplaza barras con gancho 90°.
+El motor identifica paños, franjas y **tramos de acero** antes de analizar: un hueco corta las franjas y el positivo; Unir elimina el apoyo interior. Maciza (2,4 t/m³ × h) o aligerada (nervio + loseta + ladrillo/EPS). Una malla: Ø en pulgadas 3/8…1½ y s de norma, con refuerzo local si un paño pide más momento. El despiece A1 es **en planta** (análogo al corte de vigueta aligerada, no un U por paño): As+ continuo con gancho 90° en los extremos del análisis; As− = L_teo + máx(12 db, d, ℓn/16) en un acero recto sobre el apoyo, gancho 90° de un lado solo en borde libre. Cada pieza muestra Ø en pulgadas en el cuadro de marca.
 
 ## Zapata corrida
 
-Planta pintada (recta, L o irregular). Cada columna se coloca con clic en el entrecruce: P1=FX, P2=FY, P3=FZ, M1=T, M2, M3. Espesor iterado, viga invertida y punzonamiento con perímetro crítico.
+Planta pintada (recta, L o irregular). **Viga cim.** coloca o borra **un tramo a la vez** (gruesa = hay viga; discontinua = borde sin viga; el vacío no es estructura). Cada columna se coloca con clic en el entrecruce: P1=FX, P2=FY, P3=FZ, M1=T, M2, M3. Espesor h iterado (corte 1 dir., punzonamiento, flexión). Cada VC se analiza como viga invertida rígida (q lineal, M, V, As). **Despiece A1 en planta** (sin corte transversal): solo lechos **inferior y superior**, no hay acero intermedio. Transversal inf. por paño (⊥ al eje, ganchos 90° en B); longitudinal inf. continuo de extremo a extremo; longitudinal sup. en vuelos (M+); transversal sup. de cara. Punzonamiento 11.12 con pedestal **asentado** en esquina (b0 en L, no a caballo del vértice). Se publican diagramas M, V y Vu/φVn.
 
 ## Platea
 
@@ -36,7 +36,7 @@ Misma lógica de clics. Westergaard, franjas, espesor iterado, punzonamiento con
 
 ## Muro en voladizo
 
-Corte A-A a escala: verticales del alma **continúan dentro de la zapata** (trasdós al lecho superior del talón; intradós al lecho inferior de la puntera, según flexión) con gancho 90° y ℓd. Lechos de cimentación continuos, perpendiculares al alma, **con gancho 90° en ambos extremos** y continuidad bajo el fuste. Transversales de zapata y dentellón en corte (puntos) a lo ancho, sin hueco bajo el alma. Cara suelo del dentellón sube al alma; la otra cara ancla en la zapata con doblez. Cajas de marca pegadas al acero, líderes cortos. Cada marca lleva As req/disp, ℓd y rec.
+Corte A-A a escala: **ambos** verticales del alma **penetran la zapata y se apoyan en el lecho inferior** con gancho 90°. Lechos superior e inferior de cimentación **continuos de cara a cara** del peralte, ganchos 90° en ambos extremos. Transversales de zapata y dentellón en corte (puntos) a lo ancho, sin hueco bajo el alma. Cara suelo del dentellón sube al alma; la otra cara ancla en la zapata con doblez. Cajas de marca pegadas al acero, líderes cortos. Cada marca lleva As req/disp, ℓd y rec.
 
 ## Reservorios / tanques INTZE
 

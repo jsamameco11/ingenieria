@@ -762,6 +762,12 @@ export function ControlApp() {
                 <p>Tiempo en plataforma: {sel.dwell_seconds ? `${Math.floor(sel.dwell_seconds / 60)} min ${sel.dwell_seconds % 60} s` : "sin pulso aún"}</p>
                 <p>Clics registrados: {sel.click_count}</p>
                 {sel.click_top.length ? <p>Clics más frecuentes: {sel.click_top.join(" · ")}</p> : null}
+                {sel.tastes.length ? (
+                  <p>Gustos clasificados: {sel.tastes.map((t) => t.label).join(" · ")}</p>
+                ) : null}
+                <p className="ctl-hint">
+                  Palabras del correo de empresa y categorías de Compras alimentan este ranking. Una inferencia no se convierte en hecho.
+                </p>
                 {sel.modules_used.length ? <p>Motores visitados: {sel.modules_used.join(" · ")}</p> : null}
                 <p>Presupuestos en nube: {sel.budgets} · hilos de tienda: {sel.threads} · pagos Ingeniería: {sel.payments}</p>
                 <p className="ctl-hint">{sel.summary || "Sin resumen de identidad todavía."}</p>
