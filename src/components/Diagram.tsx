@@ -7,8 +7,11 @@ import { barByName } from "../lib/types";
 import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, parseHolesText, parsePolyText, resolvePmForma, steelZonesFor } from "../lib/pmSections";
 import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
 import { CrossCroquisAny } from "./DiagramCross";
+import { MuroSostenimientoFig } from "./MuroSostenimientoFig";
 import { CargaDistribuida } from "./DclCargas";
-import { defaultModel, parseMae } from "../lib/engines/maestria/types";
+import { defaultModel, parseMae, cellOn, colXY, nxOf, nyOf, collectGradeBeams, ensureGradeBeams } from "../lib/engines/maestria/types";
+import { zapataPlantFromValues } from "../lib/engines/maestria/zapataDraw";
+import { orthoUnionOutline } from "../lib/engines/maestria/drawCommon";
 
 const DimLive = createContext<{
   values: Record<string, string>;
@@ -294,6 +297,8 @@ export function Diagram({
       return <Empuje values={values} {...p} />;
     case "muroContencion":
       return <MuroContencion values={values} {...p} />;
+    case "muroSostenimiento":
+      return <MuroSostenimientoFig values={values} part={part} />;
     case "reservorioApoyado":
       return <ReservorioApoyadoCroquis values={values} />;
     case "reservorioCuadrado":
@@ -1036,55 +1041,143 @@ function ZapataComb({ values, active, onFocus }: { values: Record<string, string
 }
 
 function ZapataCorrida({ values, active, onFocus }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
-  const B = n(values, "B", 1.6);
-  const L = n(values, "L", 4);
-  const hf = n(values, "hf", 0.45);
+  const plant = zapataPlantFromValues(values);
   const tipo = String(values.tipo ?? "muro");
-  const nPanes = Math.max(2, Math.round(L / Math.max(B > 0 ? 1 : 1, 1)));
-  const sc = Math.min(380 / Math.max(L, 2), 200 / Math.max(B, 0.8));
-  const ox = 70;
-  const oy = 48;
-  const w = L * sc;
-  const h = B * sc;
+  const hf = n(values, "hf", 0.45);
+  const Lx = Math.max(plant.x1 - plant.x0, 0.8);
+  const Ly = Math.max(plant.y1 - plant.y0, 0.6);
+  const padL = 72;
+  const padT = 36;
+  const padR = 132;
+  const padB = 52;
+  const sc = Math.min(360 / Lx, 200 / Ly);
+  const W = Math.ceil(padL + Lx * sc + padR);
+  const H = Math.ceil(padT + Ly * sc + padB);
+  const xy = (x: number, y: number) => ({ x: padL + (x - plant.x0) * sc, y: padT + (plant.y1 - y) * sc });
+  const poly = orthoUnionOutline(plant.cells);
+  const outline = (poly.length >= 3 ? poly : [
+    { x: plant.x0, y: plant.y0 },
+    { x: plant.x1, y: plant.y0 },
+    { x: plant.x1, y: plant.y1 },
+    { x: plant.x0, y: plant.y1 },
+  ]).map((p) => xy(p.x, p.y));
+  const p0 = xy(plant.x0, plant.y0);
+  const p1 = xy(plant.x1, plant.y0);
+  const pT = xy(plant.x0, plant.y1);
   return (
-    <SvgFrame compact viewBox="0 0 520 300" caption={tipo === "columnas" ? "Planta — zapata corrida de columnas" : "Planta — zapata corrida de muro"}>
-      <rect x={ox} y={oy} width={w} height={h} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.6" />
-      {Array.from({ length: nPanes - 1 }, (_, i) => {
-        const x = ox + ((i + 1) * w) / nPanes;
-        return <line key={i} x1={x} y1={oy} x2={x} y2={oy + h} stroke="#1a4473" strokeWidth="0.8" strokeDasharray="5 3" />;
+    <SvgFrame compact viewBox={`0 0 ${W} ${H}`} caption={tipo === "columnas" ? "Planta — zapata corrida (concreto pintado, columnas y VC)" : "Planta — zapata corrida de muro"}>
+      <polygon points={outline.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.8" />
+      {plant.cells.map((c) => {
+        const a = xy(c.x0, c.y1);
+        const b = xy(c.x1, c.y0);
+        return (
+          <g key={c.id}>
+            <rect x={a.x} y={a.y} width={Math.max(2, b.x - a.x)} height={Math.max(2, b.y - a.y)} fill="none" stroke="#1a4473" strokeWidth="0.7" strokeDasharray="4 3" />
+            <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 + 4} textAnchor="middle" fontSize="9" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
+              {c.id}
+            </text>
+          </g>
+        );
       })}
-      {Array.from({ length: nPanes }, (_, i) => (
-        <text key={`p-${i}`} x={ox + ((i + 0.5) * w) / nPanes} y={oy + h / 2 + 4} textAnchor="middle" fontSize="10" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
-          {`P${i + 1}`}
-        </text>
-      ))}
-      <line x1={ox + 12} y1={oy + h * 0.28} x2={ox + w - 12} y2={oy + h * 0.28} stroke="#5a4a28" strokeWidth="2.2" />
-      <line x1={ox + 12} y1={oy + h * 0.72} x2={ox + w - 12} y2={oy + h * 0.72} stroke="#5a4a28" strokeWidth="2.2" />
-      <line x1={ox + 10} y1={oy + h * 0.18} x2={ox + w * 0.22} y2={oy + h * 0.18} stroke="#1a4473" strokeWidth="1.8" />
-      <line x1={ox + w * 0.78} y1={oy + h * 0.18} x2={ox + w - 10} y2={oy + h * 0.18} stroke="#1a4473" strokeWidth="1.8" />
-      {Array.from({ length: nPanes }, (_, i) => {
-        const x = ox + ((i + 0.5) * w) / nPanes;
-        return <line key={`t-${i}`} x1={x} y1={oy + 10} x2={x} y2={oy + h - 10} stroke="#8b1e1e" strokeWidth="1.6" />;
+      {plant.beams.map((b) => {
+        const a = xy(b.x0, b.y0);
+        const c = xy(b.x1, b.y1);
+        return <line key={b.id} x1={a.x} y1={a.y} x2={c.x} y2={c.y} stroke="#163a63" strokeWidth="3.2" />;
       })}
-      <Dim x1={ox} y1={oy + h} x2={ox + w} y2={oy + h} label={L.toFixed(2)} field="L" unit="m" side={24} active={active} onFocus={onFocus} />
-      <Dim x1={ox} y1={oy} x2={ox} y2={oy + h} label={B.toFixed(2)} field="B" unit="m" side={28} active={active} onFocus={onFocus} />
-      <text x={ox + w + 10} y={oy + 14} fontSize="10" fill="#8b1e1e" fontFamily="IBM Plex Sans, sans-serif">
-        1 transv. inf. por paño
+      {plant.cols.map((c) => {
+        const p = xy(c.x, c.y);
+        const wx = Math.max(7, c.t2 * sc);
+        const wy = Math.max(7, c.t1 * sc);
+        return (
+          <g key={c.id}>
+            <rect x={p.x - wx / 2} y={p.y - wy / 2} width={wx} height={wy} fill="#1a4473" stroke="#0d2a4a" strokeWidth="1" />
+            <text x={p.x} y={p.y - wy / 2 - 4} textAnchor="middle" fontSize="9" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
+              {c.id}
+            </text>
+          </g>
+        );
+      })}
+      <Dim x1={p0.x} y1={p0.y} x2={p1.x} y2={p0.y} label={Lx.toFixed(2)} field={tipo === "muro" ? "L" : undefined} unit="m" side={24} active={active} onFocus={onFocus} />
+      <Dim x1={p0.x} y1={pT.y} x2={p0.x} y2={p0.y} label={Ly.toFixed(2)} field={tipo === "muro" ? "B" : undefined} unit="m" side={28} active={active} onFocus={onFocus} />
+      <text x={W - 8} y={padT + 12} textAnchor="end" fontSize="10" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
+        {plant.cols.length} col. · {plant.beams.length} VC · h={hf.toFixed(2)} m
       </text>
-      <text x={ox + w + 10} y={oy + 30} fontSize="10" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
-        2 long. inf. continuo
-      </text>
-      <text x={ox + w + 10} y={oy + 46} fontSize="10" fill="#1a4473" fontFamily="IBM Plex Sans, sans-serif">
-        3–4 lecho superior
-      </text>
-      <text x={ox + w + 10} y={oy + 62} fontSize="10" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif">
-        h={hf.toFixed(2)} m · sin intermedio
+      <text x={W - 8} y={padT + 26} textAnchor="end" fontSize="9" fill="#8b1e1e" fontFamily="IBM Plex Sans, sans-serif">
+        Solo concreto pintado (L / irregular)
       </text>
     </SvgFrame>
   );
 }
 
 function PlateaGrid({ values, active, onFocus }: { values: Record<string, string>; active: string | null; onFocus: (k: string) => void }) {
+  const studio = String(values.studioJson ?? "").trim();
+  if (studio) {
+    const m = parseMae(studio, defaultModel("platea"));
+    const cells: { id: string; x0: number; y0: number; x1: number; y1: number }[] = [];
+    for (let iy = 0; iy < nyOf(m); iy++) {
+      for (let ix = 0; ix < nxOf(m); ix++) {
+        if (!cellOn(m, ix, iy)) continue;
+        cells.push({ id: `P${ix + 1}-${iy + 1}`, x0: m.axesX[ix], y0: m.axesY[iy], x1: m.axesX[ix + 1], y1: m.axesY[iy + 1] });
+      }
+    }
+    if (cells.length) {
+      const x0 = Math.min(...cells.map((c) => c.x0));
+      const x1 = Math.max(...cells.map((c) => c.x1));
+      const y0 = Math.min(...cells.map((c) => c.y0));
+      const y1 = Math.max(...cells.map((c) => c.y1));
+      const Lx = Math.max(x1 - x0, 0.8);
+      const Ly = Math.max(y1 - y0, 0.6);
+      const t = n(values, "t", 0.45);
+      const padL = 56;
+      const padT = 36;
+      const padR = 16;
+      const padB = 48;
+      const sc = Math.min(400 / Lx, 240 / Ly);
+      const W = Math.ceil(padL + Lx * sc + padR);
+      const H = Math.ceil(padT + Ly * sc + padB);
+      const xy = (x: number, y: number) => ({ x: padL + (x - x0) * sc, y: padT + (y1 - y) * sc });
+      const poly = orthoUnionOutline(cells);
+      const outline = (poly.length >= 3 ? poly : [
+        { x: x0, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 },
+        { x: x0, y: y1 },
+      ]).map((p) => xy(p.x, p.y));
+      const mm = ensureGradeBeams(m);
+      const beams = collectGradeBeams(mm);
+      const p0 = xy(x0, y0);
+      const p1 = xy(x1, y0);
+      const pT = xy(x0, y1);
+      return (
+        <SvgFrame compact viewBox={`0 0 ${W} ${H}`} caption="Planta — platea (paños pintados, columnas y VC)">
+          <polygon points={outline.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} fill="url(#conc)" stroke="#1a4473" strokeWidth="1.8" />
+          {cells.map((c) => {
+            const a = xy(c.x0, c.y1);
+            const b = xy(c.x1, c.y0);
+            return <rect key={c.id} x={a.x} y={a.y} width={Math.max(2, b.x - a.x)} height={Math.max(2, b.y - a.y)} fill="none" stroke="#1a4473" strokeWidth="0.6" strokeDasharray="4 3" />;
+          })}
+          {beams.map((b) => {
+            const a = xy(b.x0, b.y0);
+            const c = xy(b.x1, b.y1);
+            return <line key={b.id} x1={a.x} y1={a.y} x2={c.x} y2={c.y} stroke="#163a63" strokeWidth="2.6" />;
+          })}
+          {m.cols.map((c) => {
+            const p0c = colXY(m, c);
+            const p = xy(p0c.x, p0c.y);
+            const wx = Math.max(6, c.t2 * sc);
+            const wy = Math.max(6, c.t1 * sc);
+            const edge = c.ix === 0 || c.iy === 0 || c.ix === m.axesX.length - 1 || c.iy === m.axesY.length - 1;
+            return <rect key={c.id} x={p.x - wx / 2} y={p.y - wy / 2} width={wx} height={wy} fill={edge ? "#c4d4e8" : "#1a4473"} stroke="#1a4473" strokeWidth="1" />;
+          })}
+          <Dim x1={p0.x} y1={p0.y} x2={p1.x} y2={p0.y} label={Lx.toFixed(2)} field="Sx" unit="m" side={22} active={active} onFocus={onFocus} />
+          <Dim x1={p0.x} y1={pT.y} x2={p0.x} y2={p0.y} label={Ly.toFixed(2)} field="Sy" unit="m" side={28} active={active} onFocus={onFocus} />
+          <text x={padL + 8} y={padT + 14} fontSize="10" fill="#8b1e1e" fontFamily="IBM Plex Sans, sans-serif">
+            t={t.toFixed(2)} m · {m.cols.length} col. · {beams.length} VC
+          </text>
+        </SvgFrame>
+      );
+    }
+  }
   const nBayX = Math.max(1, Math.round(n(values, "nBayX", 3)));
   const nBayY = Math.max(1, Math.round(n(values, "nBayY", 3)));
   const Sx = n(values, "Sx", 5);

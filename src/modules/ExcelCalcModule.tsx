@@ -22,6 +22,7 @@ import { colproById, nBarsSteel, sectionAs } from "../lib/colpro";
 import { firstTipoId, opcionesColumna, resolveSection } from "../lib/columnaTipos";
 import { predimEstriboG } from "../lib/engines/estriboGravedad";
 import { e030EnrichField, e030FieldNote, resolveE030, syncE030 } from "../lib/e030/resolve";
+import { convertirCampo, convertirFicha, unidadCampo, type Sistema } from "../lib/engines/muro/unidades";
 import { fmt, barByName } from "../lib/types";
 import { seedDesigner } from "../lib/pmSections";
 import { elemObra } from "../lib/mezclaObra";
@@ -170,8 +171,32 @@ function fillSection(next: Record<string, string>, secId: string) {
   if (barMatch) next.bar = barMatch[1].replace(/\s+/g, "");
 }
 
+/**
+ * El muro se puede emitir en Tnf·m, kN·m o unidades inglesas, así que la ficha
+ * reetiqueta sus campos con el sistema activo. El paso de la ruedecilla también
+ * se reescala: pedir incrementos de 0.05 en pie o de 1 en psi no tendría sentido.
+ */
+function muroEnrichField(f: FieldDef, values: Record<string, string>): FieldDef {
+  const sisRaw = values.unidades ?? "tnf";
+  const sis: Sistema = sisRaw === "kn" || sisRaw === "imperial" ? sisRaw : "tnf";
+  const u = unidadCampo(f.key, sis);
+  if (!u || u === f.unit) return f;
+  const step = f.step === undefined ? undefined : convertirPaso(f.key, f.step, sis);
+  return { ...f, unit: u, step };
+}
+
+/** Paso de incremento del campo, redondeado a algo que se pueda teclear. */
+function convertirPaso(key: string, paso: number, sis: Sistema): number {
+  const v = Math.abs(convertirCampo(key, paso, "tnf", sis));
+  if (!Number.isFinite(v) || v <= 0) return paso;
+  const orden = 10 ** Math.floor(Math.log10(v));
+  const escalas = [1, 2, 2.5, 5, 10];
+  return orden * (escalas.find((e) => v / orden <= e) ?? 10);
+}
+
 function enrichField(mod: ModuleDef, f: FieldDef, values: Record<string, string>): FieldDef {
   if (mod.slug === "espectro-e030") return e030EnrichField(f, values);
+  if (mod.slug === "muro-sostenimiento") return muroEnrichField(f, values);
   if (mod.slug === "columna-esbeltez" && f.key === "seccion") {
     return { ...f, options: opcionesColumna(values.forma ?? "rect", values.rhoBand ?? "todas") };
   }
@@ -205,6 +230,15 @@ function seedInput(s: Record<string, string>, forma: string) {
 
 function applyField(mod: ModuleDef, s: Record<string, string>, k: string, v: string): Record<string, string> {
   const next = { ...s, [k]: v };
+  /*
+   * Cambiar de sistema de unidades no debe cambiar el muro: los datos ya
+   * escritos se convierten, de modo que lo único que varía es cómo se leen.
+   */
+  if (mod.slug === "muro-sostenimiento" && k === "unidades") {
+    const de = (s.unidades === "kn" || s.unidades === "imperial" ? s.unidades : "tnf") as Sistema;
+    const a = (v === "kn" || v === "imperial" ? v : "tnf") as Sistema;
+    return { ...convertirFicha(next, de, a), unidades: a };
+  }
   if (k === "b" && mod.fields.some((f) => f.key === "bMin") && !mod.fields.some((f) => f.key === "b")) {
     next.bMin = v;
   }
@@ -453,7 +487,7 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
     if (geomM === "cimiento" && ["vol", "B", "e", "nZap", "Lz"].includes(f.key)) return false;
     if (geomM === "zapata" && ["vol", "bcim", "hcim"].includes(f.key)) return false;
   }
-  if (values.tipo === "muro" && ["t1", "t2", "sCol", "nTramos"].includes(f.key)) return false;
+  if (values.tipo === "muro" && ["t1", "t2", "sCol", "nTramos", "bBeam", "hBeam"].includes(f.key)) return false;
   if (values.crN != null || values.crMode != null) {
     const crMode = values.crMode || "viga";
     const isVigaField = f.key === "crN" || /^cr(L|I|FEM)\d/.test(f.key);
@@ -485,7 +519,7 @@ function fieldVisible(f: FieldDef, values: Record<string, string>, paraInforme =
     if (esGeomalla && ["fy", "wFleje", "Cu", "corr", "Vu"].includes(f.key)) return false;
     if (!esGeomalla && ["Tult", "RFcr", "RFd", "RFid"].includes(f.key)) return false;
   }
-  if (values.tipo === "columnas" && ["tw", "eMuro"].includes(f.key)) return false;
+  if (values.tipo === "columnas" && ["tw", "eMuro", "Pd", "Pl", "sCol", "nTramos", "B"].includes(f.key)) return false;
   if (values.sistema === "elevado" && ["Lc", "Bc", "dias"].includes(f.key)) return false;
   if ((values.sistema === "cisterna" || values.sistema === "hidro") && f.key === "He") return true;
   if (f.key === "nDormHosp" && values.tipoHosp === "albergue") return false;
@@ -538,7 +572,7 @@ function CroquisBoard({
 }) {
   const sketch = mod.slug === "diagrama-interaccion" ? { ...values } : { ...values, ...dims };
   return (
-    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.diagram === "lineaInf" ? " croquis-board-lineaInf" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
+    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.diagram === "lineaInf" ? " croquis-board-lineaInf" : ""}${mod.diagram === "muroSostenimiento" ? " croquis-board-muro-fem" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
       <Diagram
         kind={mod.diagram}
         part={mod.slug === "diagrama-interaccion" ? "informe" : mod.diagram === "aligerado" ? "intro" : mod.diagram === "dotacion" ? "esquema" : undefined}
@@ -719,13 +753,14 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   : []),
                 ...(mod.slug === "zapata-corrida"
                   ? [
-                      "La planta se arma con Vanos X y Vanos Y. Viga cim. coloca o borra cada vano por separado (gruesa = hay viga; discontinua = borde sin viga; el vacío no es estructura). El despiece A1 es en planta: transversal por paño (lecho inf.) y longitudinal inferior continuo.",
-                      "El expediente desarrolla peralte h, punzonamiento 11.12, viga invertida por cada tramo de cimentación (M, V y As), q = P/A ± Mc/I y ℓd.",
+                      "La planta se arma con Vanos X y Vanos Y. Viga cim. coloca o borra cada vano por separado (gruesa = hay viga; discontinua = borde sin viga; el vacío no es estructura). El despiece A1 es en planta: transversal por paño (lecho inf.) y longitudinal inferior continuo; las barras se recortan al concreto pintado (no cruzan el hueco de una L).",
+                      "El expediente desarrolla peralte h, punzonamiento 11.12 de todas las columnas (αs 40/30/20 y α de momento 1.00/1.15/1.25), viga invertida por cada tramo de cimentación (M, V, n Ø y estribos φVc+Vs), q = ΣP/A ± Mc/I contra σn neto E.050 (sin duplicar peso propio) y ℓd.",
                     ]
                   : []),
                 ...(mod.slug === "platea"
                   ? [
-                      "La platea se documenta con Westergaard (rígida/flexible), fajas, momentos por franja, punzonamiento Vu–φVn de cada columna y mallas inf./sup.",
+                      "La platea se documenta con Westergaard (rígida/flexible), fajas, momentos por franja, punzonamiento Vu–φVn de cada columna (con α de esquina/borde) y mallas inf./sup. recortadas al concreto pintado.",
+                      "σn es el admisible neto E.050; q en planta es ΣP/A ± Mc/I de columnas (no se suma otra vez el peso propio). El espesor t se itera por punzonamiento y corte, no para «arreglar» σn. La VC gobernante lleva n Ø y estribos.",
                       "Si no hay paños pintados se carga un ejemplo de expediente; no se publica un informe vacío.",
                     ]
                   : []),
@@ -863,6 +898,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "10") blocks.push({ type: "figure", part: "mTrans" });
       }
       if (mod.diagram === "zapataCorrida") {
+        if (s.n === "01") blocks.push({ type: "figure", part: "mPlant" });
         if (s.n === "05") blocks.push({ type: "figure", part: "mTrans" });
         if (s.n === "06") blocks.push({ type: "figure", part: "mShear" });
         if (s.n === "07" && (liveResult.dims?.punchJson || values.punchJson)) blocks.push({ type: "figure", part: "mPunch" });
@@ -875,6 +911,18 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "mVC" });
         }
       }
+      if (mod.diagram === "muroSostenimiento") {
+        if (s.n === "01") blocks.push({ type: "figure", part: "esquema" });
+        if (s.n === "06") blocks.push({ type: "figure", part: "empujes" });
+        if (s.n === "10") blocks.push({ type: "figure", part: "estabilidad" });
+        if (s.n === "12") blocks.push({ type: "figure", part: "malla" });
+        if (s.n === "13") {
+          blocks.push({ type: "figure", part: "calor" });
+          blocks.push({ type: "figure", part: "esfuerzos" });
+        }
+        if (s.n === "20") blocks.push({ type: "figure", part: "presiones" });
+        if (s.n === "22") blocks.push({ type: "figure", part: "despiece" });
+      }
       if (mod.diagram === "losa2d") {
         if (s.n === "06") blocks.push({ type: "figure", part: "mStrips" });
         if (s.n === "07" || s.n === "08") blocks.push({ type: "figure", part: "mSteel" });
@@ -884,6 +932,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "38") blocks.push({ type: "figure", part: "mSeccion" });
       }
       if (mod.diagram === "platea") {
+        if (s.n === "01") blocks.push({ type: "figure", part: "mPlant" });
         if (s.n === "06") blocks.push({ type: "figure", part: "mIntX" });
         if (s.n === "07") blocks.push({ type: "figure", part: "mEdgX" });
         if (s.n === "08") {
@@ -950,6 +999,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "reservorioCuadrado" && s.n === "14") {
         blocks.push({ type: "figure", part: "mTecho" });
+        blocks.push({ type: "figure", part: "mSecTecho" });
       }
       if (mod.diagram === "reservorioCuadrado" && s.n === "15") {
         blocks.push({ type: "figure", part: "mSecLosa" });
@@ -959,28 +1009,49 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "16") {
         blocks.push({ type: "figure", part: "mSecDomo" });
-      }
-      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "07") {
-        blocks.push({ type: "figure", part: "mMuro" });
-        blocks.push({ type: "figure", part: "mSecMuro" });
+        blocks.push({ type: "figure", part: "mSecAnillo" });
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "08") {
-        blocks.push({ type: "figure", part: "mSecDomo" });
+        blocks.push({ type: "figure", part: "mMuro" });
+      }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "09") {
+        blocks.push({ type: "figure", part: "mSecMuro" });
+      }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "09b") {
+        blocks.push({ type: "figure", part: "mSecAnilloSup" });
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "10") {
+        blocks.push({ type: "figure", part: "mSecDomo" });
+      }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "11") {
+        blocks.push({ type: "figure", part: "mSecCono" });
+      }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "11b") {
+        blocks.push({ type: "figure", part: "mSecAnilloInf" });
+      }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "12") {
         blocks.push({ type: "figure", part: "mSecDomoInf" });
       }
-      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "13") {
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "14") {
         blocks.push({ type: "figure", part: "mTorre3D" });
       }
-      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "15") {
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16") {
         blocks.push({ type: "figure", part: "mColumna" });
       }
-      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16") {
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16b") {
+        blocks.push({ type: "figure", part: "mSecColumna" });
+      }
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16c") {
+        blocks.push({ type: "figure", part: "mSecViga" });
+      }
+      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "17") {
         blocks.push({ type: "figure", part: "mViga" });
       }
       if (mod.diagram === "tanqueElevadoFuste" && s.n === "15") {
         blocks.push({ type: "figure", part: "mSecFuste" });
+      }
+      if (mod.diagram === "tanqueElevadoFuste" && s.n === "16") {
+        blocks.push({ type: "figure", part: "mSecFustePared" });
       }
     });
     const restExtras = (result.extras ?? []).filter((ex) => !shownTables.has(ex.title));

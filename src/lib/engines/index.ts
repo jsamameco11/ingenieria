@@ -4,6 +4,7 @@ import { geotecnia } from "./geotecnia";
 import { otros } from "./otros";
 import { pavimentosAashto } from "./pavimentos";
 import { murosTierraEngines } from "./murosTierra";
+import { muroSostenimientoEngines } from "./muro/engine";
 import { tanquesEngines } from "./tanques";
 import { mezclas } from "./mezclas";
 import { dotacionComercial, dotacionEducacion, dotacionEspectaculo, dotacionHotel, dotacionHospital, dotacionMultifamiliar, dotacionOficinas, dotacionRestaurante, dotacionUnifamiliar } from "./dotacion";
@@ -16,6 +17,7 @@ export const ENGINES: Record<string, Engine> = {
   ...otros,
   ...pavimentosAashto,
   ...murosTierraEngines,
+  ...muroSostenimientoEngines,
   ...tanquesEngines,
   ...mezclas,
   dotacionUnifamiliar,

@@ -26,6 +26,7 @@ import { PotableModule } from "./modules/PotableModule";
 import { RdapModule } from "./modules/RdapModule";
 import { Edificio3dModule } from "./modules/Edificio3dModule";
 import { MercadoModule } from "./modules/MercadoModule";
+import { NoticiasModule } from "./modules/NoticiasModule";
 import { PlanesModule } from "./modules/PlanesModule";
 import { MODULES, SPECIALTIES } from "./lib/catalog";
 import type { PotableKind } from "./lib/saneamiento/potable";
@@ -117,6 +118,14 @@ const TOPO = [
 
 type Page = "home" | (typeof HIDROLOGIA)[number]["id"] | (typeof HIDRO)[number]["id"] | (typeof POTABLE)[number]["id"] | (typeof TOPO)[number]["id"] | string;
 
+/**
+ * Módulos que se fusionaron en otro. La redirección mantiene vivos los enlaces
+ * y los favoritos que apuntaban al módulo antiguo.
+ */
+const SLUGS_FUSIONADOS: Record<string, string> = {
+  "muro-contencion-sismo": "muro-sostenimiento",
+};
+
 type HomeChild = { id: string; code: string; title: string; blurb: string };
 
 const HOME_FAMILIES: {
@@ -194,14 +203,15 @@ const HOME_FAMILIES: {
   {
     slug: "plaza",
     title: "Plaza profesional",
-    kicker: "Compras · Mensajes · Publicitar · Planes",
-    blurb: "Una sola plaza con Folio PDF: mismos artículos, mismos mensajes, campañas de alcance y Plan Pro.",
+    kicker: "Compras · Mensajes · Publicitar · Noticias · Planes",
+    blurb: "Una sola plaza con Folio PDF: mismos artículos, mismos mensajes, campañas de alcance, noticias verificadas y Plan Pro.",
     children: [
       { id: "compras", code: "PLA-01", title: "Compras", blurb: "Vitrina compartida con Folio PDF: equipos, software y servicios." },
       { id: "compras-publicar", code: "PLA-02", title: "Publicar", blurb: "Publique aquí y el aviso también aparece en Folio PDF." },
       { id: "mensajes", code: "PLA-03", title: "Mensajes", blurb: "Bandeja única: chats de Folio e Ingeniería en el mismo hilo." },
       { id: "publicitar", code: "PLA-04", title: "Publicitar", blurb: "Campañas de alcance en la plaza compartida Folio · Ingeniería." },
-      { id: "planes", code: "PLA-05", title: "Planes", blurb: "Plan Pro mensual, trimestral o anual. Ancla Revit, el add-in y la nube a un solo equipo." },
+      { id: "noticias", code: "PLA-05", title: "Noticias", blurb: "28 categorías verificadas · 3 notas por categoría · ilustración editorial por nota." },
+      { id: "planes", code: "PLA-06", title: "Planes", blurb: "Plan Pro mensual, trimestral o anual. Ancla Revit, el add-in y la nube a un solo equipo." },
     ],
   },
 ];
@@ -225,7 +235,7 @@ function specialtyOfPage(page: string, currentSpecialty?: string): string {
   if (MOV.some((m) => m.id === page)) return "mov-tierras";
   if (page === "presupuestos" || page === "formula-polinomica" || page === "cronograma" || page === "valorizaciones" || page === "especificaciones" || page === "mano-obra" || page === "presupuesto-pdf" || page === "mis-presupuestos" || page === "vincular-revit") return "presupuestos";
   if (page === "acb-caminos") return "carreteras";
-  if (page === "compras" || page === "compras-publicar" || page === "compras-mios" || page === "mensajes" || page === "publicitar" || page === "planes") return "plaza";
+  if (page === "compras" || page === "compras-publicar" || page === "compras-mios" || page === "mensajes" || page === "publicitar" || page === "noticias" || page === "planes") return "plaza";
   return "";
 }
 
@@ -246,16 +256,16 @@ export default function App() {
         if (s.slug !== "plaza") return s;
         return {
           ...s,
-          kicker: plansLive ? "Compras · Mensajes · Publicitar · Planes" : "Compras · Mensajes · Publicitar",
+          kicker: plansLive ? "Compras · Mensajes · Publicitar · Noticias · Planes" : "Compras · Mensajes · Publicitar · Noticias",
           blurb: plansLive
             ? s.blurb
-            : "Una sola plaza con Folio PDF: mismos artículos, mismos mensajes y campañas de alcance.",
+            : "Una sola plaza con Folio PDF: mismos artículos, mismos mensajes, campañas de alcance y noticias verificadas.",
           children: plansLive ? s.children : s.children.filter((c) => c.id !== "planes"),
         };
       }),
     [plansLive],
   );
-  const plaza = page === "compras" || page === "compras-publicar" || page === "compras-mios" || page === "mensajes" || page === "publicitar" || page === "planes";
+  const plaza = page === "compras" || page === "compras-publicar" || page === "compras-mios" || page === "mensajes" || page === "publicitar" || page === "noticias" || page === "planes";
   const plazaLike = plaza || page === "presupuesto-pdf" || page === "mis-presupuestos" || page === "vincular-revit";
   const fullPage =
     page === "presupuestos" ||
@@ -327,7 +337,10 @@ export default function App() {
     document.title = "Presupuestos · MemoriaCalc";
   };
 
-  const go = (next: Page) => {
+  const go = (next0: Page) => {
+    // El muro de contención y el de sostenimiento son el mismo elemento y ahora
+    // se calculan en un único módulo; los enlaces antiguos siguen funcionando.
+    const next = (SLUGS_FUSIONADOS[next0 as string] ?? next0) as Page;
     if (next === "home") {
       window.history.pushState({}, "", "/");
       setPath("/");
@@ -645,6 +658,13 @@ export default function App() {
         >
           Publicitar
         </button>
+        <button
+          type="button"
+          className={`nav-label${page === "noticias" ? " nav-label-on" : ""}`}
+          onClick={() => go("noticias")}
+        >
+          Noticias
+        </button>
         {plansLive ? (
           <button
             type="button"
@@ -722,6 +742,7 @@ export default function App() {
           {plaza && page === "compras-mios" && <MercadoModule vista="mios" />}
           {plaza && page === "mensajes" && <MercadoModule vista="mensajes" />}
           {plaza && page === "publicitar" && <MercadoModule vista="publicitar" />}
+          {plaza && page === "noticias" && <NoticiasModule />}
           {plaza && page === "planes" && <PlanesModule />}
           {page === "presupuesto-pdf" && <PresupuestoPdfModule />}
           {page === "vincular-revit" && <RevitVincularModule />}

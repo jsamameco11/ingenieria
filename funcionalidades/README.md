@@ -16,8 +16,9 @@ Catálogo vivo de lo que hace el sitio. Actualizar esta carpeta cuando cambie el
 - El muro de contención lleva croquis acotado con cada valor y un **diagrama de cuerpo libre 2D** (no isométrico). Pa, Pw, Pq y q(x) se dibujan como **carga distribuida** (envolvente + flechas).
 - La **deflexión de servicio** de la pantalla se calcula paso a paso (Branson + elástica). Si no cumple Hs/150, el espesor F se aumenta automáticamente hasta cumplir.
 - El **alma se dibuja con talud** (F en la base, B′ en coronación) en metrados, DCL, geometría y despiece. Si el muro desliza, se prediseña y verifica un **dentellón** (taco) bajo el fuste (paso 07b). El despiece de aceros se renderiza grande, con barras visibles y cotas de plano. El sismo se dibuja con las posiciones de Pa (H/3), ΔPae (0,6 H) y PIR (centro de gravedad).
-- **Motor de despiece A1**: un Ø representativo por cálculo (estribo pantalla y muro en voladizo con verticales anclados en la zapata, losa 2 dir. en planta con As+ **continuo** (gancho 90° en extremos) y As− **un acero por apoyo** sin doblez interior — Ø en pulgadas en el cuadro de marca —, zapata corrida **en planta** con vigas de cimentación colocables/borrables, lechos inf./sup. y punzonamiento de esquina con pedestal asentado, platea por franjas, reservorios por zona). Cajas de marca pegadas al acero.
+- **Motor de despiece A1**: un Ø representativo por cálculo (estribo pantalla y muro en voladizo con verticales anclados en la zapata, losa 2 dir. en planta con As+ **continuo** (gancho 90° en extremos) y As− **un acero por apoyo** sin doblez interior — Ø en pulgadas en el cuadro de marca —, zapata corrida **en planta** solo sobre paños pintados: un transversal por paño, un inf. continuo por franja y un sup. cortado L_teo+ℓd, platea por franjas, reservorios por zona). Cajas de marca pegadas al acero.
 - **Losa 2 dir., zapata corrida y platea** viven en las memorias clásicas (`losa-2dir`, `zapata-corrida`, `platea`): expediente con fórmula KaTeX, sustitución, resultado y criterio (E.060 / ACI / E.050). Si no hay planta pintada se carga un ejemplo y se calcula completo; no hay pestaña «Taller de maestría».
+- **Muro de sostenimiento en voladizo** (`muro-sostenimiento`): expediente de 9 secciones resuelto por dos vías a la vez —cálculo analítico y **motor propio de elementos finitos** (láminas MITC4 sobre resortes de Winkler sin tracción, solver skyline LDLᵀ con reordenamiento RCM, envolvente de Wood & Armer)—. El usuario elige con cuál se arma el acero. Sin conexión con software externo de análisis.
 - **Líneas de influencia** (`linea-influencia`): viga de 2 a 7 apoyos, η_M/η_V con salto, cota móvil s₀, integral de faja por trapecios, envelope HL-93 y flota MTC (1 o 2 vehículos). Croquis a ancho completo en el papel.
 
 ## Presupuesto y Revit
@@ -38,6 +39,7 @@ Detalle:
 - [DCL del muro de contención](dcl-muro.md)
 - [Deflexión de la pantalla](deflexion-muro.md)
 - [Dentellón y talud del alma](dentellon-muro.md)
+- [Muro de sostenimiento con motor FEM propio](muro-sostenimiento-fem.md)
 - [Vincular Revit → presupuesto (auditoría)](revit-presupuesto.md)
 - [Inventario de usuarios (panel)](control-inventario.md)
 - [Motor de despiece de aceros A1](despiece-aceros.md)

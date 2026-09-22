@@ -28,6 +28,7 @@
     "src/modules/**/*.tsx",
     "src/control/**/*.tsx",
     "src/components/Diagram.tsx",
+    "src/components/MuroSostenimientoFig.tsx",
     "src/components/PmExportPanel.tsx"
   ],
   "exclude": [

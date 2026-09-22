@@ -5,10 +5,10 @@ import {
   type Engine,
   barByName,
   beta1,
+  elegirMalla,
   fmt,
   num,
   rad,
-  spacingFor,
   str,
 } from "../types";
 import { layoutMuroVoladizo } from "../metradoZonas";
@@ -45,11 +45,6 @@ function NcTerzaghi(phi: number, Nq: number) {
 }
 function NgTerzaghi(phi: number, Nq: number) {
   return 2 * (Nq + 1) * Math.tan(rad(phi));
-}
-
-function snapSpacing(sMax: number) {
-  const opts = [25, 20, 15, 12, 10, 8];
-  return opts.find((x) => x <= sMax + 1e-9) ?? 8;
 }
 
 /**
@@ -89,46 +84,56 @@ export function designFranja(p: {
   fy: number;
   barName?: string;
 }) {
-  const bar = barByName(p.barName ?? '5/8"');
   const h = Math.max(p.h_m * 100, 8);
-  const d = Math.max(h - p.rec_cm - 0.95 - bar.db / 2, 4);
   const b = 100;
   const phiF = 0.9;
   const phiV = 0.85;
-  const Rn = (p.Mu * 100000) / Math.max(1e-9, phiF * b * d * d);
-  const disc = Math.max(0, 1 - (2 * Rn) / (0.85 * p.fc));
-  const rho = (0.85 * p.fc / p.fy) * (1 - Math.sqrt(disc));
-  const rhoMin = Math.max(0.0012, 0.8 * Math.sqrt(p.fc) / p.fy, 14 / p.fy);
-  const rhoB = (0.85 * beta1(p.fc) * p.fc / p.fy) * (6300 / (6300 + p.fy));
-  const rhoMax = 0.75 * rhoB;
-  const rhoUse = Math.min(Math.max(rho, rhoMin), Math.max(rhoMax, rhoMin));
-  const As = rhoUse * b * d;
-  const a = (As * p.fy) / (0.85 * p.fc * b);
-  const phiMn = (phiF * As * p.fy * (d - a / 2)) / 100000;
-  const sCalc = spacingFor(As, bar.as, 100);
-  const s = snapSpacing(sCalc);
-  const AsProv = (bar.as / s) * 100;
-  const Vc = (0.53 * Math.sqrt(p.fc) * b * d) / 1000;
+  const sMax = Math.min(25, 3 * h);
+
+  const seccion = (bar: ReturnType<typeof barByName>) => {
+    const d = Math.max(h - p.rec_cm - 0.95 - bar.db / 2, 4);
+    const Rn = (p.Mu * 100000) / Math.max(1e-9, phiF * b * d * d);
+    const disc = Math.max(0, 1 - (2 * Rn) / (0.85 * p.fc));
+    const rho = (0.85 * p.fc / p.fy) * (1 - Math.sqrt(disc));
+    const rhoMin = Math.max(0.0012, 0.8 * Math.sqrt(p.fc) / p.fy, 14 / p.fy);
+    const rhoB = (0.85 * beta1(p.fc) * p.fc / p.fy) * (6300 / (6300 + p.fy));
+    const rhoMax = 0.75 * rhoB;
+    const rhoUse = Math.min(Math.max(rho, rhoMin), Math.max(rhoMax, rhoMin));
+    const As = rhoUse * b * d;
+    return { d, Rn, rho, rhoMin, rhoMax, rhoUse, As };
+  };
+
+  let bar = barByName(p.barName ?? '5/8"');
+  let sec = seccion(bar);
+  bar = elegirMalla(sec.As, sMax).bar;
+  sec = seccion(bar);
+  const malla = elegirMalla(sec.As, sMax);
+  bar = malla.bar;
+  const s = malla.s;
+  const AsProv = malla.AsProv;
+  const a = (AsProv * p.fy) / (0.85 * p.fc * b);
+  const phiMn = (phiF * AsProv * p.fy * (sec.d - a / 2)) / 100000;
+  const Vc = (0.53 * Math.sqrt(p.fc) * b * sec.d) / 1000;
   const phiVc = phiV * Vc;
   return {
     h,
-    d,
+    d: sec.d,
     bar,
-    Rn,
-    rho,
-    rhoMin,
-    rhoMax,
-    rhoUse,
-    As,
+    Rn: sec.Rn,
+    rho: sec.rho,
+    rhoMin: sec.rhoMin,
+    rhoMax: sec.rhoMax,
+    rhoUse: sec.rhoUse,
+    As: sec.As,
     AsProv,
     a,
     phiMn,
     s,
     Vc,
     phiVc,
-    okM: phiMn + 0.01 >= p.Mu,
+    okM: phiMn + 0.01 >= p.Mu && AsProv + 1e-6 >= sec.As,
     okV: phiVc + 0.01 >= p.Vu,
-    okRho: rhoUse <= rhoMax + 1e-9,
+    okRho: sec.rhoUse <= sec.rhoMax + 1e-9,
     text: `Ø ${bar.name} @ ${s} cm`,
   };
 }
@@ -299,14 +304,23 @@ export const muroContencionSismo: Engine = (raw) => {
   const MuStem = Math.max(1.7 * MsStemSt, 1.0 * MsStemEq);
   const VuStem = Math.max(1.7 * VsStemSt, 1.0 * VsStemEq);
   const alma = designFranja({ h_m: F, rec_cm: rec, Mu: MuStem, Vu: VuStem, fc, fy });
-  const AsTemp = 0.002 * 100 * (F * 100);
-  const barH = barByName('3/8"');
-  const sTemp = snapSpacing(spacingFor(AsTemp, barH.as, 100));
-  const AsIntra = 0.0012 * 100 * (F * 100) * 0.5;
-  const barIntra = barByName('3/8"');
-  const sIntra = snapSpacing(spacingFor(AsIntra, barIntra.as, 100));
+  const AgF = 100 * (F * 100);
+  const dosCortinas = F > 0.25;
+  const capas = dosCortinas ? 2 : 1;
+  const sMaxMuro = Math.min(45, 3 * F * 100);
+  const AsTempTot = 0.002 * AgF;
+  const AsTemp = AsTempTot / capas;
+  const mallaH = elegirMalla(AsTemp, sMaxMuro);
+  const barH = mallaH.bar;
+  const sTemp = mallaH.s;
+  const AsIntra = (0.0012 * AgF) / capas;
+  const mallaIntra = elegirMalla(AsIntra, sMaxMuro);
+  const barIntra = mallaIntra.bar;
+  const sIntra = mallaIntra.s;
   const AsZapDist = 0.0012 * 100 * (esp * 100);
-  const sZapDist = snapSpacing(spacingFor(AsZapDist, barH.as, 100));
+  const mallaZapDist = elegirMalla(AsZapDist, Math.min(45, 3 * esp * 100));
+  const barDist = mallaZapDist.bar;
+  const sZapDist = mallaZapDist.s;
 
   const defx = deflexionPantallaVoladizo({
     Hs,
@@ -428,12 +442,15 @@ export const muroContencionSismo: Engine = (raw) => {
     VuStem,
     alma,
     AsTemp,
+    AsTempTot,
+    capas,
     barH,
     sTemp,
     AsIntra,
     barIntra,
     sIntra,
     AsZapDist,
+    barDist,
     sZapDist,
     dAlma_m: alma.d / 100,
     AsAlma_m2: alma.AsProv / 10000,
@@ -566,12 +583,15 @@ export const muroContencionSismo: Engine = (raw) => {
     VuStem,
     alma,
     AsTemp,
+    AsTempTot,
+    capas,
     barH,
     sTemp,
     AsIntra,
     barIntra,
     sIntra,
     AsZapDist,
+    barDist,
     sZapDist,
     dAlma_m,
     AsAlma_m2,
@@ -938,7 +958,7 @@ export const muroContencionSismo: Engine = (raw) => {
         `ρmín = máx(0,0012 ; 0,8√f'c/fy ; 14/fy) = ${fmt(alma.rhoMin, 5)}  (0,8√${fmt(fc, 0)}/${fmt(fy, 0)} = ${fmt((0.8 * Math.sqrt(fc)) / fy, 5)}  ·  14/fy = ${fmt(14 / fy, 5)}).`,
         `ρmáx = 0,75 ρb = ${fmt(alma.rhoMax, 5)}.  ρ usar = ${fmt(alma.rhoUse, 5)}.`,
         `As = ρ b d = ${fmt(alma.As, 2)} cm²/m → se adopta ${alma.text} (As,prov = ${fmt(alma.AsProv, 2)} cm²/m).`,
-        `a = As fy /(0,85 f'c b) = ${fmt(alma.a, 2)} cm.  φMn = 0,90·As·fy·(d−a/2)/1e5 = ${fmt(alma.phiMn, 2)} t·m  ${alma.okM ? "≥ Mu" : "< Mu"}.`,
+        `a y φMn se calculan con el acero colocado: a = As,prov fy /(0,85 f'c b) = ${fmt(alma.a, 2)} cm.  φMn = 0,90·As,prov·fy·(d−a/2)/1e5 = ${fmt(alma.phiMn, 2)} t·m  ${alma.okM ? "≥ Mu" : "< Mu"}.`,
         "El acero principal va vertical, en la cara del trasdós (tracción). Se ancla en la zapata con ganchos estándar.",
       ],
       note: "ρmín de muro = máx(0,0012 ; 0,8√f'c/fy ; 14/fy). Si φMn < Mu, aumente F o el acero.",
@@ -949,14 +969,17 @@ export const muroContencionSismo: Engine = (raw) => {
       formula: "φVc = 0,85 × 0,53√f'c b d    ·    As,temp = 0,002 b h    (horizontal)",
       formulaTex: String.raw`\phi V_c=0{,}85\times 0{,}53\sqrt{f'_c}\,b\,d\qquad A_{s,\mathrm{temp}}=0{,}002\,b\,h`,
       substitution: `Vu=${fmt(VuStem, 2)} t · b=100 cm · d=${fmt(alma.d, 1)} cm`,
-      result: `φVc = ${fmt(alma.phiVc, 2)} t    ·    As,h = ${fmt(AsTemp, 2)} cm²/m    ·    Ø ${barH.name} @ ${sTemp} cm`,
-      ok: alma.okV,
+      result: `φVc = ${fmt(alma.phiVc, 2)} t    ·    As,h tot = ${fmt(AsTempTot, 2)} cm²/m    ·    ${capas} cara(s)    ·    Ø ${barH.name} @ ${sTemp} cm por cara (As,prov = ${fmt((barH.as / sTemp) * 100, 2)})`,
+      ok: alma.okV && (barH.as / sTemp) * 100 + 1e-6 >= AsTemp,
       desarrollo: [
         `Vc = 0,53√${fmt(fc, 0)}·100·${fmt(alma.d, 1)} / 1000 = ${fmt(alma.Vc, 2)} t.  φVc = 0,85 Vc = ${fmt(alma.phiVc, 2)} t.`,
         alma.okV
           ? `Vu = ${fmt(VuStem, 2)} t ≤ φVc. El concreto absorbe el corte; no se requieren estribos de alma (muro).`
           : `Vu = ${fmt(VuStem, 2)} t > φVc. Aumente el espesor F o disponga conectores / mayor f'c.`,
-        `Acero horizontal de retracción: 0,002·100·${fmt(F * 100, 1)} = ${fmt(AsTemp, 2)} cm²/m → Ø ${barH.name} @ ${sTemp} cm en ambas caras si F ≥ 25 cm, o en la cara de tierra si es más delgado.`,
+        `E.060 §14.3.2: ρh ≥ 0,0020 → As,h total = 0,002·100·${fmt(F * 100, 1)} = ${fmt(AsTempTot, 2)} cm²/m.`,
+        F > 0.25
+          ? `E.060 §14.3.4: F = ${fmt(F * 100, 1)} cm > 25 cm → dos cortinas. Por cara As,h = ${fmt(AsTemp, 2)} cm²/m → Ø ${barH.name} @ ${sTemp} cm (As,prov = ${fmt((barH.as / sTemp) * 100, 2)} cm²/m).`
+          : `F ≤ 25 cm: una cortina. As,h = ${fmt(AsTemp, 2)} cm²/m → Ø ${barH.name} @ ${sTemp} cm (As,prov = ${fmt((barH.as / sTemp) * 100, 2)} cm²/m).`,
         `Longitud de desarrollo del vertical: ℓd ≈ 0,075 fy db / √f'c = ${fmt(ld, 1)} cm. Doble el acero de pantalla hacia el talón (tracción superior de zapata).`,
       ],
     },
@@ -1062,22 +1085,22 @@ export const muroContencionSismo: Engine = (raw) => {
       title: "Cuadro de aceros por metro lineal",
       formula: "s = (as / As) · 100 cm    ·    s ≤ 3h y ≤ 25 cm (distribución de muro)",
       formulaTex: String.raw`s=\dfrac{a_s}{A_s}\cdot 100\,\mathrm{cm}\qquad s\le 3h\ \text{y}\ \le 25\,\mathrm{cm}`,
-      result: `Pantalla ${alma.text}    ·    Pata ${pata.text} inf.    ·    Talón ${talon.text} sup.    ·    Temp. Ø ${barH.name} @ ${sTemp} cm`,
+      result: `Pantalla ${alma.text}    ·    Pata ${pata.text} inf.    ·    Talón ${talon.text} sup.    ·    Temp. Ø ${barH.name} @ ${sTemp} cm/cara`,
       table: {
         caption: "Despiece de refuerzo — franja 1.00 m",
         headers: ["Elemento", "Cara", "As req. (cm²/m)", "Adopción", "As prov.", "φMn (t·m)", "φVc (t)"],
         rows: [
           ["Alma / pantalla", "Trasdós, vertical", fmt(alma.As, 2), alma.text, fmt(alma.AsProv, 2), fmt(alma.phiMn, 2), fmt(alma.phiVc, 2)],
           ["Alma, intradós", "Intradós, vertical", fmt(AsIntra, 2), `Ø ${barIntra.name} @ ${sIntra} cm`, fmt((barIntra.as / sIntra) * 100, 2), "—", "—"],
-          ["Alma, temperatura", "Horizontal, ambas caras", fmt(AsTemp, 2), `Ø ${barH.name} @ ${sTemp} cm`, fmt((barH.as / sTemp) * 100, 2), "—", "—"],
+          ["Alma, temperatura", capas > 1 ? "Horizontal, por cara" : "Horizontal", fmt(AsTemp, 2), `Ø ${barH.name} @ ${sTemp} cm`, fmt((barH.as / sTemp) * 100, 2), "—", "—"],
           ["Punta (pata)", "Inferior", fmt(pata.As, 2), pata.text, fmt(pata.AsProv, 2), fmt(pata.phiMn, 2), fmt(pata.phiVc, 2)],
-          ["Punta, repartición", "Superior", fmt(AsZapDist, 2), `Ø ${barH.name} @ ${sZapDist} cm`, fmt((barH.as / sZapDist) * 100, 2), "—", "—"],
+          ["Punta, repartición", "Superior", fmt(AsZapDist, 2), `Ø ${barDist.name} @ ${sZapDist} cm`, fmt((barDist.as / sZapDist) * 100, 2), "—", "—"],
           ["Talón", "Superior", fmt(talon.As, 2), talon.text, fmt(talon.AsProv, 2), fmt(talon.phiMn, 2), fmt(talon.phiVc, 2)],
-          ["Talón, repartición", "Inferior", fmt(AsZapDist, 2), `Ø ${barH.name} @ ${sZapDist} cm`, fmt((barH.as / sZapDist) * 100, 2), "—", "—"],
+          ["Talón, repartición", "Inferior", fmt(AsZapDist, 2), `Ø ${barDist.name} @ ${sZapDist} cm`, fmt((barDist.as / sZapDist) * 100, 2), "—", "—"],
           ...(hk > 0.02
             ? [["Dentellón", "U bajo el fuste", fmt(llave.As, 2), llave.text, fmt(llave.AsProv, 2), fmt(llave.phiMn, 2), fmt(llave.phiVc, 2)]]
             : []),
-          ["Repartición zapata", "Ortogonal", fmt(AsZapDist, 2), `Ø 3/8" @ ${sZapDist} cm`, "—", "—", "—"],
+          ["Repartición zapata", "Ortogonal", fmt(AsZapDist, 2), `Ø ${barDist.name} @ ${sZapDist} cm`, fmt((barDist.as / sZapDist) * 100, 2), "—", "—"],
         ],
       },
       note: `Anclaje de pantalla en zapata: ℓd ≈ ${fmt(ld, 0)} cm. Doble el vertical hacia el talón. Recubrimiento alma ${fmt(rec, 1)} cm · zapata ${fmt(recZap, 1)} cm.`,
@@ -1102,6 +1125,8 @@ export const muroContencionSismo: Engine = (raw) => {
         !deslizaSin || (FSd >= FS_desl && FSdEq >= FS_deslSis),
       ),
       ok("Flexión del alma φMn ≥ Mu", fmt(alma.phiMn, 2), `≥ ${fmt(MuStem, 2)} t·m`, alma.okM),
+      ok("Acero pantalla As,prov ≥ As,req", fmt(alma.AsProv, 2), `≥ ${fmt(alma.As, 2)} cm²/m`, alma.AsProv + 1e-6 >= alma.As),
+      ok("Acero horiz. por cara As,prov ≥ As,req", fmt((barH.as / sTemp) * 100, 2), `≥ ${fmt(AsTemp, 2)} cm²/m`, (barH.as / sTemp) * 100 + 1e-6 >= AsTemp),
       ok("Corte del alma φVc ≥ Vu", fmt(alma.phiVc, 2), `≥ ${fmt(VuStem, 2)} t`, alma.okV),
       ok("Deflexión de servicio del alma", `${fmt(deltaAlma_cm, 3)} cm`, `≤ ${fmt(deltaAdmAlma_cm, 3)} cm (Hs/150)`, okDeflexionAlma),
       ok("Espesor F de pantalla", `${fmt(F, 2)} m`, Fajustado ? `ensayo ${fmt(Fuser, 2)} m → adoptado` : "ensayo = adoptado", true),
@@ -1198,6 +1223,7 @@ export const muroContencionSismo: Engine = (raw) => {
       AsPata: pata.As.toFixed(2),
       AsTalon: talon.As.toFixed(2),
       AsLlave: llave.As.toFixed(2),
+      AsTemp: AsTemp.toFixed(2),
       barAlma: alma.bar.name,
       dbAlma: String(alma.bar.db),
       sAlma: String(alma.s),
@@ -1217,8 +1243,8 @@ export const muroContencionSismo: Engine = (raw) => {
       dbIntra: String(barIntra.db),
       sIntra: String(sIntra),
       AsIntra: AsIntra.toFixed(2),
-      barDist: barH.name,
-      dbDist: String(barH.db),
+      barDist: barDist.name,
+      dbDist: String(barDist.db),
       sDist: String(sZapDist),
       AsDist: AsZapDist.toFixed(2),
       VuStem: VuStem.toFixed(3),
