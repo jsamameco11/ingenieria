@@ -375,8 +375,8 @@ function Esquema({ g }: { g: Geom }) {
       ancho={W}
       alto={Ht}
     >
-      {/* Cielo a la izquierda del fuste: el relleno no puede pintarse ahí. */}
-      <rect x="0" y="0" width={xSF} height={yBase} fill="#fbf8f1" />
+      {/* Cielo a la izquierda del fuste, por encima del suelo frontal (cota Df). */}
+      <rect x="0" y="0" width={xSF} height={Math.min(yFrente, yBase)} fill="#fbf8f1" />
 
       {/* Relleno: solo desde el trasdós hacia la derecha. */}
       <polygon
@@ -418,13 +418,22 @@ function Esquema({ g }: { g: Geom }) {
         </g>
       ) : null}
 
-      {/* Frente: solo Df, medido desde el fondo de la zapata. Nunca sube por el fuste. */}
-      <polygon
-        points={`${xP - frenteW},${yFrente} ${xP},${yFrente} ${xP},${yBot} ${xP - frenteW},${yBot}`}
-        fill="url(#ms-soil)"
-        opacity="0.9"
-      />
-      <line x1={xP - frenteW - 4} y1={yFrente} x2={xP} y2={yFrente} stroke={SOIL} strokeWidth="1.5" />
+      {/* Suelo frontal: sobre la puntera (altura Df − hf) y delante del muro. El
+          motor lo pesa como W4 = L_toe·(Df−hf)·γ_front; el croquis no puede omitirlo. */}
+      {g.Df > g.hf + 1e-6 && g.Ltoe > 1e-6 ? (
+        <polygon
+          points={`${xP - frenteW},${yFrente} ${xSF},${yFrente} ${xSF},${yBase} ${xP},${yBase} ${xP},${yBot} ${xP - frenteW},${yBot}`}
+          fill="url(#ms-soil)"
+          opacity="0.9"
+        />
+      ) : (
+        <polygon
+          points={`${xP - frenteW},${yFrente} ${xP},${yFrente} ${xP},${yBot} ${xP - frenteW},${yBot}`}
+          fill="url(#ms-soil)"
+          opacity="0.9"
+        />
+      )}
+      <line x1={xP - frenteW - 4} y1={yFrente} x2={g.Df > g.hf ? xSF : xP} y2={yFrente} stroke={SOIL} strokeWidth="1.5" />
 
       <polygon points={m.wall} fill="url(#ms-conc)" stroke={CONC} strokeWidth="1.8" />
       {una > 0.01 ? (
@@ -458,7 +467,16 @@ function Esquema({ g }: { g: Geom }) {
       ) : null}
 
       <Cota x1={xSF} y1={yTop} x2={xTopB} y2={yTop} label={u.nL(g.ttop)} lado="arriba" dist={18} />
-      <Cota x1={xSF} y1={yBase} x2={xSB} y2={yBase} label={u.nL(g.tbase)} lado="arriba" dist={18} dx={-(xSF - xP) * 0.55} />
+      <Cota
+        x1={xSF}
+        y1={yBase}
+        x2={xSB}
+        y2={yBase}
+        label={u.nL(g.tbase)}
+        lado="arriba"
+        dist={g.Df > g.hf ? yBase - yFrente + 16 : 18}
+        dx={-(xSF - xP) * 0.45}
+      />
       <Cota x1={xP} y1={yBot} x2={xSF} y2={yBot} label={u.nL(g.Ltoe)} lado="abajo" dist={una > 0.01 ? 52 : 28} />
       <Cota x1={xSB} y1={yBot} x2={xH} y2={yBot} label={u.nL(g.Lheel)} lado="abajo" dist={una > 0.01 ? 52 : 28} />
       <Cota x1={xP} y1={yBot} x2={xH} y2={yBot} label={`B = ${u.fL(g.B)}`} lado="abajo" dist={una > 0.01 ? 80 : 56} />
@@ -584,7 +602,8 @@ function EstabilidadFig({ g }: { g: Geom }) {
   const padB = 236;
   const sc = pxPorMetro(340, 320, Math.max(g.B, 1.5), Math.max(g.H, 2));
   const m = trazaMuro(g, { sx: sc, sy: sc, x0: padL, yBot: Ht - padB });
-  const { Y, Z, xP, xH, yBot, yTop } = m;
+  const { Y, Z, xP, xSF, xH, yBot, yTop, yBase } = m;
+  const yFrente = Z(g.Df);
 
   const yDiag = yBot + 64;
   const pEsc = 78 / Math.max(d.q1, d.q2, 1e-6);
@@ -604,6 +623,13 @@ function EstabilidadFig({ g }: { g: Geom }) {
         fill="url(#ms-soil)"
         opacity="0.8"
       />
+      {g.Df > g.hf + 1e-6 && g.Ltoe > 1e-6 ? (
+        <polygon
+          points={`${xP - 28},${yFrente} ${xSF},${yFrente} ${xSF},${yBase} ${xP},${yBase} ${xP},${yBot} ${xP - 28},${yBot}`}
+          fill="url(#ms-soil)"
+          opacity="0.8"
+        />
+      ) : null}
       <polygon points={m.wall} fill="url(#ms-conc)" stroke={CONC} strokeWidth="1.7" />
       {d.unaProf > 0.01 ? (
         <polygon

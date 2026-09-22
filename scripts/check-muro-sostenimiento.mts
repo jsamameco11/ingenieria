@@ -150,6 +150,12 @@ console.log("\n── Figuras ──");
     assert(!/(NaN|Infinity)/.test(svg), "el esquema no tiene coordenadas rotas");
     const fusteX = Number(svg.match(/<text x="([\d.]+)"[^>]*>FUSTE/)?.[1] ?? 0);
     assert(fusteX > 150 && fusteX < 250, "FUSTE está escrito sobre el fuste, no sobre el relleno", String(fusteX));
+    const sueloPuntera = g.dcl.bloques.find((b: { nombre: string; W: number }) => /Suelo sobre la puntera/.test(b.nombre));
+    const wTeor = g.Ltoe * (g.Df - g.hf) * 1.84 * 9.80665;
+    assert(!!sueloPuntera && near(sueloPuntera.W, wTeor, 0.02), "W4 = L_toe·(D_f − h_f)·γ_front", `${sueloPuntera?.W?.toFixed(2)} vs ${wTeor.toFixed(2)} kN/m`);
+    const rasante = muroSostenimiento({ ...base, Df: String(g.hf) });
+    const sinFrontal = JSON.parse(rasante.dims!.muroGeom).dcl.bloques.some((b: { nombre: string }) => /Suelo sobre la puntera/.test(b.nombre));
+    assert(!sinFrontal, "si Df = hf no hay suelo sobre la puntera");
   }
   {
     const est = dibujar(r, base, "estabilidad");
@@ -182,6 +188,10 @@ console.log("\n── Sensibilidad física ──");
   const g0 = JSON.parse(r.dims!.muroGeom);
   const g1 = JSON.parse(alto.dims!.muroGeom);
   assert(g1.Eh > g0.Eh, "más altura, más empuje", `${g1.Eh.toFixed(1)} > ${g0.Eh.toFixed(1)}`);
+  const wFront = (x: { dcl: { bloques: { nombre: string; W: number }[] } }) =>
+    x.dcl.bloques.find((b) => /Suelo sobre la puntera/.test(b.nombre))?.W ?? 0;
+  const masDf = JSON.parse(muroSostenimiento({ ...base, Df: "1.80" }).dims!.muroGeom);
+  assert(wFront(masDf) > wFront(g0), "más desplante, más suelo sobre la puntera", `${wFront(masDf).toFixed(1)} > ${wFront(g0).toFixed(1)}`);
 
   const conAgua = muroSostenimiento({ ...base, nf: "2" });
   const gw = JSON.parse(conAgua.dims!.muroGeom);
