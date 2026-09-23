@@ -23,7 +23,7 @@ import {
   viaVacia,
 } from "../lib/lotizacion/norma";
 import { svgSeccion } from "../lib/lotizacion/seccionVia";
-import type { CategoriaParque, Criterios, Ingreso, Modelo, Pavimento, ProyectoLot, Punto, Seccion, TipoHab, TipoVia, ViaCampo, ViaExistente, ViaInterna } from "../lib/lotizacion/tipos";
+import type { CategoriaParque, Criterios, EstiloParque, Ingreso, Modelo, ModoParque, Pavimento, ProyectoLot, Punto, Seccion, TipoHab, TipoVia, ViaCampo, ViaExistente, ViaInterna } from "../lib/lotizacion/tipos";
 
 const PASOS = ["Perímetro", "Emplazamiento", "Vías existentes", "Ingresos", "Criterios GH.020", "Confirmación", "Plano"] as const;
 
@@ -131,11 +131,21 @@ export function LotizacionModule() {
   };
 
   const setC = (patch: Partial<Criterios>) => setProy((p) => ({ ...p, criterios: { ...p.criterios, ...patch } }));
-  const fijarParque = (clave: string, categoria: CategoriaParque) => {
-    const aplicar = (p: ProyectoLot): ProyectoLot => ({
-      ...p,
-      parques: [...(p.parques ?? []).filter((a) => a.clave !== clave), { clave, categoria }],
-    });
+  const fijarParque = (clave: string, patch: { categoria?: CategoriaParque; estilo?: EstiloParque }) => {
+    const aplicar = (p: ProyectoLot): ProyectoLot => {
+      const prev = (p.parques ?? []).find((a) => a.clave === clave);
+      const categoria = patch.categoria ?? prev?.categoria ?? "pasiva";
+      const estilo = patch.estilo ?? prev?.estilo;
+      return {
+        ...p,
+        parques: [...(p.parques ?? []).filter((a) => a.clave !== clave), { clave, categoria, ...(estilo ? { estilo } : {}) }],
+      };
+    };
+    setProy(aplicar);
+    setPlano(aplicar);
+  };
+  const fijarModoParque = (modoParque: ModoParque) => {
+    const aplicar = (p: ProyectoLot): ProyectoLot => ({ ...p, modoParque });
     setProy(aplicar);
     setPlano(aplicar);
   };
@@ -728,7 +738,7 @@ export function LotizacionModule() {
                   Exportar DWG (DXF)
                 </button>
               </div>
-              <p className="lz-hint">En el diálogo de impresión elija tamaño A1 horizontal y escala real. El DXF trae una polilínea por manzana (MC-MANZANA, con arco en la esquina) y la curva del sardinel en MC-VEREDA.</p>
+              <p className="lz-hint">En el diálogo de impresión elija tamaño A1 horizontal y escala real. El DXF trae la manzana (MC-MANZANA), el ochavo recto (MC-OCHAVO) y el martillo del sardinel con su radio (MC-VEREDA).</p>
               <table className="lz-table">
                 <thead>
                   <tr>
@@ -754,7 +764,17 @@ export function LotizacionModule() {
           {modelo.parques.length > 0 && (
             <section>
               <h3>Parques</h3>
-              <p>GH.020 Art. 29 y Art. 56.e. La categoría arma el parque: pasiva con césped, sendero y flores; activa con losa, arcos y punto de centro cuando el paño los admite. Nada se dibuja fuera del lindero.</p>
+              <p>GH.020 Art. 29 y Art. 56.e. El parque se arma dentro del perímetro: primero los recorridos, después plaza, juegos, descanso y vegetación. La losa deportiva solo entra si cabe entera.</p>
+              <div className="lz-choice">
+                <button type="button" className={(plano.modoParque ?? "lotes") === "manzana" ? "is-on" : ""} onClick={() => fijarModoParque("manzana")}>
+                  <strong>Una manzana</strong>
+                  <span>El parque ocupa la manzana completa. No quedan lotes de vivienda a su costado.</span>
+                </button>
+                <button type="button" className={(plano.modoParque ?? "lotes") === "lotes" ? "is-on" : ""} onClick={() => fijarModoParque("lotes")}>
+                  <strong>Con lotes aledaños</strong>
+                  <span>El parque toma el área exigida y deja lotes de vivienda en la misma manzana.</span>
+                </button>
+              </div>
               {modelo.parques.map((pk) => (
                 <div key={pk.clave} className="lz-block-note">
                   <strong>{pk.nombre}</strong>
@@ -764,19 +784,30 @@ export function LotizacionModule() {
                     <button
                       type="button"
                       className={pk.categoria === "pasiva" ? "is-on" : ""}
-                      onClick={() => fijarParque(pk.clave, "pasiva")}
+                      onClick={() => fijarParque(pk.clave, { categoria: "pasiva" })}
                     >
                       <strong>Recreación pasiva</strong>
-                      <span>Césped, sendero, bancas, árboles y arriates.</span>
+                      <span>Plaza, senderos, descanso y vegetación, sin losa.</span>
                     </button>
                     <button
                       type="button"
                       className={pk.categoria === "activa" ? "is-on" : ""}
-                      onClick={() => fijarParque(pk.clave, "activa")}
+                      onClick={() => fijarParque(pk.clave, { categoria: "activa" })}
                     >
                       <strong>Recreación activa</strong>
-                      <span>Losa deportiva si cabe entera; si no, juegos.</span>
+                      <span>Losa si el paño la admite, más juegos y recorridos.</span>
                     </button>
+                    {(["organico", "geometrico", "lineal"] as EstiloParque[]).map((est) => (
+                      <button
+                        key={est}
+                        type="button"
+                        className={pk.estilo === est ? "is-on" : ""}
+                        onClick={() => fijarParque(pk.clave, { estilo: est })}
+                      >
+                        <strong>{est === "organico" ? "Orgánico" : est === "geometrico" ? "Geométrico" : "Lineal"}</strong>
+                        <span>{est === "organico" ? "Recorrido curvo." : est === "geometrico" ? "Anillo y cruces." : "Paseo de un eje."}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               ))}

@@ -37,8 +37,72 @@ function linea(a: V2, b: V2, stroke: string, sw: number, dash?: string, clip = f
   return { t: "line", a, b, fill: "none", stroke, sw, dash, clip };
 }
 
-function texto(p: V2, text: string, size: number, fill = "#1c1c1c"): Trazo {
-  return { t: "text", p, text, size, fill, stroke: "none", sw: 0 };
+function texto(p: V2, text: string, size: number, fill = "#1c1c1c", medio = false): Trazo {
+  return { t: "text", p, text, size, fill, stroke: "none", sw: 0, medio };
+}
+
+function corona(c: V2, r: number, n = 28): V2[] {
+  const pts: V2[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    pts.push({ x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** Marca de corte de presentación: burbuja con letra, flecha de vista y línea con extremos gruesos. */
+export function simboloCorte(a: V2, b: V2, letra: string): Trazo[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const nx = -uy;
+  const ny = ux;
+  const r = 3.4;
+  const out: Trazo[] = [];
+  const extremo = (p: V2, haciaDentro: number) => {
+    out.push(poly(corona(p, r), "#ffffff", "#141414", 0.42));
+    out.push(texto(p, letra, 2.5, "#141414", true));
+    const base = r + 0.15;
+    const punta = { x: p.x + nx * (base + 3.5), y: p.y + ny * (base + 3.5) };
+    const ala = 1.25;
+    out.push(
+      poly(
+        [
+          punta,
+          { x: p.x + nx * base + ux * ala, y: p.y + ny * base + uy * ala },
+          { x: p.x + nx * base - ux * ala, y: p.y + ny * base - uy * ala },
+        ],
+        "#141414",
+        "#141414",
+        0.05,
+      ),
+    );
+    const grueso = Math.min(6.5, len * 0.18);
+    out.push(
+      linea(
+        { x: p.x + ux * haciaDentro * (r + 0.2), y: p.y + uy * haciaDentro * (r + 0.2) },
+        { x: p.x + ux * haciaDentro * (r + grueso), y: p.y + uy * haciaDentro * (r + grueso) },
+        "#141414",
+        0.95,
+      ),
+    );
+  };
+  extremo(a, 1);
+  extremo(b, -1);
+  const hueco = r + 6.7;
+  if (len > hueco * 2 + 1) {
+    out.push(
+      linea(
+        { x: a.x + ux * hueco, y: a.y + uy * hueco },
+        { x: b.x - ux * hueco, y: b.y - uy * hueco },
+        "#141414",
+        0.22,
+      ),
+    );
+  }
+  return out;
 }
 
 function muestrear(poly: V2[], paso: number, margen: number): { p: V2; dir: V2 }[] {
@@ -161,27 +225,11 @@ export function trazosDe(m: Modelo): Trazo[] {
       out.push(texto(mid, eje.nombre, 2.8, "#8b1e1e"));
     }
   }
-  for (const corte of m.cortes ?? []) {
-    out.push(linea(corte.a, corte.b, "#1a1a1a", 0.32));
-    const dx = corte.b.x - corte.a.x;
-    const dy = corte.b.y - corte.a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ux = dx / len;
-    const uy = dy / len;
-    const tick = (p: V2, signo: number) => {
-      const nx = -uy * 1.3 * signo;
-      const ny = ux * 1.3 * signo;
-      out.push(linea({ x: p.x - nx, y: p.y - ny }, { x: p.x + nx, y: p.y + ny }, "#1a1a1a", 0.28));
-      out.push(texto({ x: p.x + ux * signo * 2.2, y: p.y + uy * signo * 2.2 }, corte.letra, 2.6));
-    };
-    tick(corte.a, -1);
-    tick(corte.b, 1);
-  }
   for (const sim of grafismosPlanta(m)) {
     out.push(poly(sim.pts, sim.fill, sim.stroke, sim.sw));
   }
   for (const lot of m.lotes.filter((l) => l.uso === "vivienda")) {
-    const size = Math.max(1.5, Math.min(3.1, lot.frente * 0.28));
+    const size = Math.max(1.6, Math.min(3.1, Math.sqrt(Math.max(lot.area, 1)) * 0.18));
     out.push(texto(lot.centro, lot.id, size));
     out.push(texto({ x: lot.centro.x, y: lot.centro.y - size * 1.15 }, fmtM(lot.area, 1), size * 0.72, "#5c564c"));
   }
@@ -202,6 +250,28 @@ export function trazosDe(m: Modelo): Trazo[] {
       out.push(texto(ln.p, ln.nombre.split("—")[0].trim(), 2.4, "#1f4e79"));
     }
   }
+  for (const pl of m.polilineas ?? []) {
+    if (pl.capa !== "MC-VEREDA" && pl.capa !== "MC-OCHAVO") continue;
+    const pts: V2[] = [];
+    for (let i = 0; i < pl.pts.length - 1; i++) {
+      const arco = expandirBulge(pl.pts[i], pl.pts[i + 1], pl.pts[i].bulge ?? 0);
+      if (pts.length && arco.length) arco.shift();
+      pts.push(...arco);
+    }
+    if (pts.length < 2) continue;
+    const ochavo = pl.capa === "MC-OCHAVO";
+    for (let i = 0; i < pts.length - 1; i++) {
+      out.push(linea(pts[i], pts[i + 1], ochavo ? "#141414" : "#2b2b2b", ochavo ? 0.38 : 0.26));
+    }
+    const mid = pts[Math.floor(pts.length / 2)];
+    if (!ochavo && pl.pts[0]?.bulge) {
+      const radio = radioDeBulge(pl.pts[0], pl.pts[1], pl.pts[0].bulge);
+      if (radio > 0.2) out.push(texto({ x: mid.x, y: mid.y }, `R${radio.toFixed(2)}`, 1.15, "#2b2b2b"));
+    } else if (ochavo) {
+      const metros = pl.nombre.replace(/[^\d.]/g, "");
+      out.push(texto(mid, metros ? `${Number(metros).toFixed(2)}` : "OCHAVO", 1.05, "#141414"));
+    }
+  }
   m.lindero.forEach((p, i) => {
     out.push(poly(
       [
@@ -216,7 +286,74 @@ export function trazosDe(m: Modelo): Trazo[] {
     ));
     if (m.lindero.length <= 24) out.push(texto({ x: p.x + 2.2, y: p.y + 2.2 }, String(i + 1), 2.4));
   });
+  for (const corte of m.cortes ?? []) out.push(...simboloCorte(corte.a, corte.b, corte.letra));
   return out;
+}
+
+function expandirBulge(a: V2, b: V2, bulge: number): V2[] {
+  if (!bulge || Math.abs(bulge) < 1e-5) return [a, b];
+  const theta = 4 * Math.atan(bulge);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const chord = Math.hypot(dx, dy);
+  if (chord < 1e-4 || Math.abs(Math.sin(theta / 2)) < 1e-5) return [a, b];
+  const r = Math.abs(chord / (2 * Math.sin(theta / 2)));
+  const h = Math.sqrt(Math.max(0, r * r - (chord / 2) ** 2));
+  const sign = theta >= 0 ? 1 : -1;
+  const cx = (a.x + b.x) / 2 + (-dy / chord) * h * sign;
+  const cy = (a.y + b.y) / 2 + (dx / chord) * h * sign;
+  const a0 = Math.atan2(a.y - cy, a.x - cx);
+  const pts: V2[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = a0 + theta * (i / 10);
+    pts.push({ x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) });
+  }
+  return pts;
+}
+
+function radioDeBulge(a: V2, b: V2, bulge: number): number {
+  const theta = 4 * Math.atan(bulge);
+  const chord = Math.hypot(b.x - a.x, b.y - a.y);
+  if (Math.abs(Math.sin(theta / 2)) < 1e-5) return 0;
+  return Math.abs(chord / (2 * Math.sin(theta / 2)));
+}
+
+/** Norte y escala gráfica, en metros de planta. Sirve en pantalla y en el A1. */
+export function cartelaSvg(view: { minE: number; minN: number; w: number; h: number }): string {
+  const sw = Math.max(view.w, view.h) / 520;
+  const nice = [5, 10, 20, 25, 50, 100, 200, 500, 1000].find((n) => n >= view.w / 5) ?? 2000;
+  const sx = view.minE + view.w * 0.04;
+  const sy = view.minN + view.h * 0.05;
+  const xf = (e: number) => e.toFixed(3);
+  const yf = (n: number) => (-n).toFixed(3);
+  const partes = 4;
+  const paso = nice / partes;
+  const alto = sw * 5.4;
+  let barras = "";
+  for (let i = 0; i < partes; i++) {
+    const x0 = sx + i * paso;
+    barras += `<rect x="${xf(x0)}" y="${yf(sy + alto)}" width="${paso.toFixed(3)}" height="${alto.toFixed(3)}" fill="${i % 2 === 0 ? "#1a1a1a" : "#f4f1ea"}" stroke="#1a1a1a" stroke-width="${(sw * 0.65).toFixed(3)}" />`;
+  }
+  const marcas = [0, nice / 2, nice]
+    .map((m, i) => {
+      const anchor = i === 0 ? "start" : i === 2 ? "end" : "middle";
+      const etiqueta = i === 2 ? `${m} m` : String(m);
+      return `<text x="${xf(sx + m)}" y="${yf(sy - sw * 2.4)}" text-anchor="${anchor}" font-size="${(sw * 8.5).toFixed(2)}" fill="#1a1a1a" font-family="Segoe UI, Arial, sans-serif">${etiqueta}</text>`;
+    })
+    .join("");
+  const titulo = `<text x="${xf(sx)}" y="${yf(sy + alto + sw * 7.5)}" font-size="${(sw * 6.6).toFixed(2)}" fill="#1a1a1a" font-family="Segoe UI, Arial, sans-serif" letter-spacing="${(sw * 0.45).toFixed(2)}">ESCALA GRÁFICA</text>`;
+  const r = view.h * 0.028;
+  const cx = view.minE + view.w * 0.91;
+  const cy = view.minN + view.h * 0.9;
+  const norte = `${xf(cx)},${yf(cy + r * 1.35)} ${xf(cx - r * 0.46)},${yf(cy - r * 0.05)} ${xf(cx + r * 0.46)},${yf(cy - r * 0.05)}`;
+  const sur = `${xf(cx)},${yf(cy - r * 1.15)} ${xf(cx - r * 0.46)},${yf(cy + r * 0.05)} ${xf(cx + r * 0.46)},${yf(cy + r * 0.05)}`;
+  const rosa = `<circle cx="${xf(cx)}" cy="${yf(cy)}" r="${(r * 1.55).toFixed(3)}" fill="#f7f4ee" stroke="#1a1a1a" stroke-width="${(sw * 1.15).toFixed(3)}" />
+    <polygon points="${norte}" fill="#1a1a1a" />
+    <polygon points="${sur}" fill="#f7f4ee" stroke="#1a1a1a" stroke-width="${(sw * 0.75).toFixed(3)}" />
+    <line x1="${xf(cx - r * 1.7)}" y1="${yf(cy)}" x2="${xf(cx + r * 1.7)}" y2="${yf(cy)}" stroke="#1a1a1a" stroke-width="${(sw * 0.45).toFixed(3)}" />
+    <line x1="${xf(cx)}" y1="${yf(cy - r * 1.7)}" x2="${xf(cx)}" y2="${yf(cy + r * 1.7)}" stroke="#1a1a1a" stroke-width="${(sw * 0.45).toFixed(3)}" />
+    <text x="${xf(cx)}" y="${yf(cy + r * 2.15)}" text-anchor="middle" font-size="${(r * 0.95).toFixed(2)}" fill="#1a1a1a" font-family="Segoe UI, Arial, sans-serif" font-weight="700">N</text>`;
+  return `<g>${barras}${marcas}${titulo}</g><g>${rosa}</g>`;
 }
 
 export function puntosSvg(pts: V2[]): string {
@@ -236,7 +373,8 @@ export function svgDeTrazos(trazos: Trazo[], extra = "", predio?: V2[]): string 
           return `<line x1="${tr.a.x.toFixed(3)}" y1="${(-tr.a.y).toFixed(3)}" x2="${tr.b.x.toFixed(3)}" y2="${(-tr.b.y).toFixed(3)}" stroke="${tr.stroke}" stroke-width="${tr.sw}" stroke-linecap="round"${dash} />`;
         }
         if (tr.t === "text" && tr.p && tr.text) {
-          return `<text x="${tr.p.x.toFixed(3)}" y="${(-tr.p.y).toFixed(3)}" font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle" fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
+          const medio = tr.medio ? ` dominant-baseline="central" font-weight="700"` : "";
+          return `<text x="${tr.p.x.toFixed(3)}" y="${(-tr.p.y).toFixed(3)}" font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle"${medio} fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
         }
         return "";
       })

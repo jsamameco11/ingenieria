@@ -172,6 +172,10 @@ export type FemMuroRectResult = {
   nNodos: number;
   nElem: number;
   ok: boolean;
+  nx: number;
+  nz: number;
+  cellsMxx: number[];
+  cellsMyy: number[];
 };
 
 /**
@@ -210,6 +214,7 @@ export function femMuroRect(opts: {
     vHor: [{ x: 0, M: 0 }, { x: L, M: 0 }],
     MvertMax: 0, MhorEsq: 0, MhorVano: 0, Vmax: 0,
     nNodos: 0, nElem: 0, ok: false,
+    nx: 0, nz: 0, cellsMxx: [], cellsMyy: [],
   };
 
   const nodes: { x: number; y: number; z: number }[] = [];
@@ -352,6 +357,9 @@ export function femMuroRect(opts: {
     mVert, vVert, mHor, vHor,
     MvertMax, MhorEsq, MhorVano, Vmax,
     nNodos: nodes.length, nElem: shells.length, ok: true,
+    nx, nz,
+    cellsMxx: cells.map((c) => c.mxx),
+    cellsMyy: cells.map((c) => c.myy),
   };
 }
 

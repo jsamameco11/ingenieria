@@ -28,8 +28,8 @@ import {
   type Rect,
   type V2,
 } from "./geom";
-import { esquinasDe, polilineaSardinel, retroceso, tramaDe } from "./aceras";
-import { disenarParques } from "./parque";
+import { esquinasDe, ochavarPoligono, polilineaSardinel, retroceso, tramaDe } from "./aceras";
+import { disenarParques, unirPanos } from "./parque";
 import {
   anchoSeccion,
   calidadAlcanza,
@@ -69,7 +69,12 @@ type Work = {
   centro: V2;
   grid: { band: number; col: number; side: number; index: number; kind: Kind };
   uso: UsoLote;
+  /** Celda de diseño, en coordenadas locales, antes de recortar contra el lindero. */
+  celda: Rect;
 };
+
+/** Mínimo de un lote de vivienda, también si el lindero lo deja en triángulo. */
+const MIN_LOTE = 90;
 
 const CAMPOS: { k: ViaCampo; nombre: string }[] = [
   { k: "pia", nombre: "PIA — interno de acera (terreno)" },
@@ -143,6 +148,61 @@ function unionRect(a: Rect, b: Rect): Rect {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+function huella(grupo: { celda: Rect }[]): Rect {
+  return grupo.reduce((r, g) => unionRect(r, g.celda), grupo[0].celda);
+}
+
+/** La celda casi no fue comida por el lindero: sirve para armar un aporte rectangular. */
+function esRegular(w: Work): boolean {
+  const cel = w.celda.w * w.celda.h;
+  return cel > 8 && w.area + 0.5 >= cel * 0.9;
+}
+
+function aristaKey(a: V2, b: V2): string {
+  const q = (p: V2) => `${Math.round(p.x * 25)},${Math.round(p.y * 25)}`;
+  const ka = q(a);
+  const kb = q(b);
+  return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+}
+
+/** Une al vecino todo polígono de vivienda que no llega a 90 m². */
+function absorberChicos(lista: Work[]) {
+  const trabados = new Set<Work>();
+  let guard = 0;
+  while (guard++ < 120) {
+    const chico = lista
+      .filter((w) => w.uso === "vivienda" && w.area + 0.5 < MIN_LOTE && !trabados.has(w))
+      .sort((a, b) => a.area - b.area)[0];
+    if (!chico) break;
+    const bordes = new Set<string>();
+    for (let i = 0; i < chico.poly.length; i++) bordes.add(aristaKey(chico.poly[i], chico.poly[(i + 1) % chico.poly.length]));
+    const vecino = lista
+      .filter((w) => {
+        if (w === chico || w.uso !== "vivienda") return false;
+        for (let i = 0; i < w.poly.length; i++) {
+          if (bordes.has(aristaKey(w.poly[i], w.poly[(i + 1) % w.poly.length]))) return true;
+        }
+        return false;
+      })
+      .sort((a, b) => b.area - a.area)[0];
+    const unidos = vecino ? unirPanos([vecino.poly, chico.poly]) : [];
+    if (!vecino || unidos.length !== 1) {
+      trabados.add(chico);
+      continue;
+    }
+    vecino.poly = unidos[0];
+    vecino.area = Math.abs(area(unidos[0]));
+    vecino.centro = centroid(unidos[0]);
+    vecino.frente = Math.max(vecino.frente, chico.frente);
+    vecino.profundidad = vecino.frente > 0.5 ? vecino.area / vecino.frente : vecino.profundidad;
+    vecino.celda = unionRect(vecino.celda, chico.celda);
+    lista.splice(lista.indexOf(chico), 1);
+  }
+  for (let i = lista.length - 1; i >= 0; i--) {
+    if (lista[i].uso === "vivienda" && lista[i].area + 0.5 < MIN_LOTE) lista.splice(i, 1);
+  }
+}
+
 /** Alarga el lote hacia el lindero. El lado de la calle y el lindero con el vecino no se mueven. */
 function extenderRect(rect: Rect, bb: Caja, lado: { o: boolean; e: boolean; s: boolean; n: boolean }): Rect {
   const m = 12;
@@ -157,24 +217,15 @@ function extenderRect(rect: Rect, bb: Caja, lado: { o: boolean; e: boolean; s: b
   return { x: x0, y: y0, w: Math.max(0.05, x1 - x0), h: Math.max(0.05, y1 - y0) };
 }
 
-function runs(nums: number[]): number[][] {
-  const s = [...nums].sort((a, b) => a - b);
-  const out: number[][] = [];
-  for (const n of s) {
-    const last = out[out.length - 1];
-    if (!last || n !== last[last.length - 1] + 1) out.push([n]);
-    else last.push(n);
-  }
-  return out;
-}
-
 function suma(ls: Work[]): number {
   return ls.reduce((s, l) => s + l.area, 0);
 }
 
-function buscarVentana(works: Work[], need: number, minAncho: number, ambosLados: boolean): Work[] | null {
+function buscarVentana(works: Work[], need: number, minAncho: number, ambosLados: boolean, terreno: V2[]): Work[] | null {
   if (need < 1) return [];
-  const vivos = works.filter((w) => w.uso === "vivienda");
+  const pool = works.filter((w) => w.uso === "vivienda");
+  const rectos = pool.filter(esRegular);
+  const vivos = rectos.length >= 3 ? rectos : pool;
   const bands = [...new Set(vivos.map((w) => w.grid.band))];
   let best: Work[] | null = null;
   let bestScore = Infinity;
@@ -187,9 +238,10 @@ function buscarVentana(works: Work[], need: number, minAncho: number, ambosLados
     const alto = kind === "doble" && ambosLados ? depthLote * 2 : depthLote;
     if (minAncho > 0 && alto + 0.2 < minAncho) continue;
     const frente = Math.max(1, ...en.map((w) => w.frente));
-    const colRuns = runs([...new Set(en.map((w) => w.grid.col))]);
+    const columnas = [...new Set(en.map((w) => w.grid.col))];
     const indices = [...new Set(en.map((w) => w.grid.index))].sort((a, b) => a - b);
-    for (const run of colRuns) {
+    for (const col of columnas) {
+      const run = [col];
       for (let a = 0; a < indices.length; a++) {
         for (let b = a; b < indices.length; b++) {
           const i0 = indices[a];
@@ -209,16 +261,56 @@ function buscarVentana(works: Work[], need: number, minAncho: number, ambosLados
           }
           if (grupo.length !== run.length * (i1 - i0 + 1) * lados && !(kind === "doble" && !ambosLados)) continue;
           const ar = suma(grupo);
-          if (ar + 0.5 < need * 0.9) continue;
-          const corto = ar + 1 < need ? 500 : 0;
-          const sobre = ar > need * 1.35 ? 8000 : 0;
-          const score = Math.abs(ar - need) + sobre + corto;
+          const rect = huella(grupo);
+          const lleno = rect.w * rect.h;
+          const celdas = grupo.reduce((s, g) => s + g.celda.w * g.celda.h, 0);
+          if (lleno > celdas * 1.02) continue;
+          const recortado = clipRect(terreno, rect);
+          const aRec = Math.abs(area(recortado));
+          const mordido = lleno < 1 || aRec + 1 < lleno * 0.985 || recortado.length > 5;
+          const corto = ar + 1 < need ? need - ar : 0;
+          const sobre = ar > need * 1.2 ? ar - need : 0;
+          const score = Math.abs(ar - need) + sobre + corto + (mordido ? 40000 : 0);
           if (score < bestScore) {
             bestScore = score;
             best = grupo.slice();
           }
         }
       }
+    }
+  }
+  return best;
+}
+
+/** La manzana entera: ambos frentes, sin dejar lotes de vivienda en ese paño. */
+function manzanaCompleta(works: Work[], need: number, minAncho: number, terreno: V2[]): Work[] | null {
+  const grupos = new Map<string, Work[]>();
+  for (const w of works) {
+    if (w.uso !== "vivienda" || w.grid.kind !== "doble") continue;
+    const k = `${w.grid.band}:${w.grid.col}`;
+    const arr = grupos.get(k) ?? [];
+    arr.push(w);
+    grupos.set(k, arr);
+  }
+  let best: Work[] | null = null;
+  let bestScore = Infinity;
+  for (const grupo of grupos.values()) {
+    if (!grupo.some((w) => w.grid.side === 0) || !grupo.some((w) => w.grid.side === 1)) continue;
+    const rect = huella(grupo);
+    const lleno = rect.w * rect.h;
+    const celdas = grupo.reduce((s, g) => s + g.celda.w * g.celda.h, 0);
+    if (lleno < 1 || lleno > celdas * 1.04) continue;
+    if (minAncho > 0 && Math.min(rect.w, rect.h) + 0.2 < minAncho) continue;
+    const recortado = clipRect(terreno, rect);
+    const aRec = Math.abs(area(recortado));
+    if (aRec < 400) continue;
+    const mordido = aRec + 1 < lleno * 0.985 || recortado.length > 6;
+    const ar = suma(grupo);
+    const corto = ar + 1 < need ? need - ar : 0;
+    const score = Math.abs(ar - need) + corto + (mordido ? 40000 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      best = grupo.slice();
     }
   }
   return best;
@@ -519,7 +611,6 @@ export function proponer(p: ProyectoLot): Modelo {
   const esquinas = esquinasDe(hCalles, vCalles);
 
   const works: Work[] = [];
-  const pisoLote = Math.max(8, (c.areaMin > 0 ? c.areaMin : frenteDiseno * fondo) * 0.85);
   for (const band of bandas) {
     const slices =
       band.kind === "perim"
@@ -551,19 +642,20 @@ export function proponer(p: ProyectoLot): Modelo {
           ...armar(celda.calle, esOeste(celda.i), esEste(celda.i)),
           i: celda.i,
         }));
+        const fundirPieza = (i: number, j: number) => {
+          const calle = unionRect(piezas[i].calle, piezas[j].calle);
+          const hecho = armar(calle, esOeste(piezas[i].i) || esOeste(piezas[j].i), esEste(piezas[i].i) || esEste(piezas[j].i));
+          piezas[i] = { ...hecho, i: piezas[i].i };
+          piezas.splice(j, 1);
+        };
         for (let k = piezas.length - 1; k >= 1; k--) {
-          if (piezas[k].area + 0.5 >= pisoLote) continue;
-          const calle = unionRect(piezas[k - 1].calle, piezas[k].calle);
-          const hecho = armar(calle, esOeste(piezas[k - 1].i), esEste(piezas[k].i) || esEste(piezas[k - 1].i));
-          piezas[k - 1] = { ...hecho, i: piezas[k - 1].i };
-          piezas.splice(k, 1);
+          if (piezas[k].area + 0.5 >= MIN_LOTE) continue;
+          fundirPieza(k - 1, k);
         }
+        if (piezas.length >= 2 && piezas[0].area + 0.5 < MIN_LOTE) fundirPieza(0, 1);
         piezas.forEach((pz, idx) => {
           if (pz.poly.length < 3 || pz.area < 8) return;
           const fEf = frenteSobre(pz.calle, sl.face, local);
-          const frenteOk = fEf + 0.05 >= frenteDiseno * 0.85;
-          const areaOk = c.areaMin > 0 ? pz.area + 0.5 >= c.areaMin * 0.9 : pz.area >= 12;
-          const uso: UsoLote = frenteOk && areaOk ? "vivienda" : "residual";
           const polyW = pz.poly.map(toWorld);
           works.push({
             poly: polyW,
@@ -572,12 +664,15 @@ export function proponer(p: ProyectoLot): Modelo {
             profundidad: fEf > 0.5 ? pz.area / fEf : sl.h,
             centro: centroid(polyW),
             grid: { band: band.band, col: col.i, side: sl.side, index: idx, kind: band.kind },
-            uso,
+            uso: "vivienda",
+            celda: pz.calle,
           });
         });
       }
     }
   }
+
+  absorberChicos(works);
 
   const agudos = areaAngulosAgudos(world);
   const baseAporte = Math.max(0, bruta - c.cesionPrimaria - c.reservaRegional - c.servidumbreAT - agudos.area);
@@ -610,8 +705,10 @@ export function proponer(p: ProyectoLot): Modelo {
         estado: "Redención en dinero: el cálculo no alcanza el mínimo (Art. 27)",
       };
     }
-    let grupo = buscarVentana(works, objetivo, ped.minAncho, ped.ambos);
-    if (!grupo && ped.ambos) grupo = buscarVentana(works, objetivo, ped.minAncho, false);
+    const completa = ped.uso === "recreacion" && (p.modoParque ?? "lotes") === "manzana";
+    let grupo = completa ? manzanaCompleta(works, objetivo, ped.minAncho, local) : null;
+    if (!grupo) grupo = buscarVentana(works, objetivo, ped.minAncho, ped.ambos, local);
+    if (!grupo && ped.ambos) grupo = buscarVentana(works, objetivo, ped.minAncho, false, local);
     if (!grupo || !grupo.length) {
       return {
         concepto: ped.concepto,
@@ -622,8 +719,31 @@ export function proponer(p: ProyectoLot): Modelo {
         estado: "No se ubicó un lote regular con el ancho exigido. Ajuste profundidad o longitud de manzana.",
       };
     }
-    for (const g of grupo) g.uso = ped.uso;
-    const grafico = suma(grupo);
+    const rect = huella(grupo);
+    const polyL = clipRect(local, rect);
+    if (polyL.length >= 3) {
+      const poly = polyL.map(toWorld);
+      const quitar = new Set(grupo);
+      for (const w of works) {
+        if (w.uso !== "vivienda") continue;
+        const mismaManzana = completa && w.grid.band === grupo[0].grid.band && w.grid.col === grupo[0].grid.col;
+        if (mismaManzana || pointInPoly(w.centro, poly)) quitar.add(w);
+      }
+      for (let i = works.length - 1; i >= 0; i--) if (quitar.has(works[i])) works.splice(i, 1);
+      works.push({
+        poly,
+        area: Math.abs(area(polyL)),
+        frente: Math.min(rect.w, rect.h),
+        profundidad: Math.max(rect.w, rect.h),
+        centro: centroid(poly),
+        grid: { ...grupo[0].grid, index: 0 },
+        uso: ped.uso,
+        celda: rect,
+      });
+    } else {
+      for (const g of grupo) g.uso = ped.uso;
+    }
+    const grafico = polyL.length >= 3 ? Math.abs(area(polyL)) : suma(grupo);
     const bajoPiso = ped.piso > 0 && grafico + 1 < ped.piso;
     const corto = grafico + 1 < requerido;
     return {
@@ -669,17 +789,35 @@ export function proponer(p: ProyectoLot): Modelo {
       });
       const clipped = clipRect(local, rect);
       if (clipped.length < 3) continue;
+      const conOchavo = ochavarPoligono(
+        clipped,
+        esquinas.map((e) => ({ p: e.p, a: e.propA, b: e.propB })),
+      );
       contorno.set(`${band.band}:${col.i}`, {
         capa: "MC-MANZANA",
         nombre: "",
         cerrada: true,
-        pts: clipped.map((q) => ({ x: q.x, y: q.y })),
+        pts: conOchavo.map((q) => {
+          const w = toWorld(q);
+          return { x: w.x, y: w.y };
+        }),
       });
     }
   }
   for (const esq of esquinas) {
     const pl = polilineaSardinel(esq, "Sardinel");
     polilineas.push({ ...pl, pts: pl.pts.map(alMundo) });
+    const a = toWorld(esq.propA);
+    const b = toWorld(esq.propB);
+    polilineas.push({
+      capa: "MC-OCHAVO",
+      nombre: `Ochavo ${esq.ochavo.toFixed(2)} m`,
+      cerrada: false,
+      pts: [
+        { x: a.x, y: a.y },
+        { x: b.x, y: b.y },
+      ],
+    });
   }
   const lotes: LoteM[] = [];
   manzanas.forEach((m, mi) => {
@@ -829,14 +967,36 @@ export function proponer(p: ProyectoLot): Modelo {
     })),
   ];
 
+  const cortesOchavo = esquinas.map((e) => ({ p: toWorld(e.p), a: toWorld(e.propA), b: toWorld(e.propB) }));
+  let areaOchavo = 0;
+  for (const lote of lotes) {
+    const antes = lote.area;
+    const next = ochavarPoligono(lote.poly, cortesOchavo);
+    if (next === lote.poly || next.length < 3) continue;
+    lote.poly = next;
+    lote.area = area(next);
+    lote.centro = centroid(next);
+    areaOchavo += Math.max(0, antes - lote.area);
+  }
+  areaVias += areaOchavo;
+  for (const ap of aportes) {
+    const uso = ap.concepto.startsWith("Recreación")
+      ? "recreacion"
+      : ap.concepto.startsWith("Educación")
+        ? "educacion"
+        : ap.concepto.startsWith("Otros")
+          ? "otros"
+          : "";
+    if (!uso) continue;
+    ap.grafico = lotes.filter((l) => l.uso === uso).reduce((s, l) => s + l.area, 0);
+  }
+
   const areaLotes = lotes.filter((l) => l.uso === "vivienda").reduce((s, l) => s + l.area, 0);
   const areaAportes = lotes.filter((l) => l.uso !== "vivienda" && l.uso !== "residual").reduce((s, l) => s + l.area, 0);
   const areaResidual = lotes.filter((l) => l.uso === "residual").reduce((s, l) => s + l.area, 0);
   const sinAsignar = bruta - areaVias - areaLotes - areaAportes - areaResidual;
 
   const vendibles = lotes.filter((l) => l.uso === "vivienda");
-  const peorFrente = vendibles.reduce((m, l) => Math.min(m, l.frente), Infinity);
-  const peorArea = vendibles.reduce((m, l) => Math.min(m, l.area), Infinity);
   const largoDiseno = lenFit.length;
 
   checks.push(
@@ -863,16 +1023,22 @@ export function proponer(p: ProyectoLot): Modelo {
     checks.push(ver("manzana-borde", "GH.020 Art. 15", "El frente del predio es menor de 40 m. No hay dos intersecciones internas que medir.", "observacion", `${bb.w.toFixed(1)} m`));
   }
   if (vendibles.length) {
+    const deCuadro = vendibles.filter(
+      (l) => (c.frenteMin <= 0 || l.frente + 0.05 >= c.frenteMin * 0.9) && (c.areaMin <= 0 || l.area + 0.5 >= c.areaMin * 0.9),
+    );
+    const muestra = deCuadro.length ? deCuadro : vendibles;
+    const peorFrente = muestra.reduce((m, l) => Math.min(m, l.frente), Infinity);
+    const peorArea = vendibles.reduce((m, l) => Math.min(m, l.area), Infinity);
+    const bajo90 = peorArea + 0.5 < MIN_LOTE;
     const frenteOk = c.frenteMin <= 0 || peorFrente + 0.05 >= c.frenteMin;
-    const areaOk = c.areaMin <= 0 || peorArea + 0.5 >= c.areaMin;
-    const frenteHolgado = c.frenteMin <= 0 || peorFrente + 0.05 >= c.frenteMin * 0.9;
-    const areaHolgada = c.areaMin <= 0 || peorArea + 0.5 >= c.areaMin * 0.92;
+    const areaOk = c.areaMin <= 0 || muestra.reduce((m, l) => Math.min(m, l.area), Infinity) + 0.5 >= c.areaMin;
+    const deBorde = vendibles.length - deCuadro.length;
     checks.push(
       ver(
         "lotes",
         "TH.010 Art. 9",
-        `Lotes vendibles con frente desde ${peorFrente.toFixed(2)} m y área desde ${peorArea.toFixed(1)} m². El cuadro de referencia del tipo ${c.tipoDensidad} es ${c.frenteMin || "sin mínimo"} m y ${c.areaMin || "sin mínimo"} m². La municipalidad provincial puede fijar el lote normativo.`,
-        frenteOk && areaOk ? "cumple" : frenteHolgado && areaHolgada ? "observacion" : "no-cumple",
+        `Lotes de vivienda desde ${peorArea.toFixed(1)} m². El cuadro del tipo ${c.tipoDensidad} es ${c.frenteMin || "sin mínimo"} m de frente y ${c.areaMin || "sin mínimo"} m²; la municipalidad provincial puede fijar el lote normativo. En el lindero se acepta el triángulo, con ${MIN_LOTE} m² como único mínimo.${deBorde > 0 ? ` ${deBorde} lote${deBorde === 1 ? "" : "s"} de borde quedan por debajo del cuadro y siguen como vivienda.` : ""}`,
+        bajo90 ? "no-cumple" : frenteOk && areaOk ? "cumple" : "observacion",
         `${vendibles.length} lotes · ${manzanas.length} manzanas`,
       ),
     );
@@ -1034,7 +1200,7 @@ export function proponer(p: ProyectoLot): Modelo {
       "radios",
       "GH.020",
       esquinas.length
-        ? `Curva de la acera al sardinel: ${radiosUsados.map((r) => r.toFixed(2)).join(" m y ")} m. En cada cruce manda el mayor: 3.00 m en local secundaria o acceso exclusivo, y 5.00 m en local principal. La esquina de la manzana es concéntrica (R − vereda) para no angostar la acera.`
+        ? `Martillo del sardinel: ${radiosUsados.map((r) => r.toFixed(2)).join(" m y ")} m. En cada cruce manda el mayor: 3.00 m en local secundaria o acceso exclusivo, y 5.00 m en local principal. Ochavo recto de 3.00 m sobre cada frente de la manzana, o el retiro que exija el radio para no angostar la vereda.`
         : `Sin cruces internos. El radio exigible de la acera sigue siendo ${radioEsquina(c.tipoVia).toFixed(2)} m al sardinel.`,
       esquinas.length ? "cumple" : "info",
       esquinas.length ? `${esquinas.length} curvas` : `Radio ${radioEsquina(c.tipoVia).toFixed(2)} m`,
@@ -1062,6 +1228,7 @@ export function proponer(p: ProyectoLot): Modelo {
   const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const cortes: CorteVia[] = [...hCalles, ...vCalles].map((st, i) => {
     const letra = letras[i] ?? String(i + 1);
+    const fuera = 11;
     if (st.orientacion === "h") {
       const x = bb.minX + bb.w * (0.22 + (i % 6) * 0.1);
       return {
@@ -1070,8 +1237,8 @@ export function proponer(p: ProyectoLot): Modelo {
         via: st.nombre,
         orientacion: "h" as const,
         seccion: st.seccion,
-        a: toWorld({ x, y: st.pos - 2.4 }),
-        b: toWorld({ x, y: st.pos + st.span + 2.4 }),
+        a: toWorld({ x, y: st.pos - fuera }),
+        b: toWorld({ x, y: st.pos + st.span + fuera }),
       };
     }
     const y = bb.minY + bb.h * (0.22 + (i % 6) * 0.1);
@@ -1081,8 +1248,8 @@ export function proponer(p: ProyectoLot): Modelo {
       via: st.nombre,
       orientacion: "v" as const,
       seccion: st.seccion,
-      a: toWorld({ x: st.pos - 2.4, y }),
-      b: toWorld({ x: st.pos + st.span + 2.4, y }),
+      a: toWorld({ x: st.pos - fuera, y }),
+      b: toWorld({ x: st.pos + st.span + fuera, y }),
     };
   });
   return {

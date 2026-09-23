@@ -572,7 +572,7 @@ function CroquisBoard({
 }) {
   const sketch = mod.slug === "diagrama-interaccion" ? { ...values } : { ...values, ...dims };
   return (
-    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.diagram === "lineaInf" ? " croquis-board-lineaInf" : ""}${mod.diagram === "muroSostenimiento" ? " croquis-board-muro-fem" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
+    <div className={`croquis-board${mod.diagram === "estribo" || mod.diagram === "estriboG" ? " croquis-board-estribo" : ""}${mod.diagram === "placa" ? " croquis-board-placa" : ""}${mod.diagram === "escalera" ? " croquis-board-escalera" : ""}${mod.diagram === "septico" ? " croquis-board-septico" : ""}${mod.diagram === "tableroElec" ? " croquis-board-tablero" : ""}${mod.diagram === "lineaInf" ? " croquis-board-lineaInf" : ""}${mod.diagram === "muroSostenimiento" ? " croquis-board-muro-fem" : ""}${mod.diagram === "reservorioApoyado" || mod.diagram === "reservorioCuadrado" || mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste" ? " croquis-board-tanque-fem" : ""}${mod.slug === "diagrama-interaccion" ? " croquis-board-sd" : ""}`}>
       <Diagram
         kind={mod.diagram}
         part={mod.slug === "diagrama-interaccion" ? "informe" : mod.diagram === "aligerado" ? "intro" : mod.diagram === "dotacion" ? "esquema" : undefined}
@@ -845,17 +845,18 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         if (s.n === "16") blocks.push({ type: "h2", text: "3.g Estabilidad global y cimentación" });
       }
       if (mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste") {
-        if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
+        if (s.n === "04") blocks.push({ type: "h2", text: "3.b Motor FEM de la pared — lámina cilíndrica" });
+        if (s.n === "05") blocks.push({ type: "h2", text: "3.c Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
         if (s.n === "04b") blocks.push({ type: "h3", text: "Masa convectiva Wc (oleaje)" });
         if (s.n === "05c") blocks.push({ type: "h3", text: "Fuerza convectiva de diseño Pc" });
-        if (s.n === "07") blocks.push({ type: "h2", text: "3.c Diseño de acero de la cuba (pared, cúpulas, anillos)" });
+        if (s.n === "09") blocks.push({ type: "h2", text: "3.d Diseño de acero de la cuba (pared, cúpulas, anillos)" });
         if (s.n === "09b") blocks.push({ type: "h3", text: "Collarines — tracción de anillo y Whitney" });
-        if (s.n === "12") blocks.push({ type: "h2", text: mod.engine === "tanqueElevadoColumnas" ? "3.d Torre soportante de columnas" : "3.d Fuste soportante de concreto" });
+        if (s.n === "13") blocks.push({ type: "h2", text: mod.engine === "tanqueElevadoColumnas" ? "3.e Torre soportante de columnas" : "3.e Fuste soportante de concreto" });
         if (s.n === "13c") blocks.push({ type: "h3", text: "Fuerza convectiva Pc sobre el fuste" });
         if (mod.engine === "tanqueElevadoColumnas" && s.n === "16b") blocks.push({ type: "h3", text: "Detalle de columnas, vigas de anillo y diagonales" });
         if (mod.engine === "tanqueElevadoFuste" && s.n === "16b") blocks.push({ type: "h3", text: "Confinamiento del fuste y anillos de arriostre" });
-        if (mod.engine === "tanqueElevadoColumnas" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
-        if (mod.engine === "tanqueElevadoFuste" && s.n === "17") blocks.push({ type: "h2", text: "3.e Deriva sísmica y cimentación" });
+        if (mod.engine === "tanqueElevadoColumnas" && s.n === "18") blocks.push({ type: "h2", text: "3.f Deriva sísmica y cimentación" });
+        if (mod.engine === "tanqueElevadoFuste" && s.n === "18") blocks.push({ type: "h2", text: "3.f Deriva sísmica y cimentación" });
       }
       const h3 = puenteH3(mod.slug, s.n);
       if (h3) blocks.push({ type: "h3", text: h3 });
@@ -1005,6 +1006,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       ) {
         blocks.push({ type: "figure", part: "mDCL" });
       }
+      if (mod.diagram === "reservorioApoyado" && /Motor FEM de la pared/.test(s.title)) {
+        blocks.push({ type: "figure", part: "esfuerzos" });
+      }
       if (mod.diagram === "reservorioApoyado" && (s.n === "06" || s.n === "12")) {
         blocks.push({ type: "figure", part: "mMuro" });
       }
@@ -1013,6 +1017,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "14") {
         blocks.push({ type: "figure", part: "mSecMuro" });
+      }
+      if (mod.diagram === "reservorioCuadrado" && /Motor FEM de los muros/.test(s.title)) {
+        blocks.push({ type: "figure", part: "esfuerzos" });
       }
       if (mod.diagram === "reservorioCuadrado" && s.n === "10") {
         blocks.push({ type: "figure", part: "mMuroVert" });
@@ -1038,6 +1045,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         blocks.push({ type: "figure", part: "mSecDomo" });
         blocks.push({ type: "figure", part: "mSecAnillo" });
       }
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && /Motor FEM de la pared/.test(s.title)) {
+        blocks.push({ type: "figure", part: "esfuerzosCuba" });
+      }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && (s.n === "04" || s.n === "08")) {
         blocks.push({ type: "figure", part: "mMuro" });
       }
@@ -1059,6 +1069,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "12") {
         blocks.push({ type: "figure", part: "mSecDomoInf" });
       }
+      if (mod.diagram === "tanqueElevadoColumnas" && /Motor FEM de la torre/.test(s.title)) {
+        blocks.push({ type: "figure", part: "esfuerzos" });
+      }
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "14") {
         blocks.push({ type: "figure", part: "mTorre3D" });
       }
@@ -1073,6 +1086,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "17") {
         blocks.push({ type: "figure", part: "mViga" });
+      }
+      if (mod.diagram === "tanqueElevadoFuste" && /Motor FEM del fuste/.test(s.title)) {
+        blocks.push({ type: "figure", part: "esfuerzos" });
       }
       if (mod.diagram === "tanqueElevadoFuste" && (s.n === "14" || s.n === "14d" || s.n === "15")) {
         blocks.push({ type: "figure", part: "mSecFuste" });

@@ -2172,9 +2172,49 @@ html.is-printing .sd-props {
 /* El muro de sostenimiento tiene unos setenta datos de entrada: si la ficha
    crece libre, el tablero mide dos mil píxeles y el croquis queda perdido en
    medio del blanco. En pantalla la ficha se desplaza; al imprimir sale entera. */
-.croquis-board.croquis-board-muro-fem {
+.croquis-board.croquis-board-tanque-fem {
   min-height: 0;
   align-items: stretch;
+}
+.croquis-board.croquis-board-tanque-fem .ficha {
+  max-height: 560px;
+  overflow: auto;
+}
+.croquis-board.croquis-board-tanque-fem > .fig-host,
+.croquis-board.croquis-board-tanque-fem > .fig-stack-tanque {
+  min-height: 0;
+  max-height: min(780px, 82vh);
+  overflow: auto;
+}
+.croquis-board-tanque-fem .fig-stack-tanque {
+  display: flex;
+  flex-direction: column;
+}
+.croquis-board-tanque-fem .fig-stack-tanque .croquis {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+.croquis-board-tanque-fem .fig-stack-tanque .croquis-stage-stack svg {
+  max-height: min(210px, 26vh);
+}
+.croquis-board-tanque-fem .fig-stack-tanque .croquis-fem .croquis-stage svg {
+  max-height: 360px;
+}
+.paper .croquis-fem .croquis-stage svg {
+  max-height: none;
+  min-height: 280px;
+}
+@media print {
+  .croquis-board.croquis-board-tanque-fem .ficha {
+    max-height: none;
+    overflow: visible;
+  }
+  .croquis-board.croquis-board-tanque-fem > .fig-host,
+  .croquis-board.croquis-board-tanque-fem > .fig-stack-tanque {
+    max-height: none;
+    overflow: visible;
+  }
 }
 .croquis-board.croquis-board-muro-fem .ficha {
   max-height: 560px;

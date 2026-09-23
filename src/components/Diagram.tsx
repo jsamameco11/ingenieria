@@ -6,6 +6,13 @@ import { decodeDemands, decodePts } from "../lib/colpro";
 import { barByName } from "../lib/types";
 import { buildSection, describeForma, encodeBars, encodePoly, parseBarsText, parseHolesText, parsePolyText, resolvePmForma, steelZonesFor } from "../lib/pmSections";
 import { ReservorioApoyadoCroquis, ReservorioCuadradoCroquis, TanqueElevadoColumnasCroquis, TanqueElevadoFusteCroquis } from "./DiagramTanques";
+import {
+  FemEsfuerzosCilindro,
+  FemEsfuerzosFuste,
+  FemEsfuerzosPlaca,
+  FemEsfuerzosTorre,
+  TanqueFemBoard,
+} from "./DiagramTanquesFem";
 import { CrossCroquisAny } from "./DiagramCross";
 import { MuroSostenimientoFig } from "./MuroSostenimientoFig";
 import { CargaDistribuida } from "./DclCargas";
@@ -300,13 +307,44 @@ export function Diagram({
     case "muroSostenimiento":
       return <MuroSostenimientoFig values={values} part={part} />;
     case "reservorioApoyado":
-      return <ReservorioApoyadoCroquis values={values} />;
+      if (part === "esfuerzos") return <FemEsfuerzosCilindro values={values} />;
+      return (
+        <TanqueFemBoard
+          kind="reservorioApoyado"
+          values={values}
+          geom={<ReservorioApoyadoCroquis values={values} />}
+        />
+      );
     case "reservorioCuadrado":
-      return <ReservorioCuadradoCroquis values={values} />;
+      if (part === "esfuerzos") return <FemEsfuerzosPlaca values={values} />;
+      if (part === "malla") return <FemEsfuerzosPlaca values={values} />;
+      return (
+        <TanqueFemBoard
+          kind="reservorioCuadrado"
+          values={values}
+          geom={<ReservorioCuadradoCroquis values={values} />}
+        />
+      );
     case "tanqueElevadoColumnas":
-      return <TanqueElevadoColumnasCroquis values={values} />;
+      if (part === "esfuerzos") return <FemEsfuerzosTorre values={values} />;
+      if (part === "esfuerzosCuba") return <FemEsfuerzosCilindro values={values} />;
+      return (
+        <TanqueFemBoard
+          kind="tanqueElevadoColumnas"
+          values={values}
+          geom={<TanqueElevadoColumnasCroquis values={values} />}
+        />
+      );
     case "tanqueElevadoFuste":
-      return <TanqueElevadoFusteCroquis values={values} />;
+      if (part === "esfuerzos") return <FemEsfuerzosFuste values={values} />;
+      if (part === "esfuerzosCuba") return <FemEsfuerzosCilindro values={values} />;
+      return (
+        <TanqueFemBoard
+          kind="tanqueElevadoFuste"
+          values={values}
+          geom={<TanqueElevadoFusteCroquis values={values} />}
+        />
+      );
     case "cajon":
       return <Cajon values={values} {...p} />;
     case "septico":

@@ -14,6 +14,21 @@ assert(m.viasInternas.length >= 2, `vías internas ${m.viasInternas.length}`);
 assert(m.franjas.some((f) => f.tipo === "vereda"), "sin veredas");
 assert(m.polilineas.some((p) => p.capa === "MC-MANZANA" && p.pts.length >= 4), "la manzana no sale como polilínea");
 assert(m.polilineas.some((p) => p.capa === "MC-VEREDA" && p.pts.some((q) => q.bulge)), "el sardinel no lleva arco");
+assert(m.polilineas.some((p) => p.capa === "MC-OCHAVO" && p.pts.length >= 2), "falta el ochavo de esquina");
+const ochavos = m.polilineas.filter((p) => p.capa === "MC-OCHAVO");
+const cortaLote = m.lotes.some((l) =>
+  ochavos.some((o) => l.poly.some((p) => o.pts.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < 0.25))),
+);
+assert(cortaLote, "el ochavo no llega al lote");
+const arco = m.polilineas.find((p) => p.capa === "MC-VEREDA" && p.pts[0]?.bulge);
+if (arco && arco.pts[1]) {
+  const a = arco.pts[0];
+  const b = arco.pts[1];
+  const theta = 4 * Math.atan(a.bulge ?? 0);
+  const cuerda = Math.hypot(b.x - a.x, b.y - a.y);
+  const radio = Math.abs(cuerda / (2 * Math.sin(theta / 2)));
+  assert(Math.abs(radio - 3) < 0.2, `el martillo no está en 3.00 m: ${radio.toFixed(2)}`);
+}
 assert(m.viasInternas.every((v) => Math.abs(v.radio - 3) < 0.01), "la secundaria debe usar radio 3 m");
 
 const id = m.viasInternas[0].id;
@@ -40,6 +55,24 @@ const edu = m.lotes.filter((l) => l.uso === "educacion").reduce((s, l) => s + l.
 const otros = m.lotes.filter((l) => l.uso === "otros").reduce((s, l) => s + l.area, 0);
 if (edu > 0) assert(edu + 1 >= 400, `educación ${edu.toFixed(0)} m²`);
 if (otros > 0) assert(otros + 1 >= 400, `otros ${otros.toFixed(0)} m²`);
+assert(!m.lotes.some((l) => l.uso === "residual"), `quedan residuales ${m.areaResidual.toFixed(0)} m²`);
+assert(m.lotes.filter((l) => l.uso === "vivienda").every((l) => l.area + 0.5 >= 90), "hay un lote de vivienda bajo 90 m²");
+assert(m.lotes.filter((l) => l.uso === "educacion").length <= 1, "educación quedó en más de un paño");
+assert(m.lotes.filter((l) => l.uso === "otros").length <= 1, "otros fines quedó en más de un paño");
+const recs = m.lotes.filter((l) => l.uso === "recreacion");
+assert(recs.length === 1, `recreación en ${recs.length} paños`);
+assert(recs[0].poly.length <= 6, `recreación irregular, ${recs[0].poly.length} vértices`);
+assert(Math.abs(m.sinAsignar) < Math.max(40, m.areaBruta * 0.03), `no cierra el área, sin asignar ${m.sinAsignar.toFixed(1)}`);
+assert((m.parques[0]?.piezas.length ?? 0) > 8, `parque incompleto, ${m.parques[0]?.piezas.length ?? 0} piezas`);
+const manzana = proyectoVacio();
+manzana.puntos = puntosEjemplo();
+manzana.modoParque = "manzana";
+const mm = proponer(manzana);
+const recM = mm.lotes.find((l) => l.uso === "recreacion");
+assert(recM && recM.poly.length <= 6, "la manzana completa no sale rectangular");
+assert(recM && Math.abs(recM.area - recs[0].area) > 40, `el modo manzana no cambia el parque: ${recM?.area.toFixed(0)} vs ${recs[0].area.toFixed(0)}`);
+assert(Math.abs(mm.sinAsignar) < Math.max(40, mm.areaBruta * 0.03), `manzana no cierra ${mm.sinAsignar.toFixed(1)}`);
+assert(m.cortes.length >= 2 && m.cortes.every((c) => Math.hypot(c.b.x - c.a.x, c.b.y - c.a.y) > 20), "el corte no sale de la calzada");
 
 const p90 = proyectoVacio();
 p90.puntos = puntosEjemplo();

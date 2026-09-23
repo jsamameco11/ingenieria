@@ -208,7 +208,7 @@ const losa = disenarParques(
   [],
 );
 assert(losa.length === 1 && losa[0].categoria === "activa", "80×50 es recreación activa");
-assert(losa[0].nota.includes("Fútbol 7"), losa[0].nota);
+assert(/fútbol 7/i.test(losa[0].nota), losa[0].nota);
 assert(losa[0].piezas.some((p) => p.capa === "MC-PARQUE-CANCHA" && p.hatch), "hatch de cancha");
 todoDentro(losa[0], "losa");
 

@@ -1,17 +1,20 @@
 /**
- * Motor de aceras, radios de esquina y sección por vía.
+ * Motor de aceras, ochavo y martillo de esquina.
  * Lo usan `proponer` y la previsualización. Los radios no se recalculan en otro archivo.
  *
- * GH.020: la curva de la acera (sardinel) es de 3.00 m en local secundaria y acceso
- * exclusivo, y de 5.00 m en local principal. En un cruce manda el mayor.
- * La esquina de la manzana es concéntrica: R − vereda, para que la acera no se angoste.
+ * Martillo (curva del sardinel en el cruce): radio mínimo 5.00 m en vía local
+ * principal y 3.00 m en local secundaria o acceso exclusivo. En el cruce manda el mayor.
+ * Ochavo: corte recto de la esquina de la manzana, 3.00 m sobre cada frente, o más
+ * si el radio del sardinel menos la vereda lo exige para no angostar la acera.
  */
 import type { Caja, V2 } from "./geom";
 import { dist } from "./geom";
 import { anchoSeccion, partesDeSeccion, radioEsquina } from "./norma";
 import type { AjusteVia, Franja, Polilinea, PuntoPl, Seccion, TipoVia } from "./tipos";
 
-const PASOS_ARCO = 8;
+const PASOS_ARCO = 10;
+/** Longitud mínima del ochavo sobre cada frente de la manzana, en metros. */
+export const OCHAVO_MIN = 3;
 
 export type ParteVia = { tipo: Franja["tipo"]; a: number; b: number };
 
@@ -50,6 +53,8 @@ export type Esquina = {
   wV: number;
   R: number;
   Rp: number;
+  /** Longitud del ochavo sobre cada frente, m. */
+  ochavo: number;
   propA: V2;
   propB: V2;
   propBulge: number;
@@ -252,25 +257,81 @@ function arco(c: V2, a: V2, b: V2, r: number): { pts: V2[]; bulge: number } {
 }
 
 export function hacerEsquina(p: V2, sx: 1 | -1, sy: 1 | -1, wH: number, wV: number, R: number): Esquina | null {
-  if (wH < 0.2 || wV < 0.2 || R < Math.max(wH, wV) + 0.2) return null;
-  const Rp = R - Math.max(wH, wV);
-  const cProp = { x: p.x - sx * Rp, y: p.y - sy * Rp };
-  const propA = { x: p.x - sx * Rp, y: p.y };
-  const propB = { x: p.x, y: p.y - sy * Rp };
+  if (wH < 0.15 || wV < 0.15 || R < 0.5) return null;
+  const L = Math.max(OCHAVO_MIN, R - Math.min(wH, wV));
+  const propA = { x: p.x - sx * L, y: p.y };
+  const propB = { x: p.x, y: p.y - sy * L };
   const cSard = { x: p.x + sx * (wV - R), y: p.y + sy * (wH - R) };
   const sardA = { x: p.x + sx * (wV - R), y: p.y + sy * wH };
   const sardB = { x: p.x + sx * wV, y: p.y + sy * (wH - R) };
-  const prop = arco(cProp, propA, propB, Rp);
-  const sard = arco(cSard, sardA, sardB, R);
-  const vereda = [...prop.pts, ...sard.pts.slice().reverse()];
+  const primero = arco(cSard, sardA, sardB, R);
+  const calle = { x: p.x + sx * (Math.min(wV, wH) + 0.6), y: p.y + sy * (Math.min(wH, wV) + 0.6) };
+  const lote = { x: p.x - sx * 0.8, y: p.y - sy * 0.8 };
+  const medio = primero.pts[Math.floor(primero.pts.length / 2)];
+  const haciaLote = dist(medio, lote) + 0.02 < dist(medio, calle);
+  const sard = haciaLote ? arco(cSard, sardB, sardA, R) : primero;
+  const cruzA = { x: propA.x, y: p.y + sy * wH };
+  const cruzB = { x: p.x + sx * wV, y: propB.y };
+  const vereda: V2[] = [];
+  const meter = (q: V2) => {
+    if (!vereda.length || dist(vereda[vereda.length - 1], q) > 0.02) vereda.push(q);
+  };
+  if (haciaLote) {
+    meter(propB);
+    meter(cruzB);
+    for (const q of sard.pts) meter(q);
+    meter(cruzA);
+    meter(propA);
+  } else {
+    meter(propA);
+    meter(cruzA);
+    for (const q of sard.pts) meter(q);
+    meter(cruzB);
+    meter(propB);
+  }
   return {
-    p, sx, sy, wH, wV, R, Rp,
-    propA, propB, propBulge: prop.bulge,
-    sardA, sardB, sardBulge: sard.bulge,
-    muestraProp: prop.pts,
+    p, sx, sy, wH, wV, R,
+    Rp: Math.max(0, R - Math.max(wH, wV)),
+    ochavo: L,
+    propA, propB, propBulge: 0,
+    sardA: sard.pts[0], sardB: sard.pts[sard.pts.length - 1], sardBulge: sard.bulge,
+    muestraProp: [propA, propB],
     muestraSard: sard.pts,
     vereda,
   };
+}
+
+/** Sustituye el vértice de esquina por el corte recto del ochavo, si cae sobre los dos frentes. */
+export function ochavarPoligono(poly: V2[], cortes: { p: V2; a: V2; b: V2 }[]): V2[] {
+  if (poly.length < 3 || !cortes.length) return poly;
+  const enLado = (v: V2, extremo: V2, q: V2) => {
+    const lado = dist(extremo, v);
+    if (lado < dist(v, q) + 0.2) return false;
+    return Math.abs(dist(extremo, q) + dist(q, v) - lado) < 0.4;
+  };
+  const out: V2[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const v = poly[i];
+    const esq = cortes.find((e) => dist(e.p, v) < 0.55);
+    if (!esq) {
+      empujar(out, v);
+      continue;
+    }
+    const prev = poly[(i - 1 + poly.length) % poly.length];
+    const next = poly[(i + 1) % poly.length];
+    if (!enLado(v, prev, esq.a) && !enLado(v, next, esq.a)) {
+      empujar(out, v);
+      continue;
+    }
+    if (!enLado(v, prev, esq.b) && !enLado(v, next, esq.b)) {
+      empujar(out, v);
+      continue;
+    }
+    const directo = dist(prev, esq.a) + dist(next, esq.b);
+    const seq = directo <= dist(prev, esq.b) + dist(next, esq.a) ? [esq.a, esq.b] : [esq.b, esq.a];
+    for (const q of seq) empujar(out, q);
+  }
+  return out.length >= 3 ? out : poly;
 }
 
 export function esquinasDe(hCalles: CallePuesta[], vCalles: CallePuesta[]): Esquina[] {

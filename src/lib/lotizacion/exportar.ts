@@ -1,4 +1,4 @@
-import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta } from "./dibujo";
+import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta, cartelaSvg, simboloCorte } from "./dibujo";
 import { dxfDeSeccion, svgSeccion } from "./seccionVia";
 import type { Meta, Modelo, Trazo } from "./tipos";
 import { NORMA, pavimentoVacio } from "./norma";
@@ -16,6 +16,7 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-EJE", color: 1 },
   { name: "MC-CALZADA", color: 8 },
   { name: "MC-VEREDA", color: 9 },
+  { name: "MC-OCHAVO", color: 7 },
   { name: "MC-ESTACIONAMIENTO", color: 3 },
   { name: "MC-SEPARADOR", color: 3 },
   { name: "MC-LOTE", color: 7 },
@@ -41,6 +42,9 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-PARQUE-FLOR", color: 1 },
   { name: "MC-PARQUE-ARBOL", color: 3 },
   { name: "MC-PARQUE-JUEGO", color: 1 },
+  { name: "MC-PARQUE-PLAZA", color: 8 },
+  { name: "MC-PARQUE-LUZ", color: 7 },
+  { name: "MC-PARQUE-MOB", color: 7 },
   { name: "MC-PARQUE-TXT", color: 7 },
 ];
 
@@ -216,9 +220,11 @@ export function dxfDe(m: Modelo, meta: Meta): string {
   ];
   const caja = cajaModelo(m);
   for (const corte of m.cortes ?? []) {
-    ents.push(lwpoly("MC-CORTE", [corte.a, corte.b], false));
-    ents.push(textEnt("MC-CORTE", corte.a.x, corte.a.y, 2.4, corte.letra));
-    ents.push(textEnt("MC-CORTE", corte.b.x, corte.b.y, 2.4, corte.letra));
+    for (const tr of simboloCorte(corte.a, corte.b, corte.letra)) {
+      if (tr.t === "poly" && tr.pts && tr.pts.length >= 3) ents.push(lwpoly("MC-CORTE", [...tr.pts, tr.pts[0]], true));
+      else if (tr.t === "line" && tr.a && tr.b) ents.push(lwpoly("MC-CORTE", [tr.a, tr.b], false));
+      else if (tr.t === "text" && tr.p && tr.text) ents.push(textEnt("MC-CORTE", tr.p.x, tr.p.y, tr.size ?? 2.2, tr.text));
+    }
   }
   for (const sim of grafismosPlanta(m)) {
     ents.push(lwpoly(sim.capa, [...sim.pts, sim.pts[0]], true));
@@ -287,7 +293,7 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
   const esc = escalaA1(caja.w, caja.h);
   const pad = Math.max(caja.w, caja.h) * 0.08;
   const vb = `${(caja.minX - pad).toFixed(3)} ${(-(caja.maxY + pad)).toFixed(3)} ${(caja.w + pad * 2).toFixed(3)} ${(caja.h + pad * 2).toFixed(3)}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgDeTrazos(trazos, "", m.lindero)}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgDeTrazos(trazos, "", m.lindero)}${cartelaSvg({ minE: caja.minX, minN: caja.minY, w: caja.w, h: caja.h })}</svg>`;
   const filasArea = [
     ["Área bruta", m.areaBruta],
     ["Vías locales", m.areaVias],
@@ -327,8 +333,8 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
 <style>
   @page { size: 841mm 594mm; margin: 8mm; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #fff; color: #1a1a1a; font-family: "Times New Roman", Times, serif; }
-  .sheet { width: 825mm; height: 578mm; display: grid; grid-template-columns: 1fr 88mm; grid-template-rows: 1fr 46mm; border: 0.4mm solid #1a1a1a; page-break-after: always; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #1a1a1a; font-family: "Segoe UI", Arial, sans-serif; }
+  .sheet { width: 825mm; height: 578mm; display: grid; grid-template-columns: 1fr 92mm; grid-template-rows: 1fr 42mm; border: 0.55mm solid #1a1a1a; outline: 0.2mm solid #1a1a1a; outline-offset: -1.4mm; page-break-after: always; }
   .sheet.secs { display: block; height: auto; min-height: 578mm; padding: 8mm; }
   .sheet.secs h2 { font-size: 14pt; margin: 0 0 4mm; letter-spacing: 0.08em; text-transform: uppercase; }
   .sec-grid { display: flex; flex-wrap: wrap; gap: 8mm; }
@@ -387,7 +393,7 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
       <section>
         <p class="kicker">Lámina ${meta.lamina || "U-01"}</p>
         <p class="esc">Escala 1:${esc}</p>
-        <p class="muted">Formato A1 · ${meta.fecha || ""}</p>
+        <p class="muted">Escala gráfica y norte en la planta. Formato A1 · ${meta.fecha || ""}</p>
         <p class="muted">Azimut de trama ${m.rumboGrados.toFixed(2)}°</p>
         <p class="muted">${m.nManzanas} manzanas · ${m.lotes.filter((l) => l.uso === "vivienda").length} lotes</p>
       </section>

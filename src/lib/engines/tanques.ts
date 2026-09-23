@@ -16,6 +16,11 @@ function packPts(pts: { x: number; M: number }[]) {
   return pts.map((p) => `${p.x.toFixed(3)},${p.M.toFixed(3)}`).join(";");
 }
 
+function packMesh(nx: number, nz: number, mxx: number[], myy: number[]) {
+  if (!(nx > 0 && nz > 0 && mxx.length === nx * nz && myy.length === nx * nz)) return "";
+  return `${nx}x${nz}|${mxx.map((v) => v.toFixed(3)).join(",")}|${myy.map((v) => v.toFixed(3)).join(",")}`;
+}
+
 /** Empaqueta nudos 3D (id,x,y,z) y elementos con su utilización (n1,n2,tipo,val) para la visualización isométrica de esfuerzos. */
 function packNodes3D(nodes: { id: number; x: number; y: number; z: number }[]) {
   return nodes.map((n) => `${n.id},${n.x.toFixed(3)},${n.y.toFixed(3)},${n.z.toFixed(3)}`).join(";");
@@ -2240,6 +2245,8 @@ export const reservorioCuadrado: Engine = (raw) => {
       const mid = horizEnv.mPts[Math.floor(horizEnv.mPts.length / 2)]?.M ?? 0;
       const MhorEsqEnv = Math.abs(hs.MhorEsq) + Math.hypot(imp.MhorEsq, conv.MhorEsq);
       const MhorVanoEnv = Math.abs(hs.MhorVano) + Math.hypot(imp.MhorVano, conv.MhorVano);
+      const envMxx = hs.cellsMxx.map((v, i) => Math.abs(v) + Math.hypot(imp.cellsMxx[i] ?? 0, conv.cellsMxx[i] ?? 0));
+      const envMyy = hs.cellsMyy.map((v, i) => Math.abs(v) + Math.hypot(imp.cellsMyy[i] ?? 0, conv.cellsMyy[i] ?? 0));
       return {
         vert,
         horiz: {
@@ -2253,6 +2260,7 @@ export const reservorioCuadrado: Engine = (raw) => {
         femNodos: hs.nNodos,
         femElem: hs.nElem,
         femOk: true as const,
+        femMesh: packMesh(hs.nx, hs.nz, envMxx, envMyy),
       };
     }
 
@@ -2261,7 +2269,7 @@ export const reservorioCuadrado: Engine = (raw) => {
     const vertConv = vigaFijaLineal(presConv(0), presConv(HL), HL);
     const vert = envolverDiagramas(vertHs, vertImp, vertConv);
     const horiz = vigaFijaLineal(pBase, pBase, Lwall);
-    return { vert, horiz, pBase, femNodos: 0, femElem: 0, femOk: false as const };
+    return { vert, horiz, pBase, femNodos: 0, femElem: 0, femOk: false as const, femMesh: "" };
   }
 
   let muroLy = analizarMuro(Ly, tMuroFlex, hnsX, demX);
@@ -2459,6 +2467,7 @@ export const reservorioCuadrado: Engine = (raw) => {
     femNodos: String(Math.max(muroLy.femNodos, muroLx.femNodos)),
     femElem: String(Math.max(muroLy.femElem, muroLx.femElem)),
     femOk: muroLy.femOk || muroLx.femOk ? "1" : "0",
+    femMesh: muroGov.femMesh || muroLy.femMesh || muroLx.femMesh || "",
   };
 
   return out(

@@ -109,13 +109,21 @@ export type ProyectoLot = {
   pavimento: Pavimento;
   /** Categoría elegida para cada parque. La clave es el centro del paño, en metros. */
   parques?: AjusteParque[];
+  /** Cómo se arma el aporte de recreación. */
+  modoParque?: ModoParque;
 };
 
 export type CategoriaParque = "pasiva" | "activa";
 
+export type EstiloParque = "organico" | "geometrico" | "lineal";
+
+/** manzana: el parque ocupa la manzana completa. lotes: deja vivienda aledaña en la misma manzana. */
+export type ModoParque = "manzana" | "lotes";
+
 export type AjusteParque = {
   clave: string;
   categoria: CategoriaParque;
+  estilo?: EstiloParque;
 };
 
 export type PiezaParque = {
@@ -245,6 +253,7 @@ export type Modelo = {
 export type Parque = {
   clave: string;
   categoria: CategoriaParque;
+  estilo: EstiloParque;
   nombre: string;
   poly: V2[];
   area: number;
@@ -265,6 +274,8 @@ export type Trazo = {
   sw: number;
   dash?: string;
   size?: number;
+  /** Centra el texto en la vertical, para la letra dentro de la burbuja de corte. */
+  medio?: boolean;
   /** Se recorta al perímetro del predio (calzadas, veredas, ejes). */
   clip?: boolean;
 };

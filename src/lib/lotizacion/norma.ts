@@ -235,6 +235,7 @@ export function proyectoVacio(): ProyectoLot {
     ingresos: [],
     ajustesVias: [],
     pavimento: pavimentoVacio(),
+    modoParque: "lotes",
     criterios: {
       tipoHab: "vivienda",
       tipoDensidad: 3,
@@ -288,7 +289,7 @@ export function firmar(p: ProyectoLot): string {
     .map((a) => `${a.id}:${a.tipo}:${r(a.seccion.vereda)}:${a.seccion.nVeredas}:${r(a.seccion.moduloCalzada)}:${r(a.seccion.estacionamiento)}:${a.seccion.nEstacionamientos}:${r(a.seccion.separador)}`)
     .join("|");
   const c = p.criterios;
-  const pq = (p.parques ?? []).map((a) => `${a.clave}:${a.categoria}`).join("|");
+  const pq = (p.parques ?? []).map((a) => `${a.clave}:${a.categoria}:${a.estilo ?? ""}`).join("|");
   const pv = p.pavimento ?? pavimentoVacio();
   return [
     pts,
@@ -325,6 +326,7 @@ export function firmar(p: ProyectoLot): string {
     r(pv.subbase),
     r(pv.veredaEsp),
     r(pv.sardinel),
+    p.modoParque ?? "lotes",
     pq,
   ].join("#");
 }

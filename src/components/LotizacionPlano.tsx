@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { fmtM, nearestEdge, pointAlong, pointInPoly, type V2 } from "../lib/lotizacion/geom";
-import { puntosSvg, svgDeTrazos, cajaModelo } from "../lib/lotizacion/dibujo";
+import { puntosSvg, svgDeTrazos, cajaModelo, cartelaSvg } from "../lib/lotizacion/dibujo";
 import type { Modelo, Trazo } from "../lib/lotizacion/tipos";
 
 type Vista = { minE: number; minN: number; w: number; h: number };
@@ -76,12 +76,6 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
 
   const vb = `${view.minE} ${-(view.minN + view.h)} ${view.w} ${view.h}`;
   const sw = view.w / 520;
-  const nice = [5, 10, 20, 25, 50, 100, 200, 500, 1000].find((n) => n >= view.w / 5) ?? 2000;
-  const sx = view.minE + view.w * 0.05;
-  const sy = view.minN + view.h * 0.07;
-  const nx = view.minE + view.w * 0.9;
-  const ny = view.minN + view.h * 0.86;
-  const na = view.h * 0.045;
   const borde = modelo.lindero;
   const aristaPts =
     arista >= 0 && borde.length > arista
@@ -165,20 +159,7 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
             </text>
           </g>
         ) : null}
-        <g>
-          <line x1={sx} y1={-sy} x2={sx + nice} y2={-sy} stroke="#1a1a1a" strokeWidth={sw * 1.4} />
-          <line x1={sx} y1={-sy - sw * 3} x2={sx} y2={-sy + sw * 3} stroke="#1a1a1a" strokeWidth={sw} />
-          <line x1={sx + nice} y1={-sy - sw * 3} x2={sx + nice} y2={-sy + sw * 3} stroke="#1a1a1a" strokeWidth={sw} />
-          <text x={sx + nice / 2} y={-sy - sw * 6} textAnchor="middle" fontSize={sw * 12} fill="#1a1a1a" fontFamily="Arial, sans-serif">
-            {nice} m
-          </text>
-        </g>
-        <g>
-          <polygon points={`${nx},${-(ny + na)} ${nx - na * 0.38},${-ny} ${nx + na * 0.38},${-ny}`} fill="#1a1a1a" />
-          <text x={nx} y={-(ny + na * 1.35)} textAnchor="middle" fontSize={na * 0.7} fill="#1a1a1a" fontFamily="Arial, sans-serif">
-            N
-          </text>
-        </g>
+        <g dangerouslySetInnerHTML={{ __html: cartelaSvg(view) }} />
         {!emitir && borde.length >= 3 ? (
           <text
             x={view.minE + view.w / 2}
