@@ -1,14 +1,18 @@
 import {
+  alcanceDePuntos,
   add,
   almost,
   area,
   areaAngulosAgudos,
   bbox,
   centroid,
+  type Caja,
+  clipByConvex,
   clipRect,
   clipSegment,
   dist,
   distPuntoPoligono,
+  fmtM,
   dot,
   ensureCCW,
   lerp,
@@ -24,14 +28,8 @@ import {
   type Rect,
   type V2,
 } from "./geom";
-import {
-  esquinasDe,
-  polilineaManzana,
-  polilineaSardinel,
-  redondearLote,
-  retroceso,
-  tramaDe,
-} from "./aceras";
+import { esquinasDe, polilineaSardinel, retroceso, tramaDe } from "./aceras";
+import { disenarParques } from "./parque";
 import {
   anchoSeccion,
   calidadAlcanza,
@@ -40,12 +38,14 @@ import {
   filaVivienda,
   maxManzana,
   partesDeSeccion,
+  pavimentoVacio,
   radioEsquina,
 } from "./norma";
 import type {
   Criterios,
   Estado,
   Franja,
+  CorteVia,
   IngresoGraf,
   LoteM,
   Modelo,
@@ -133,6 +133,28 @@ function fitLength(span: number, target: number, minL: number, maxL: number, W: 
     if (score < best.score) best = { n, length: L, score };
   }
   return best;
+}
+
+function unionRect(a: Rect, b: Rect): Rect {
+  const x0 = Math.min(a.x, b.x);
+  const y0 = Math.min(a.y, b.y);
+  const x1 = Math.max(a.x + a.w, b.x + b.w);
+  const y1 = Math.max(a.y + a.h, b.y + b.h);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** Alarga el lote hacia el lindero. El lado de la calle y el lindero con el vecino no se mueven. */
+function extenderRect(rect: Rect, bb: Caja, lado: { o: boolean; e: boolean; s: boolean; n: boolean }): Rect {
+  const m = 12;
+  let x0 = rect.x;
+  let y0 = rect.y;
+  let x1 = rect.x + rect.w;
+  let y1 = rect.y + rect.h;
+  if (lado.o) x0 = bb.minX - m;
+  if (lado.e) x1 = bb.maxX + m;
+  if (lado.s) y0 = bb.minY - m;
+  if (lado.n) y1 = bb.maxY + m;
+  return { x: x0, y: y0, w: Math.max(0.05, x1 - x0), h: Math.max(0.05, y1 - y0) };
 }
 
 function runs(nums: number[]): number[][] {
@@ -299,6 +321,23 @@ function viaGrafica(v: ProyectoLot["vias"][number]): ViaGraficaExistente {
   return { nombre: v.nombre, lineas, franjas, anchos, completa: presentes.length === 5, ordenada };
 }
 
+function recortarViasAlPredio(vias: ViaGraficaExistente[], predio: V2[]): ViaGraficaExistente[] {
+  if (predio.length < 3) return vias;
+  return vias.map((v) => ({
+    ...v,
+    franjas: v.franjas
+      .map((f) => ({ ...f, poly: clipByConvex(predio, f.poly) }))
+      .filter((f) => f.poly.length >= 3),
+    lineas: v.lineas.flatMap((ln) => {
+      const segs = clipSegment(ln.a, ln.b, predio);
+      return segs.map((seg) => {
+        const mid = { x: (seg[0].x + seg[1].x) / 2, y: (seg[0].y + seg[1].y) / 2 };
+        return { ...ln, a: seg[0], b: seg[1], p: pointInPoly(ln.p, predio) ? ln.p : mid };
+      });
+    }),
+  }));
+}
+
 function rumboDeVia(p: ProyectoLot): number | null {
   if (p.cierre !== "abierta") return null;
   for (const v of p.vias) {
@@ -326,6 +365,7 @@ function vacio(ok: boolean, motivo: string, verificaciones: Verificacion[], parc
     sinAsignar: 0,
     aportes: [],
     lotes: [],
+    parques: [],
     franjas: [],
     ejes: [],
     lindero: [],
@@ -337,6 +377,8 @@ function vacio(ok: boolean, motivo: string, verificaciones: Verificacion[], parc
     seccionTotal: 0,
     viasInternas: [],
     polilineas: [],
+    cortes: [],
+    pavimento: pavimentoVacio(),
     largoManzana: 0,
     profundidad: 0,
     nManzanas: 0,
@@ -347,14 +389,23 @@ function vacio(ok: boolean, motivo: string, verificaciones: Verificacion[], parc
 
 export function proponer(p: ProyectoLot): Modelo {
   const pts = p.puntos.filter((q) => Number.isFinite(q.e) && Number.isFinite(q.n));
-  const viasExistentes = p.vias.map(viaGrafica);
   if (pts.length < 3) {
     return vacio(false, "Falta el perímetro: cargue el CSV, el DXF o digite al menos tres vértices.", [
       ver("perimetro", "GH.020 Art. 56", "El plano de trazado exige el contorno del terreno con coordenadas.", "no-cumple", `${pts.length} vértices`),
-    ], { viasExistentes });
+    ], { viasExistentes: p.vias.map(viaGrafica) });
   }
-  let world = ensureCCW(pts.map((q) => ({ x: q.e, y: q.n })));
+  const crudos = pts.map((q) => ({ x: q.e, y: q.n }));
+  const alcance = alcanceDePuntos(crudos);
+  let world = ensureCCW(crudos);
   if (world.length >= 2 && almost(world[0], world[world.length - 1], 0.01)) world = world.slice(0, -1);
+  if (!alcance.ok) {
+    const texto = "Hay demasiada distancia entre los vértices. Modifique el perímetro para poder proceder.";
+    const valor = alcance.lado ? `${fmtM(alcance.lado.metros, 0)} m` : `${fmtM(Math.max(alcance.ancho, alcance.alto), 0)} m`;
+    return vacio(false, texto, [
+      ver("alcance", "Geometría", texto, "no-cumple", valor),
+    ], { lindero: world, perimetro: perimeter(world) });
+  }
+  const viasExistentes = recortarViasAlPredio(p.vias.map(viaGrafica), world);
   const bruta = area(world);
   const peri = perimeter(world);
   const cruza = selfIntersects(world);
@@ -378,10 +429,11 @@ export function proponer(p: ProyectoLot): Modelo {
   const toWorld = (q: V2) => add(rotate(q, ang), centro);
   const local = world.map(toLocal);
   const bb = bbox(local);
-  const frentePaso = c.frenteMin > 0 ? c.frenteMin : 6;
-  const dObjetivo = c.profundidad > 1 ? c.profundidad : frentePaso * 2.5;
-  const dMin = c.areaMin > 0 ? Math.max(10, c.areaMin / frentePaso) : Math.max(10, dObjetivo * 0.8);
-  const dMax = Math.max(dObjetivo * 1.45, dMin * 1.05, 22);
+  const fondo = c.profundidad > 1 ? c.profundidad : 15;
+  const frenteDiseno = Math.max(6, c.areaMin > 0 ? c.areaMin / fondo : c.frenteMin > 0 ? c.frenteMin : 6);
+  const dObjetivo = fondo;
+  const dMin = Math.max(6, fondo * 0.96);
+  const dMax = Math.max(dMin, fondo * 1.06);
   const tope = maxManzana(c);
   const objetivoL = Math.min(Math.max(c.largoManzana || 120, 40), tope);
   const depthFit = fitDepth(bb.h, dObjetivo, dMin, dMax, W);
@@ -467,7 +519,7 @@ export function proponer(p: ProyectoLot): Modelo {
   const esquinas = esquinasDe(hCalles, vCalles);
 
   const works: Work[] = [];
-  let mordidas = 0;
+  const pisoLote = Math.max(8, (c.areaMin > 0 ? c.areaMin : frenteDiseno * fondo) * 0.85);
   for (const band of bandas) {
     const slices =
       band.kind === "perim"
@@ -476,52 +528,79 @@ export function proponer(p: ProyectoLot): Modelo {
             { y: band.y, h: band.h / 2, face: "s" as Face, side: 0 },
             { y: band.y + band.h / 2, h: band.h / 2, face: "n" as Face, side: 1 },
           ];
+    const sur = band.calleAbajo === null;
+    const norte = band.calleArriba === null;
     for (const sl of slices) {
       for (const col of cols) {
-        const n = Math.min(80, Math.max(1, Math.floor((col.w + 1e-6) / frentePaso)));
-        const frente = col.w / n;
+        const n = Math.min(80, Math.max(1, Math.floor((col.w + 0.02) / frenteDiseno)));
+        const crudas: { calle: Rect; i: number }[] = [];
+        let xCursor = col.x;
         for (let i = 0; i < n; i++) {
-          const rect: Rect = { x: col.x + i * frente, y: sl.y, w: frente, h: sl.h };
-          const clipped = clipRect(local, rect);
-          if (clipped.length < 3) continue;
-          const curvo = redondearLote(clipped, esquinas);
-          const aRect = area(clipped);
-          const aLot = area(curvo);
-          mordidas += Math.max(0, aRect - aLot);
-          if (aLot < 8) continue;
-          const fEf = frenteSobre(rect, sl.face, local);
-          const frenteOk = c.frenteMin > 0 ? fEf + 0.05 >= c.frenteMin * 0.9 : fEf >= Math.min(4, frente * 0.7);
-          const areaOk = c.areaMin > 0 ? aLot + 0.5 >= c.areaMin * 0.92 : aLot >= 12;
+          const wLot = i === n - 1 ? col.x + col.w - xCursor : frenteDiseno;
+          crudas.push({ calle: { x: xCursor, y: sl.y, w: Math.max(0.05, wLot), h: sl.h }, i });
+          if (i < n - 1) xCursor += frenteDiseno;
+        }
+        const esOeste = (i: number) => i === 0 && col.i === 0;
+        const esEste = (i: number) => i === n - 1 && col.i === cols.length - 1;
+        const armar = (calle: Rect, o: boolean, e: boolean) => {
+          const rect = extenderRect(calle, bb, { o, e, s: sur, n: norte });
+          const poly = clipRect(local, rect);
+          return { calle, rect, poly, area: poly.length >= 3 ? area(poly) : 0 };
+        };
+        const piezas = crudas.map((celda) => ({
+          ...armar(celda.calle, esOeste(celda.i), esEste(celda.i)),
+          i: celda.i,
+        }));
+        for (let k = piezas.length - 1; k >= 1; k--) {
+          if (piezas[k].area + 0.5 >= pisoLote) continue;
+          const calle = unionRect(piezas[k - 1].calle, piezas[k].calle);
+          const hecho = armar(calle, esOeste(piezas[k - 1].i), esEste(piezas[k].i) || esEste(piezas[k - 1].i));
+          piezas[k - 1] = { ...hecho, i: piezas[k - 1].i };
+          piezas.splice(k, 1);
+        }
+        piezas.forEach((pz, idx) => {
+          if (pz.poly.length < 3 || pz.area < 8) return;
+          const fEf = frenteSobre(pz.calle, sl.face, local);
+          const frenteOk = fEf + 0.05 >= frenteDiseno * 0.85;
+          const areaOk = c.areaMin > 0 ? pz.area + 0.5 >= c.areaMin * 0.9 : pz.area >= 12;
           const uso: UsoLote = frenteOk && areaOk ? "vivienda" : "residual";
-          const polyW = curvo.map(toWorld);
+          const polyW = pz.poly.map(toWorld);
           works.push({
             poly: polyW,
-            area: aLot,
+            area: pz.area,
             frente: fEf,
-            profundidad: fEf > 0.5 ? aLot / fEf : sl.h,
+            profundidad: fEf > 0.5 ? pz.area / fEf : sl.h,
             centro: centroid(polyW),
-            grid: { band: band.band, col: col.i, side: sl.side, index: i, kind: band.kind },
+            grid: { band: band.band, col: col.i, side: sl.side, index: idx, kind: band.kind },
             uso,
           });
-        }
+        });
       }
     }
   }
 
   const agudos = areaAngulosAgudos(world);
   const baseAporte = Math.max(0, bruta - c.cesionPrimaria - c.reservaRegional - c.servidumbreAT - agudos.area);
-  const pedidos: { uso: UsoLote; concepto: string; pct: number; minimo: number; minAncho: number; ambos: boolean }[] = [
-    { uso: "recreacion", concepto: "Recreación pública", pct: c.aporteRec, minimo: 800, minAncho: 25, ambos: true },
-    { uso: "parque-zonal", concepto: "Parques zonales", pct: c.aporteParque, minimo: c.loteNormativo, minAncho: 0, ambos: false },
-    { uso: "educacion", concepto: "Ministerio de Educación", pct: c.aporteEdu, minimo: c.loteNormativo, minAncho: 0, ambos: false },
-    { uso: "otros", concepto: "Otros fines", pct: c.aporteOtros, minimo: c.loteNormativo, minAncho: 0, ambos: false },
+  const pedidos: { uso: UsoLote; concepto: string; pct: number; minimo: number; minAncho: number; ambos: boolean; piso: number }[] = [
+    {
+      uso: "recreacion",
+      concepto: "Recreación pública (incluye parques zonales)",
+      pct: Math.max(0, c.aporteRec) + Math.max(0, c.aporteParque),
+      minimo: 800,
+      minAncho: 25,
+      ambos: true,
+      piso: 0,
+    },
+    { uso: "educacion", concepto: "Educación", pct: c.aporteEdu, minimo: 400, minAncho: 0, ambos: false, piso: 400 },
+    { uso: "otros", concepto: "Otros fines", pct: c.aporteOtros, minimo: 400, minAncho: 0, ambos: false, piso: 400 },
   ];
   const aportes = pedidos.map((ped) => {
     const requerido = (Math.max(0, ped.pct) / 100) * baseAporte;
+    const objetivo = Math.max(requerido, ped.pct > 0 ? ped.piso : 0);
     if (requerido < 1) {
       return { concepto: ped.concepto, pct: ped.pct, requerido: 0, grafico: 0, minimo: ped.minimo, estado: "No exigido para este tipo" };
     }
-    if (ped.minimo > 0 && requerido + 0.5 < ped.minimo) {
+    if (ped.piso < 1 && ped.minimo > 0 && requerido + 0.5 < ped.minimo) {
       return {
         concepto: ped.concepto,
         pct: ped.pct,
@@ -531,8 +610,8 @@ export function proponer(p: ProyectoLot): Modelo {
         estado: "Redención en dinero: el cálculo no alcanza el mínimo (Art. 27)",
       };
     }
-    let grupo = buscarVentana(works, requerido, ped.minAncho, ped.ambos);
-    if (!grupo && ped.ambos) grupo = buscarVentana(works, requerido, ped.minAncho, false);
+    let grupo = buscarVentana(works, objetivo, ped.minAncho, ped.ambos);
+    if (!grupo && ped.ambos) grupo = buscarVentana(works, objetivo, ped.minAncho, false);
     if (!grupo || !grupo.length) {
       return {
         concepto: ped.concepto,
@@ -545,6 +624,7 @@ export function proponer(p: ProyectoLot): Modelo {
     }
     for (const g of grupo) g.uso = ped.uso;
     const grafico = suma(grupo);
+    const bajoPiso = ped.piso > 0 && grafico + 1 < ped.piso;
     const corto = grafico + 1 < requerido;
     return {
       concepto: ped.concepto,
@@ -552,7 +632,11 @@ export function proponer(p: ProyectoLot): Modelo {
       requerido,
       grafico,
       minimo: ped.minimo,
-      estado: corto ? "Grafiado por debajo del porcentaje exigido" : "Grafiado en el trazado",
+      estado: bajoPiso
+        ? "Grafiado por debajo de 400 m²"
+        : corto
+          ? "Grafiado por debajo del porcentaje exigido"
+          : "Grafiado en el trazado",
     };
   });
 
@@ -577,9 +661,20 @@ export function proponer(p: ProyectoLot): Modelo {
   const contorno = new Map<string, Polilinea>();
   for (const band of bandas) {
     for (const col of cols) {
-      const clipped = clipRect(local, { x: col.x, y: band.y, w: col.w, h: band.h });
-      const pl = polilineaManzana(clipped, esquinas, "");
-      if (pl) contorno.set(`${band.band}:${col.i}`, { ...pl, pts: pl.pts.map(alMundo) });
+      const rect = extenderRect({ x: col.x, y: band.y, w: col.w, h: band.h }, bb, {
+        o: col.i === 0,
+        e: col.i === cols.length - 1,
+        s: band.calleAbajo === null,
+        n: band.calleArriba === null,
+      });
+      const clipped = clipRect(local, rect);
+      if (clipped.length < 3) continue;
+      contorno.set(`${band.band}:${col.i}`, {
+        capa: "MC-MANZANA",
+        nombre: "",
+        cerrada: true,
+        pts: clipped.map((q) => ({ x: q.x, y: q.y })),
+      });
     }
   }
   for (const esq of esquinas) {
@@ -703,11 +798,16 @@ export function proponer(p: ProyectoLot): Modelo {
       segmentoEje({ x: xc, y: bb.minY }, { x: xc, y: bb.maxY }, st.nombre);
     }
   }
-  areaVias += mordidas;
   for (const esq of esquinas) {
-    if (esq.vereda.length >= 3) franjas.push({ tipo: "vereda", poly: esq.vereda.map(toWorld), soloVista: true });
+    if (esq.vereda.length >= 3) {
+      const vereda = clipByConvex(local, esq.vereda);
+      if (vereda.length >= 3) franjas.push({ tipo: "vereda", poly: vereda.map(toWorld), soloVista: true });
+    }
   }
-  const quad = (pts: V2[]): V2[] => pts.map(toWorld);
+  const hitVia = (rect: Rect): V2[] => {
+    const clipped = clipRect(local, rect);
+    return (clipped.length >= 3 ? clipped : []).map(toWorld);
+  };
   const viasInternas: ViaInterna[] = [
     ...hCalles.map((st) => ({
       id: st.id,
@@ -716,12 +816,7 @@ export function proponer(p: ProyectoLot): Modelo {
       tipo: st.tipo,
       ancho: st.ancho,
       radio: st.radio,
-      hit: quad([
-        { x: bb.minX, y: st.pos },
-        { x: bb.maxX, y: st.pos },
-        { x: bb.maxX, y: st.pos + st.span },
-        { x: bb.minX, y: st.pos + st.span },
-      ]),
+      hit: hitVia({ x: bb.minX, y: st.pos, w: bb.w, h: st.span }),
     })),
     ...vCalles.map((st) => ({
       id: st.id,
@@ -730,12 +825,7 @@ export function proponer(p: ProyectoLot): Modelo {
       tipo: st.tipo,
       ancho: st.ancho,
       radio: st.radio,
-      hit: quad([
-        { x: st.pos, y: bb.minY },
-        { x: st.pos + st.span, y: bb.minY },
-        { x: st.pos + st.span, y: bb.maxY },
-        { x: st.pos, y: bb.maxY },
-      ]),
+      hit: hitVia({ x: st.pos, y: bb.minY, w: st.span, h: bb.h }),
     })),
   ];
 
@@ -960,7 +1050,41 @@ export function proponer(p: ProyectoLot): Modelo {
     ),
   );
 
+  const ornato = disenarParques(
+    lotes.filter((l) => l.uso === "recreacion" || l.uso === "parque-zonal").map((l) => l.poly),
+    p.parques ?? [],
+  );
+  ornato.forEach((pk, i) => {
+    checks.push(ver(`parque-${i + 1}`, "GH.020 Art. 29 y 56.e", `${pk.nombre}. ${pk.nota}`, "info", pk.categoria === "activa" ? "Recreación activa" : "Recreación pasiva"));
+  });
+
   const hayFallo = checks.some((v) => v.estado === "no-cumple");
+  const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const cortes: CorteVia[] = [...hCalles, ...vCalles].map((st, i) => {
+    const letra = letras[i] ?? String(i + 1);
+    if (st.orientacion === "h") {
+      const x = bb.minX + bb.w * (0.22 + (i % 6) * 0.1);
+      return {
+        letra,
+        titulo: `${letra}-${letra}`,
+        via: st.nombre,
+        orientacion: "h" as const,
+        seccion: st.seccion,
+        a: toWorld({ x, y: st.pos - 2.4 }),
+        b: toWorld({ x, y: st.pos + st.span + 2.4 }),
+      };
+    }
+    const y = bb.minY + bb.h * (0.22 + (i % 6) * 0.1);
+    return {
+      letra,
+      titulo: `${letra}-${letra}`,
+      via: st.nombre,
+      orientacion: "v" as const,
+      seccion: st.seccion,
+      a: toWorld({ x: st.pos - 2.4, y }),
+      b: toWorld({ x: st.pos + st.span + 2.4, y }),
+    };
+  });
   return {
     ok: !hayFallo || vendibles.length > 0,
     motivo: hayFallo ? "Hay verificaciones que no cumplen. Puede confirmarlas solo si acepta las observaciones en el expediente." : "Estructura conforme al cuadro aplicado.",
@@ -976,6 +1100,7 @@ export function proponer(p: ProyectoLot): Modelo {
     sinAsignar,
     aportes,
     lotes,
+    parques: ornato,
     franjas,
     ejes,
     lindero: world,
@@ -991,6 +1116,8 @@ export function proponer(p: ProyectoLot): Modelo {
     profundidad: D,
     nManzanas: manzanas.length,
     rumboGrados: azimut,
+    cortes,
+    pavimento: { ...pavimentoVacio(), ...(p.pavimento ?? {}) },
   };
 }
 

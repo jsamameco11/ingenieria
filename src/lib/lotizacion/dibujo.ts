@@ -1,4 +1,4 @@
-import { dist, fmtCoord, fmtM, type V2 } from "./geom";
+import { dist, fmtCoord, fmtM, pointInPoly, type V2 } from "./geom";
 import type { Modelo, Trazo, UsoLote } from "./tipos";
 
 const LOTE: Record<UsoLote, { fill: string; stroke: string }> = {
@@ -29,43 +29,123 @@ const USO_NOMBRE: Record<UsoLote, string> = {
   residual: "",
 };
 
-function poly(pts: V2[], fill: string, stroke: string, sw: number, dash?: string): Trazo {
-  return { t: "poly", pts, fill, stroke, sw, dash };
+function poly(pts: V2[], fill: string, stroke: string, sw: number, dash?: string, clip = false): Trazo {
+  return { t: "poly", pts, fill, stroke, sw, dash, clip };
 }
 
-function linea(a: V2, b: V2, stroke: string, sw: number, dash?: string): Trazo {
-  return { t: "line", a, b, fill: "none", stroke, sw, dash };
+function linea(a: V2, b: V2, stroke: string, sw: number, dash?: string, clip = false): Trazo {
+  return { t: "line", a, b, fill: "none", stroke, sw, dash, clip };
 }
 
 function texto(p: V2, text: string, size: number, fill = "#1c1c1c"): Trazo {
   return { t: "text", p, text, size, fill, stroke: "none", sw: 0 };
 }
 
+function muestrear(poly: V2[], paso: number, margen: number): { p: V2; dir: V2 }[] {
+  if (poly.length < 3) return [];
+  let bestL = 0;
+  let bestI = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (L > bestL) {
+      bestL = L;
+      bestI = i;
+    }
+  }
+  const a = poly[bestI];
+  const b = poly[(bestI + 1) % poly.length];
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+  const c = poly.reduce((s, p) => ({ x: s.x + p.x, y: s.y + p.y }), { x: 0, y: 0 });
+  c.x /= poly.length;
+  c.y /= poly.length;
+  const out: { p: V2; dir: V2 }[] = [];
+  for (let t = -len / 2 + margen; t <= len / 2 - margen; t += paso) {
+    const p = { x: c.x + dir.x * t, y: c.y + dir.y * t };
+    if (pointInPoly(p, poly)) out.push({ p, dir });
+  }
+  return out;
+}
+
+function rectaOrientada(p: V2, dir: V2, largo: number, ancho: number): V2[] {
+  const nx = -dir.y;
+  const ny = dir.x;
+  const hx = dir.x * (largo / 2);
+  const hy = dir.y * (largo / 2);
+  const wx = nx * (ancho / 2);
+  const wy = ny * (ancho / 2);
+  return [
+    { x: p.x - hx - wx, y: p.y - hy - wy },
+    { x: p.x + hx - wx, y: p.y + hy - wy },
+    { x: p.x + hx + wx, y: p.y + hy + wy },
+    { x: p.x - hx + wx, y: p.y - hy + wy },
+  ];
+}
+
+/** Vehículos y personas a escala sobre calzada y vereda. También salen en el DXF. */
+export function grafismosPlanta(m: Modelo): { capa: string; pts: V2[]; fill: string; stroke: string; sw: number }[] {
+  const out: { capa: string; pts: V2[]; fill: string; stroke: string; sw: number }[] = [];
+  for (const f of m.franjas) {
+    if (f.soloVista || f.poly.length < 3) continue;
+    if (f.tipo === "calzada") {
+      for (const s of muestrear(f.poly, 36, 8)) {
+        const caja = rectaOrientada(s.p, s.dir, 4.4, 1.7);
+        if (!caja.every((q) => pointInPoly(q, f.poly))) continue;
+        out.push({ capa: "MC-VEHICULO", pts: caja, fill: "none", stroke: "#1a1a1a", sw: 0.12 });
+        const cab = rectaOrientada({ x: s.p.x + s.dir.x * 0.7, y: s.p.y + s.dir.y * 0.7 }, s.dir, 1.5, 1.35);
+        out.push({ capa: "MC-VEHICULO", pts: cab, fill: "none", stroke: "#1a1a1a", sw: 0.08 });
+      }
+    } else if (f.tipo === "vereda") {
+      for (const s of muestrear(f.poly, 48, 6)) {
+        const cabeza = rectaOrientada(s.p, s.dir, 0.45, 0.45);
+        if (!cabeza.every((q) => pointInPoly(q, f.poly))) continue;
+        out.push({ capa: "MC-PERSONA", pts: cabeza, fill: "none", stroke: "#1a1a1a", sw: 0.08 });
+        const cuerpo = rectaOrientada({ x: s.p.x - s.dir.x * 0.35, y: s.p.y - s.dir.y * 0.35 }, s.dir, 0.35, 0.22);
+        out.push({ capa: "MC-PERSONA", pts: cuerpo, fill: "none", stroke: "#1a1a1a", sw: 0.07 });
+      }
+    }
+  }
+  return out;
+}
+
 export function trazosDe(m: Modelo): Trazo[] {
   const out: Trazo[] = [];
   for (const f of m.viasExistentes.flatMap((v) => v.franjas)) {
     const c = FRANJA[f.tipo] ?? FRANJA.vereda;
-    out.push(poly(f.poly, c.fill, c.stroke, 0.25));
+    out.push(poly(f.poly, c.fill, c.stroke, 0.25, undefined, true));
   }
   for (const f of m.franjas) {
     const c = FRANJA[f.tipo] ?? FRANJA.vereda;
-    out.push(poly(f.poly, c.fill, c.stroke, 0.15));
+    out.push(poly(f.poly, c.fill, c.stroke, 0.15, undefined, true));
   }
   const orden: UsoLote[] = ["residual", "parque-zonal", "otros", "educacion", "recreacion", "vivienda"];
   for (const uso of orden) {
     for (const lote of m.lotes.filter((l) => l.uso === uso)) {
       const c = LOTE[uso];
-      const sw = uso === "vivienda" ? 0.35 : uso === "residual" ? 0.2 : 0.15;
-      out.push(poly(lote.poly, c.fill, uso === "vivienda" ? c.stroke : c.fill, sw));
+      const sw = uso === "vivienda" ? 0.35 : 0.28;
+      out.push(poly(lote.poly, c.fill, c.stroke, sw));
     }
   }
-  for (const uso of ["recreacion", "educacion", "otros", "parque-zonal"] as UsoLote[]) {
-    const ls = m.lotes.filter((l) => l.uso === uso);
-    if (!ls.length) continue;
-    const c = ls.reduce((s, l) => ({ x: s.x + l.centro.x * l.area, y: s.y + l.centro.y * l.area }), { x: 0, y: 0 });
-    const a = ls.reduce((s, l) => s + l.area, 0);
-    out.push(texto({ x: c.x / a, y: c.y / a }, USO_NOMBRE[uso], 4.2, LOTE[uso].stroke));
-    out.push(texto({ x: c.x / a, y: c.y / a - 5.2 }, `${fmtM(a, 0)} m²`, 2.6, LOTE[uso].stroke));
+  for (const lote of m.lotes) {
+    if (lote.uso === "vivienda") continue;
+    if ((m.parques ?? []).some((pk) => pointInPoly(lote.centro, pk.poly))) continue;
+    const nombre = USO_NOMBRE[lote.uso] || (lote.uso === "residual" ? "RESIDUAL" : "");
+    if (!nombre) continue;
+    const size = Math.max(1.6, Math.min(4.8, Math.sqrt(Math.max(lote.area, 1)) * 0.16));
+    out.push(texto(lote.centro, nombre, size, LOTE[lote.uso].stroke));
+    out.push(texto({ x: lote.centro.x, y: lote.centro.y - size * 1.25 }, `${fmtM(lote.area, 0)} m²`, size * 0.62, LOTE[lote.uso].stroke));
+  }
+  for (const pk of m.parques ?? []) {
+    for (const pz of pk.piezas) {
+      if (!pz.cerrado && pz.pts.length >= 2) {
+        for (let i = 0; i < pz.pts.length - 1; i++) out.push(linea(pz.pts[i], pz.pts[i + 1], pz.stroke, pz.sw));
+      } else if (pz.pts.length >= 3) {
+        out.push(poly(pz.pts, pz.fill, pz.stroke, pz.sw));
+      }
+    }
+    for (const t of pk.textos) out.push(texto(t.p, t.text, t.size, t.fill));
   }
   if (m.lindero.length >= 3) {
     out.push(poly([...m.lindero, m.lindero[0]], "none", "#1a1a1a", m.cerco.length ? 0.45 : 0.9));
@@ -73,13 +153,32 @@ export function trazosDe(m: Modelo): Trazo[] {
   for (const tramo of m.cerco) out.push(poly(tramo, "none", "#1a1a1a", 1.35));
   for (const eje of m.ejes) {
     for (const seg of eje.partes) {
-      if (seg.length >= 2) out.push(linea(seg[0], seg[1], "#8b1e1e", 0.28, "2.2 1.4"));
+      if (seg.length >= 2) out.push(linea(seg[0], seg[1], "#8b1e1e", 0.28, "2.2 1.4", true));
     }
     const seg = eje.partes[0];
     if (seg && seg.length >= 2) {
       const mid = { x: (seg[0].x + seg[1].x) / 2, y: (seg[0].y + seg[1].y) / 2 };
       out.push(texto(mid, eje.nombre, 2.8, "#8b1e1e"));
     }
+  }
+  for (const corte of m.cortes ?? []) {
+    out.push(linea(corte.a, corte.b, "#1a1a1a", 0.32));
+    const dx = corte.b.x - corte.a.x;
+    const dy = corte.b.y - corte.a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    const tick = (p: V2, signo: number) => {
+      const nx = -uy * 1.3 * signo;
+      const ny = ux * 1.3 * signo;
+      out.push(linea({ x: p.x - nx, y: p.y - ny }, { x: p.x + nx, y: p.y + ny }, "#1a1a1a", 0.28));
+      out.push(texto({ x: p.x + ux * signo * 2.2, y: p.y + uy * signo * 2.2 }, corte.letra, 2.6));
+    };
+    tick(corte.a, -1);
+    tick(corte.b, 1);
+  }
+  for (const sim of grafismosPlanta(m)) {
+    out.push(poly(sim.pts, sim.fill, sim.stroke, sim.sw));
   }
   for (const lot of m.lotes.filter((l) => l.uso === "vivienda")) {
     const size = Math.max(1.5, Math.min(3.1, lot.frente * 0.28));
@@ -99,7 +198,7 @@ export function trazosDe(m: Modelo): Trazo[] {
   }
   for (const via of m.viasExistentes) {
     for (const ln of via.lineas) {
-      out.push(linea(ln.a, ln.b, "#1f4e79", 0.35, "1.2 1.1"));
+      out.push(linea(ln.a, ln.b, "#1f4e79", 0.35, "1.2 1.1", true));
       out.push(texto(ln.p, ln.nombre.split("—")[0].trim(), 2.4, "#1f4e79"));
     }
   }
@@ -124,24 +223,31 @@ export function puntosSvg(pts: V2[]): string {
   return pts.map((p) => `${p.x.toFixed(3)},${(-p.y).toFixed(3)}`).join(" ");
 }
 
-export function svgDeTrazos(trazos: Trazo[], extra = ""): string {
-  const body = trazos
-    .map((tr) => {
-      if (tr.t === "poly" && tr.pts && tr.pts.length >= 2) {
-        const dash = tr.dash ? ` stroke-dasharray="${tr.dash}"` : "";
-        return `<polygon points="${puntosSvg(tr.pts)}" fill="${tr.fill}" stroke="${tr.stroke}" stroke-width="${tr.sw}" stroke-linejoin="round"${dash} />`;
-      }
-      if (tr.t === "line" && tr.a && tr.b) {
-        const dash = tr.dash ? ` stroke-dasharray="${tr.dash}"` : "";
-        return `<line x1="${tr.a.x.toFixed(3)}" y1="${(-tr.a.y).toFixed(3)}" x2="${tr.b.x.toFixed(3)}" y2="${(-tr.b.y).toFixed(3)}" stroke="${tr.stroke}" stroke-width="${tr.sw}"${dash} />`;
-      }
-      if (tr.t === "text" && tr.p && tr.text) {
-        return `<text x="${tr.p.x.toFixed(3)}" y="${(-tr.p.y).toFixed(3)}" font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle" fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
-      }
-      return "";
-    })
-    .join("");
-  return body + extra;
+export function svgDeTrazos(trazos: Trazo[], extra = "", predio?: V2[]): string {
+  const render = (list: Trazo[]) =>
+    list
+      .map((tr) => {
+        if (tr.t === "poly" && tr.pts && tr.pts.length >= 2) {
+          const dash = tr.dash ? ` stroke-dasharray="${tr.dash}"` : "";
+          return `<polygon points="${puntosSvg(tr.pts)}" fill="${tr.fill}" stroke="${tr.stroke}" stroke-width="${tr.sw}" stroke-linejoin="round" stroke-linecap="round"${dash} />`;
+        }
+        if (tr.t === "line" && tr.a && tr.b) {
+          const dash = tr.dash ? ` stroke-dasharray="${tr.dash}"` : "";
+          return `<line x1="${tr.a.x.toFixed(3)}" y1="${(-tr.a.y).toFixed(3)}" x2="${tr.b.x.toFixed(3)}" y2="${(-tr.b.y).toFixed(3)}" stroke="${tr.stroke}" stroke-width="${tr.sw}" stroke-linecap="round"${dash} />`;
+        }
+        if (tr.t === "text" && tr.p && tr.text) {
+          return `<text x="${tr.p.x.toFixed(3)}" y="${(-tr.p.y).toFixed(3)}" font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle" fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
+        }
+        return "";
+      })
+      .join("");
+  const vias = predio && predio.length >= 3 ? trazos.filter((t) => t.clip) : [];
+  const rest = predio && predio.length >= 3 ? trazos.filter((t) => !t.clip) : trazos;
+  if (vias.length && predio && predio.length >= 3) {
+    const clip = `<defs><clipPath id="lz-predio"><polygon points="${puntosSvg(predio)}" /></clipPath></defs>`;
+    return `${clip}<g clip-path="url(#lz-predio)">${render(vias)}</g>${render(rest)}${extra}`;
+  }
+  return render(trazos) + extra;
 }
 
 function escapeXml(s: string): string {

@@ -2,7 +2,8 @@ import { proyectoVacio, puntosEjemplo } from "../src/lib/lotizacion/norma.ts";
 import { leerCsv, leerDxf } from "../src/lib/lotizacion/importar.ts";
 import { proponer } from "../src/lib/lotizacion/modelo.ts";
 import { dxfDe } from "../src/lib/lotizacion/exportar.ts";
-import { area } from "../src/lib/lotizacion/geom.ts";
+import { area, distPuntoPoligono, pointInPoly } from "../src/lib/lotizacion/geom.ts";
+import { disenarParques, unirPanos } from "../src/lib/lotizacion/parque.ts";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
@@ -123,4 +124,109 @@ assert(m2.viasExistentes[0]?.completa, "seccion completa");
 assert(m2.viasExistentes[0]?.ordenada, "seccion ordenada");
 const suma2 = m2.areaVias + m2.areaLotes + m2.areaAportes + m2.areaResidual;
 assert(Math.abs(suma2 - m2.areaBruta) < Math.max(80, m2.areaBruta * 0.04), `ejemplo cierre sin ${m2.sinAsignar.toFixed(1)}`);
-console.log("lotizacion ok", vend.length, "lotes", m.nManzanas, "manzanas", "ejemplo", m2.lotes.filter((l) => l.uso === "vivienda").length);
+
+function assertDentro(pts: { x: number; y: number }[], predio: { x: number; y: number }[], etiqueta: string) {
+  for (const p of pts) {
+    const d = pointInPoly(p, predio) ? 0 : distPuntoPoligono(p, predio);
+    assert(d < 0.12, `${etiqueta} sale ${d.toFixed(3)} m en ${p.x.toFixed(2)},${p.y.toFixed(2)}`);
+  }
+}
+
+const trap = proyectoVacio();
+trap.puntos = [
+  { num: "1", e: 0, n: 0 },
+  { num: "2", e: 220, n: 0 },
+  { num: "3", e: 170, n: 130 },
+  { num: "4", e: 40, n: 110 },
+];
+trap.cierre = "cercada";
+trap.sinIngreso = false;
+trap.ingresos = [{ id: "ing-1", nombre: "Ingreso", arista: 0, distancia: 40, ancho: 8 }];
+trap.vias = [{
+  id: "via-n",
+  nombre: "Vía colindante",
+  pia: { num: "a", e: -20, n: 140 },
+  pea: { num: "b", e: -20, n: 136 },
+  eje: { num: "c", e: -20, n: 132 },
+  pea2: { num: "d", e: -20, n: 128 },
+  pia2: { num: "e", e: -20, n: 124 },
+}];
+const mt = proponer(trap);
+assert(mt.lindero.length >= 3, "trap lindero");
+for (const f of mt.franjas) assertDentro(f.poly, mt.lindero, `franja ${f.tipo}`);
+for (const v of mt.viasInternas) if (v.hit.length) assertDentro(v.hit, mt.lindero, `hit ${v.nombre}`);
+for (const v of mt.viasExistentes) {
+  for (const f of v.franjas) assertDentro(f.poly, mt.lindero, `existente ${v.nombre}`);
+  for (const ln of v.lineas) assertDentro([ln.a, ln.b], mt.lindero, `linea ${ln.nombre}`);
+}
+
+const enorme = proyectoVacio();
+enorme.puntos = [
+  { num: "1", e: 0, n: 0 },
+  { num: "2", e: 3500, n: 0 },
+  { num: "3", e: 3500, n: 200 },
+  { num: "4", e: 0, n: 200 },
+];
+const t0 = performance.now();
+const me = proponer(enorme);
+const ms = performance.now() - t0;
+assert(!me.ok, "predio de 3.5 km no se modela");
+assert(me.lotes.length === 0, "sin trama sobredimensionada");
+assert(me.motivo.includes("demasiada distancia"), me.motivo);
+assert(me.verificaciones.some((v) => v.id === "alcance" && v.estado === "no-cumple"), "aviso de alcance");
+assert(ms < 200, `el rechazo tardó ${ms.toFixed(0)} ms`);
+
+const justo = proyectoVacio();
+justo.puntos = puntosEjemplo().map((q) => ({ ...q, e: q.e + 250000, n: q.n + 8600000 }));
+const mj = proponer(justo);
+assert(!mj.verificaciones.some((v) => v.id === "alcance"), "las coordenadas UTM no disparan el tope");
+assert(mj.lotes.length > 0, `UTM de predio chico debe lotizar: ${mj.motivo}`);
+
+const unidos = unirPanos([
+  [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }],
+  [{ x: 10, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 10, y: 10 }],
+]);
+assert(unidos.length === 1, `unión de paños ${unidos.length}`);
+assert(Math.abs(area(unidos[0]) - 200) < 1, `área unida ${area(unidos[0])}`);
+
+function todoDentro(parque: { poly: { x: number; y: number }[]; piezas: { pts: { x: number; y: number }[] }[] }, nombre: string) {
+  for (const pz of parque.piezas) {
+    for (const q of pz.pts) {
+      const d = pointInPoly(q, parque.poly) ? 0 : distPuntoPoligono(q, parque.poly);
+      assert(d < 0.05, `${nombre} sale ${d.toFixed(3)} en ${q.x.toFixed(2)},${q.y.toFixed(2)}`);
+    }
+  }
+}
+
+const losa = disenarParques(
+  [[
+    { x: 0, y: 0 },
+    { x: 80, y: 0 },
+    { x: 80, y: 50 },
+    { x: 0, y: 50 },
+  ]],
+  [],
+);
+assert(losa.length === 1 && losa[0].categoria === "activa", "80×50 es recreación activa");
+assert(losa[0].nota.includes("Fútbol 7"), losa[0].nota);
+assert(losa[0].piezas.some((p) => p.capa === "MC-PARQUE-CANCHA" && p.hatch), "hatch de cancha");
+todoDentro(losa[0], "losa");
+
+const jardin = disenarParques(
+  [[
+    { x: 0, y: 0 },
+    { x: 22, y: 0 },
+    { x: 22, y: 16 },
+    { x: 0, y: 16 },
+  ]],
+  [{ clave: "11:8", categoria: "pasiva" }],
+);
+assert(jardin[0].categoria === "pasiva", "jardín pasivo");
+assert(!jardin[0].piezas.some((p) => p.capa === "MC-PARQUE-CANCHA"), "sin cancha en pasiva");
+todoDentro(jardin[0], "jardín");
+
+assert(dxfOut.includes("HATCH"), "DXF con hatch de parque");
+assert(dxfOut.includes("MC-PARQUE-CESPED"), "capa de césped");
+assert(dxfOut.includes("420"), "color real en el DXF");
+
+console.log("lotizacion ok", vend.length, "lotes", m.nManzanas, "manzanas", "ejemplo", m2.lotes.filter((l) => l.uso === "vivienda").length, "parques", m.parques.length);

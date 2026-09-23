@@ -6,6 +6,43 @@ export function dist(a: V2, b: V2): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+/** Tope de una habilitación urbana. Por encima, la trama se sobredimensiona y el modelo se bloquea. */
+export const ALCANCE_MAX_M = 3200;
+
+export type Alcance = {
+  ok: boolean;
+  lado: { desde: number; hasta: number; metros: number } | null;
+  ancho: number;
+  alto: number;
+};
+
+/** Lado máximo entre vértices consecutivos (con cierre) y recinto Este × Norte. */
+export function alcanceDePuntos(pts: V2[], max = ALCANCE_MAX_M): Alcance {
+  let lado: Alcance["lado"] = null;
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (n < 3 && j === 0) continue;
+    const metros = dist(pts[i], pts[j]);
+    if (!lado || metros > lado.metros) lado = { desde: i + 1, hasta: j + 1, metros };
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const ancho = n ? maxX - minX : 0;
+  const alto = n ? maxY - minY : 0;
+  const ladoOk = !lado || lado.metros <= max + 1e-6;
+  const cajaOk = ancho <= max + 1e-6 && alto <= max + 1e-6;
+  return { ok: ladoOk && cajaOk, lado, ancho, alto };
+}
+
 export function sub(a: V2, b: V2): V2 {
   return { x: a.x - b.x, y: a.y - b.y };
 }
@@ -240,6 +277,12 @@ export function clipPoly(subject: V2[], clip: V2[]): V2[] {
 export function clipRect(subject: V2[], r: Rect): V2[] {
   if (r.w <= 0.02 || r.h <= 0.02) return [];
   return clipPoly(subject, rectPoly(r));
+}
+
+/** Intersección de un paño (posiblemente cóncavo) con un recorte convexo. */
+export function clipByConvex(subject: V2[], convex: V2[]): V2[] {
+  if (subject.length < 3 || convex.length < 3) return [];
+  return clipPoly(subject, ensureCCW(convex));
 }
 
 export function pointAlong(poly: V2[], edge: number, distFromStart: number): { pt: V2; len: number } | null {

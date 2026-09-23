@@ -1,6 +1,7 @@
-import { svgDeTrazos, trazosDe, cajaModelo, fmtM } from "./dibujo";
+import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta } from "./dibujo";
+import { dxfDeSeccion, svgSeccion } from "./seccionVia";
 import type { Meta, Modelo, Trazo } from "./tipos";
-import { NORMA } from "./norma";
+import { NORMA, pavimentoVacio } from "./norma";
 
 function dxfText(s: string): string {
   return s.replace(/[^\x20-\x7E]/g, (ch) => {
@@ -28,6 +29,19 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-INGRESO", color: 2 },
   { name: "MC-VIA-EXISTENTE", color: 5 },
   { name: "MC-CAJETIN", color: 7 },
+  { name: "MC-CORTE", color: 7 },
+  { name: "MC-SECCION", color: 7 },
+  { name: "MC-VEHICULO", color: 7 },
+  { name: "MC-PERSONA", color: 7 },
+  { name: "MC-PARQUE-CESPED", color: 3 },
+  { name: "MC-PARQUE-CANCHA", color: 3 },
+  { name: "MC-PARQUE-LINEA", color: 7 },
+  { name: "MC-PARQUE-SENDERO", color: 32 },
+  { name: "MC-PARQUE-BANCA", color: 32 },
+  { name: "MC-PARQUE-FLOR", color: 1 },
+  { name: "MC-PARQUE-ARBOL", color: 3 },
+  { name: "MC-PARQUE-JUEGO", color: 1 },
+  { name: "MC-PARQUE-TXT", color: 7 },
 ];
 
 function capaDeUso(uso: string): string {
@@ -55,7 +69,13 @@ function capaFranja(tipo: string): string {
   return "MC-VEREDA";
 }
 
-function lwpoly(capa: string, pts: { x: number; y: number; bulge?: number }[], cerrada: boolean): string {
+function trueColor(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m || hex === "none") return "";
+  return `420\n${parseInt(m[1], 16)}`;
+}
+
+function lwpoly(capa: string, pts: { x: number; y: number; bulge?: number }[], cerrada: boolean, hex = ""): string {
   if (pts.length < 2) return "";
   const body = pts
     .map((p) => {
@@ -63,11 +83,78 @@ function lwpoly(capa: string, pts: { x: number; y: number; bulge?: number }[], c
       return `10\n${p.x.toFixed(4)}\n20\n${p.y.toFixed(4)}${bulge}`;
     })
     .join("\n");
-  return `0\nLWPOLYLINE\n8\n${capa}\n90\n${pts.length}\n70\n${cerrada ? 1 : 0}\n${body}\n`;
+  const col = trueColor(hex);
+  return `0\nLWPOLYLINE\n8\n${capa}\n${col ? `${col}\n` : ""}90\n${pts.length}\n70\n${cerrada ? 1 : 0}\n${body}\n`;
 }
 
-function textEnt(capa: string, x: number, y: number, h: number, value: string): string {
-  return `0\nTEXT\n8\n${capa}\n10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n40\n${h.toFixed(3)}\n1\n${dxfText(value)}\n`;
+function textEnt(capa: string, x: number, y: number, h: number, value: string, hex = ""): string {
+  const col = trueColor(hex);
+  return `0\nTEXT\n8\n${capa}\n${col ? `${col}\n` : ""}10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n40\n${h.toFixed(3)}\n1\n${dxfText(value)}\n`;
+}
+
+function hatchSolido(capa: string, pts: { x: number; y: number }[], hex: string): string {
+  if (pts.length < 3) return "";
+  let sx = 0;
+  let sy = 0;
+  const verts = pts
+    .map((p) => {
+      sx += p.x;
+      sy += p.y;
+      return `10\n${p.x.toFixed(4)}\n20\n${p.y.toFixed(4)}`;
+    })
+    .join("\n");
+  const cx = sx / pts.length;
+  const cy = sy / pts.length;
+  return [
+    "0",
+    "HATCH",
+    "8",
+    capa,
+    trueColor(hex),
+    "10",
+    "0.0",
+    "20",
+    "0.0",
+    "30",
+    "0.0",
+    "210",
+    "0.0",
+    "220",
+    "0.0",
+    "230",
+    "1.0",
+    "2",
+    "SOLID",
+    "70",
+    "1",
+    "71",
+    "0",
+    "91",
+    "1",
+    "92",
+    "2",
+    "72",
+    "0",
+    "73",
+    "1",
+    "93",
+    String(pts.length),
+    verts,
+    "97",
+    "0",
+    "75",
+    "0",
+    "76",
+    "1",
+    "98",
+    "1",
+    "10",
+    cx.toFixed(4),
+    "20",
+    cy.toFixed(4),
+  ]
+    .filter((line) => line !== "")
+    .join("\n") + "\n";
 }
 
 export function dxfDe(m: Modelo, meta: Meta): string {
@@ -102,7 +189,21 @@ export function dxfDe(m: Modelo, meta: Meta): string {
     if (lot.uso === "vivienda") {
       ents.push(textEnt("MC-LOTE-TXT", lot.centro.x, lot.centro.y, 1.8, lot.id));
       ents.push(textEnt("MC-LOTE-TXT", lot.centro.x, lot.centro.y - 2.2, 1.2, `${lot.area.toFixed(2)} m2`));
+    } else if (lot.uso !== "residual") {
+      const nombre = lot.uso === "recreacion" ? "RECREACION PUBLICA" : lot.uso === "educacion" ? "EDUCACION" : lot.uso === "otros" ? "OTROS FINES" : lot.uso.toUpperCase();
+      ents.push(textEnt(capa, lot.centro.x, lot.centro.y, 2.2, nombre));
+      ents.push(textEnt(capa, lot.centro.x, lot.centro.y - 2.6, 1.4, `${lot.area.toFixed(0)} m2`));
+    } else {
+      ents.push(textEnt(capa, lot.centro.x, lot.centro.y, 1.6, "RESIDUAL"));
     }
+  }
+  for (const pk of m.parques ?? []) {
+    for (const pz of pk.piezas) {
+      if (pz.hatch && pz.pts.length >= 3) ents.push(hatchSolido(pz.capa, pz.pts, pz.fill));
+      const color = pz.fill !== "none" ? pz.fill : pz.stroke;
+      if (pz.pts.length >= 2) ents.push(lwpoly(pz.capa, pz.pts, pz.cerrado && pz.pts.length >= 3, color));
+    }
+    for (const t of pk.textos) ents.push(textEnt("MC-PARQUE-TXT", t.p.x, t.p.y, t.size, t.text, t.fill));
   }
   for (const ing of m.ingresos) {
     ents.push(textEnt("MC-INGRESO", ing.pt.x, ing.pt.y, 2.4, `${ing.nombre} E=${ing.pt.x.toFixed(3)} N=${ing.pt.y.toFixed(3)}`));
@@ -114,6 +215,22 @@ export function dxfDe(m: Modelo, meta: Meta): string {
     `Lamina ${meta.lamina}`,
   ];
   const caja = cajaModelo(m);
+  for (const corte of m.cortes ?? []) {
+    ents.push(lwpoly("MC-CORTE", [corte.a, corte.b], false));
+    ents.push(textEnt("MC-CORTE", corte.a.x, corte.a.y, 2.4, corte.letra));
+    ents.push(textEnt("MC-CORTE", corte.b.x, corte.b.y, 2.4, corte.letra));
+  }
+  for (const sim of grafismosPlanta(m)) {
+    ents.push(lwpoly(sim.capa, [...sim.pts, sim.pts[0]], true));
+  }
+  const pav = m.pavimento ?? pavimentoVacio();
+  (m.cortes ?? []).forEach((corte, i) => {
+    const col = i % 2;
+    const fila = Math.floor(i / 2);
+    const ox = caja.maxX + 24 + col * 36;
+    const oy = caja.maxY - fila * 12;
+    ents.push(dxfDeSeccion(corte.seccion, pav, `CORTE ${corte.titulo}`, corte.via, ox, oy));
+  });
   nota.forEach((line, i) => ents.push(textEnt("MC-CAJETIN", caja.minX, caja.minY - 6 - i * 4, 2.5, line)));
 
   return [
@@ -170,7 +287,7 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
   const esc = escalaA1(caja.w, caja.h);
   const pad = Math.max(caja.w, caja.h) * 0.08;
   const vb = `${(caja.minX - pad).toFixed(3)} ${(-(caja.maxY + pad)).toFixed(3)} ${(caja.w + pad * 2).toFixed(3)} ${(caja.h + pad * 2).toFixed(3)}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgDeTrazos(trazos)}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgDeTrazos(trazos, "", m.lindero)}</svg>`;
   const filasArea = [
     ["Área bruta", m.areaBruta],
     ["Vías locales", m.areaVias],
@@ -195,6 +312,13 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
     .filter((v) => v.estado === "no-cumple" || v.estado === "observacion")
     .map((v) => `<li><b>${v.estado === "no-cumple" ? "NO CUMPLE" : "OBS."}</b> ${v.norma}: ${v.texto}</li>`)
     .join("");
+  const pav = m.pavimento ?? pavimentoVacio();
+  const cortesHtml = (m.cortes ?? [])
+    .map((c) => {
+      const d = svgSeccion(c.seccion, pav, `CORTE ${c.titulo}`, c.via);
+      return `<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="${d.viewBox}">${d.body}</svg><figcaption>Corte ${c.titulo} · ${c.via} · persona 1.75 m · vehículo a escala</figcaption></figure>`;
+    })
+    .join("");
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -204,7 +328,13 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
   @page { size: 841mm 594mm; margin: 8mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; color: #1a1a1a; font-family: "Times New Roman", Times, serif; }
-  .sheet { width: 825mm; height: 578mm; display: grid; grid-template-columns: 1fr 88mm; grid-template-rows: 1fr 46mm; border: 0.4mm solid #1a1a1a; }
+  .sheet { width: 825mm; height: 578mm; display: grid; grid-template-columns: 1fr 88mm; grid-template-rows: 1fr 46mm; border: 0.4mm solid #1a1a1a; page-break-after: always; }
+  .sheet.secs { display: block; height: auto; min-height: 578mm; padding: 8mm; }
+  .sheet.secs h2 { font-size: 14pt; margin: 0 0 4mm; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sec-grid { display: flex; flex-wrap: wrap; gap: 8mm; }
+  .sec-grid figure { margin: 0; width: 250mm; }
+  .sec-grid svg { width: 100%; height: auto; background: #fff; }
+  .sec-grid figcaption { font-size: 9pt; margin-top: 1.5mm; }
   .plan { grid-column: 1; grid-row: 1; min-height: 0; border-right: 0.25mm solid #1a1a1a; border-bottom: 0.25mm solid #1a1a1a; }
   .plan svg { width: 100%; height: 100%; display: block; }
   .side { grid-column: 2; grid-row: 1; padding: 3mm 3.2mm; font-size: 8.5pt; line-height: 1.25; overflow: hidden; border-bottom: 0.25mm solid #1a1a1a; }
@@ -262,6 +392,11 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
         <p class="muted">${m.nManzanas} manzanas · ${m.lotes.filter((l) => l.uso === "vivienda").length} lotes</p>
       </section>
     </footer>
+  </div>
+  <div class="sheet secs">
+    <h2>Cortes de vías · ${meta.lamina || "U-01"}</h2>
+    <p class="muted">Carpetas editables del pavimento. Persona y vehículos a escala. Formato A1.</p>
+    <div class="sec-grid">${cortesHtml || "<p>Sin vías internas.</p>"}</div>
   </div>
   <script>window.onload = function () { setTimeout(function () { window.print(); }, 250); };</script>
 </body>

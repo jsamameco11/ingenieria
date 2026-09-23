@@ -65,6 +65,25 @@ export type AjusteVia = {
   seccion: Seccion;
 };
 
+/** Espesores del corte, en metros. Se editan y recién entran al dibujo con Dibujar. */
+export type Pavimento = {
+  carpeta: number;
+  base: number;
+  subbase: number;
+  veredaEsp: number;
+  sardinel: number;
+};
+
+export type CorteVia = {
+  letra: string;
+  titulo: string;
+  via: string;
+  orientacion: "h" | "v";
+  seccion: Seccion;
+  a: V2;
+  b: V2;
+};
+
 export type Meta = {
   proyecto: string;
   ubicacion: string;
@@ -87,6 +106,27 @@ export type ProyectoLot = {
   criterios: Criterios;
   /** Vías internas con sección distinta de la general. Vacío = todas iguales. */
   ajustesVias: AjusteVia[];
+  pavimento: Pavimento;
+  /** Categoría elegida para cada parque. La clave es el centro del paño, en metros. */
+  parques?: AjusteParque[];
+};
+
+export type CategoriaParque = "pasiva" | "activa";
+
+export type AjusteParque = {
+  clave: string;
+  categoria: CategoriaParque;
+};
+
+export type PiezaParque = {
+  capa: string;
+  pts: V2[];
+  fill: string;
+  stroke: string;
+  sw: number;
+  cerrado: boolean;
+  /** Relleno que en el DXF sale como HATCH sólido, del mismo color que en pantalla. */
+  hatch?: boolean;
 };
 
 export type UsoLote = "vivienda" | "recreacion" | "educacion" | "otros" | "parque-zonal" | "residual";
@@ -197,6 +237,20 @@ export type Modelo = {
   profundidad: number;
   nManzanas: number;
   rumboGrados: number;
+  cortes: CorteVia[];
+  pavimento: Pavimento;
+  parques: Parque[];
+};
+
+export type Parque = {
+  clave: string;
+  categoria: CategoriaParque;
+  nombre: string;
+  poly: V2[];
+  area: number;
+  piezas: PiezaParque[];
+  textos: { p: V2; text: string; size: number; fill: string }[];
+  nota: string;
 };
 
 export type Trazo = {
@@ -211,4 +265,6 @@ export type Trazo = {
   sw: number;
   dash?: string;
   size?: number;
+  /** Se recorta al perímetro del predio (calzadas, veredas, ejes). */
+  clip?: boolean;
 };

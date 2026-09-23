@@ -1,4 +1,4 @@
-import type { Calidad, Criterios, ProyectoLot, Seccion, TipoHab, TipoVia } from "./tipos";
+import type { Calidad, Criterios, Pavimento, ProyectoLot, Seccion, TipoHab, TipoVia } from "./tipos";
 
 export const NORMA = "RNE GH.020 · D.S. N.° 006-2011-VIVIENDA";
 export const NORMA_TH = "RNE TH.010 / TH.020 / TH.030 / TH.040";
@@ -210,6 +210,10 @@ export function viaVacia(nombre: string) {
   };
 }
 
+export function pavimentoVacio(): Pavimento {
+  return { carpeta: 0.05, base: 0.2, subbase: 0.25, veredaEsp: 0.1, sardinel: 0.15 };
+}
+
 export function proyectoVacio(): ProyectoLot {
   const criteriosBase = criteriosDeNorma("vivienda", 3, "local-secundaria");
   return {
@@ -230,6 +234,7 @@ export function proyectoVacio(): ProyectoLot {
     sinIngreso: false,
     ingresos: [],
     ajustesVias: [],
+    pavimento: pavimentoVacio(),
     criterios: {
       tipoHab: "vivienda",
       tipoDensidad: 3,
@@ -283,6 +288,8 @@ export function firmar(p: ProyectoLot): string {
     .map((a) => `${a.id}:${a.tipo}:${r(a.seccion.vereda)}:${a.seccion.nVeredas}:${r(a.seccion.moduloCalzada)}:${r(a.seccion.estacionamiento)}:${a.seccion.nEstacionamientos}:${r(a.seccion.separador)}`)
     .join("|");
   const c = p.criterios;
+  const pq = (p.parques ?? []).map((a) => `${a.clave}:${a.categoria}`).join("|");
+  const pv = p.pavimento ?? pavimentoVacio();
   return [
     pts,
     p.cierre,
@@ -313,5 +320,11 @@ export function firmar(p: ProyectoLot): string {
     c.seccion.estacionamiento,
     c.seccion.nEstacionamientos,
     c.seccion.separador,
+    r(pv.carpeta),
+    r(pv.base),
+    r(pv.subbase),
+    r(pv.veredaEsp),
+    r(pv.sardinel),
+    pq,
   ].join("#");
 }

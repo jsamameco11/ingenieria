@@ -134,10 +134,20 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
         }}
       >
         <rect x={view.minE} y={-(view.minN + view.h)} width={view.w} height={view.h} fill="#f7f4ee" />
-        <g dangerouslySetInnerHTML={{ __html: svgDeTrazos(trazos) }} />
-        {(modelo.viasInternas ?? []).filter((v) => v.id === viaSel).map((v) => (
-          <polygon key={v.id} points={puntosSvg(v.hit)} fill="rgba(138,106,50,0.18)" stroke="#8a6a32" strokeWidth={sw * 1.6} />
-        ))}
+        {borde.length >= 3 ? (
+          <defs>
+            <clipPath id="lz-predio-ui">
+              <polygon points={puntosSvg(borde)} />
+            </clipPath>
+          </defs>
+        ) : null}
+        <g clipPath={borde.length >= 3 ? "url(#lz-predio-ui)" : undefined}>
+          <g dangerouslySetInnerHTML={{ __html: svgDeTrazos(trazos.filter((t) => t.clip)) }} />
+          {(modelo.viasInternas ?? []).filter((v) => v.id === viaSel && v.hit.length >= 3).map((v) => (
+            <polygon key={v.id} points={puntosSvg(v.hit)} fill="rgba(138,106,50,0.18)" stroke="#8a6a32" strokeWidth={sw * 1.6} />
+          ))}
+        </g>
+        <g dangerouslySetInnerHTML={{ __html: svgDeTrazos(trazos.filter((t) => !t.clip)) }} />
         {aristaPts ? (
           <polyline
             points={puntosSvg(aristaPts)}

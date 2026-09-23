@@ -17,3 +17,4 @@ _hidro_summary.txt
 _canaleta_tail.txt
 *.pyc
 tmp-mae-verify/
+.tmp-figs/
