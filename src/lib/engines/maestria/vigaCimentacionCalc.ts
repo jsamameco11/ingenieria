@@ -1,7 +1,7 @@
 import { fmt, num, str, type Engine } from "../../types";
 import { designBeamStirrups } from "../../estribos";
 import { barByName } from "../../types";
-import { invertBeam, packPts } from "./matrixBeam";
+import { clearSpanLn, invertBeam, packPts, packV, predimHBeam } from "./matrixBeam";
 import { asFlex, fmtBar, ldTension, ok, out, pickSlabBar, round05, step } from "./steel";
 
 export type VcColLoad = { x: number; P: number; M: number; id: string };
@@ -44,7 +44,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
   const bM = num(raw, "bBeam", 0.4);
   const hM = num(raw, "hBeam", 0.6);
   const bCm = Math.max(Math.round(bM * 100), 25);
-  const hCm = Math.max(Math.round(hM * 100), 40);
+  let hCm = Math.max(Math.round(hM * 100), 40);
   const fc = num(raw, "fc", 210);
   const fy = num(raw, "fy", 4200);
   const rec = num(raw, "recVC", num(raw, "rec", 7.5));
@@ -82,6 +82,14 @@ export const calcVigaCimentacion: Engine = (raw) => {
       id: `C${i + 1}`,
     }));
   }
+
+  const lnVC = clearSpanLn(
+    cols.map((c) => c.x),
+    L,
+    0.2,
+  );
+  const hPred = predimHBeam(lnVC);
+  hCm = Math.max(hCm, Math.round(hPred * 100), 40);
 
   const beam = invertBeam(
     L,
@@ -147,7 +155,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
         "Tramo gobernante y cargas — viga invertida de extremos libres",
         "ΣPu del tramo    ·    w ≈ ΣPu/L    ·    q(x)=a+bx con ∫q=ΣPu y ∫qx=ΣPuxi+ΣMc",
         "q(x)=a+bx\\qquad \\int_0^L q\\,dx=\\sum P_u\\qquad M(0)=M(L)=0",
-        `L = ${fmt(L, 2)} m    ·    b×h = ${bCm}×${hCm} cm    ·    ${cols.length} col.: ${cols.map((c) => `${c.id}@${fmt(c.x, 2)}=${fmt(c.P, 1)}t`).join("  ")}`,
+        `L = ${fmt(L, 2)} m    ·    b×h = ${bCm}×${hCm} cm    ·    ℓn = ${fmt(lnVC, 2)} m    ·    h_pred = ℓn/7 = ${fmt(hPred, 2)} m    ·    ${cols.length} col.: ${cols.map((c) => `${c.id}@${fmt(c.x, 2)}=${fmt(c.P, 1)}t`).join("  ")}`,
         `ΣPu = ${fmt(cols.reduce((s, c) => s + c.P, 0), 1)} t    ·    w ≈ ${fmt(wLine, 2)} t/m    ·    q(0) = ${fmt(beam.q0 ?? 0, 2)}    q(L) = ${fmt(beam.qL ?? 0, 2)} t/m`,
         "Cada tramo con columnas es una viga invertida rígida (Bowles): la reacción lineal del suelo se calibra a las Pu y Mc del tramo. Un VC sin columnas no gobierna.",
         {
@@ -241,7 +249,9 @@ export const calcVigaCimentacion: Engine = (raw) => {
       Lbeam: L.toFixed(2),
       L: L.toFixed(2),
       bBeam: bM.toFixed(2),
-      hBeam: hM.toFixed(2),
+      hBeam: (hCm / 100).toFixed(2),
+      lnVC: lnVC.toFixed(2),
+      hPred: hPred.toFixed(2),
       Msoil: Msoil.toFixed(2),
       Mtop: Mtop.toFixed(2),
       VmaxVC: Vmax.toFixed(2),
@@ -258,7 +268,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
       ldSupVC: ldSup.toFixed(1),
       vcColsJson: JSON.stringify({ cols }),
       mPts: packPts(beam.pts.map((p) => ({ x: p.x, M: p.M }))),
-      vPts: packPts(beam.pts.map((p) => ({ x: p.x, M: p.V }))),
+      vPts: packV(beam.pts),
     },
   );
 };

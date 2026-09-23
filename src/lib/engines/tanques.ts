@@ -1,6 +1,7 @@
 import { type CalcCheck, type CalcOutput, type CalcStep, type Engine, barByName, fmt, num, str } from "../types";
 import { CATEGORIAS, SISTEMAS, Z_FACTOR, SUELOS, e030C, paramsSitio, type SueloId } from "../e030/tablas";
 import { solveFrame3D, type Node3D, type Element3D } from "./frame3d";
+import { femCilindro, femFusteCantilever, femMuroRect } from "./tanquesFem";
 import { layoutTanqueCircular, layoutTanqueIntze, layoutTanqueRect } from "../metradoZonas";
 
 function out(headline: string, adoption: string, steps: CalcStep[], checks: CalcCheck[], dims?: Record<string, string>, extras?: CalcOutput["extras"]): CalcOutput {
@@ -176,15 +177,58 @@ function nivelesArriostreFuste(Htorre: number) {
 
 function elegirLongCol(AsReq: number, Ag: number) {
   const opciones = ['5/8"', '3/4"', '1"'] as const;
-  for (const b of opciones) {
-    const as1 = barByName(b).as;
-    for (const n of [6, 8, 10, 12, 14, 16]) {
+  for (const n of [6, 8, 10, 12]) {
+    for (const b of opciones) {
+      const as1 = barByName(b).as;
       if (n * as1 >= AsReq && n * as1 <= 0.04 * Ag) return { barra: b, n, AsProv: n * as1 };
     }
   }
   const as1 = barByName('1"').as;
   const n = Math.max(8, Math.ceil(AsReq / as1));
   return { barra: '1"' as const, n, AsProv: n * as1 };
+}
+
+/**
+ * Capacidad P–M de columna circular con barras en anillo (E.060 9.3 y 10.3).
+ * φPn,máx = α φ [0,85 f'c (Ag−As) + fy As], α=0,80 con estribos.
+ * φMn de flexión pura: anillo de acero (As fy Ds / π) más el aporte del bloque
+ * circular 0,085 f'c D³ — forma cerrada de predimensionamiento.
+ */
+function capacidadCircularPM(dM: number, recM: number, AsCm2: number, fc: number, fy: number) {
+  const D = dM * 100;
+  const rec = recM * 100;
+  const Ag = (Math.PI * D * D) / 4;
+  const As = Math.max(AsCm2, 0.01 * Ag);
+  const phi = 0.65;
+  const Po = 0.85 * fc * (Ag - As) + fy * As;
+  const PhiPnMax = (0.8 * phi * Po) / 1000;
+  const Ds = Math.max(D - 2 * rec - 1.6, 0.6 * D);
+  const Ms = (As * fy * Ds) / Math.PI;
+  const Mc = 0.085 * fc * D * D * D;
+  const PhiMn = (phi * (Ms + Mc)) / 1e5;
+  return { PhiPnMax, PhiMn, Ag, As, Ds, phi };
+}
+
+/**
+ * Amplificación por esbeltez E.060 10.10. El límite kLu/r = 22 (con desplazamiento
+ * lateral) o 34 (sin desplazamiento) no es un tope de Ø: marca cuándo magnificar
+ * el momento. EI = 0,40 Ec Ig · Pc = π² EI /(k Lu)² · δ = Cm / (1 − Pu/(0,75 Pc)).
+ */
+function magnificarEsbeltez(Pu: number, Mu: number, dM: number, Lu: number, k: number, fc: number, Q: number) {
+  const r = dM / 4;
+  const kLur = (k * Lu) / Math.max(r, 1e-6);
+  const noDespl = Q <= 0.05;
+  const lim = noDespl ? 34 : 22;
+  const Ig = (Math.PI * dM ** 4) / 64;
+  const Ec = EcConcreto(fc) * 10;
+  const EI = 0.4 * Ec * Ig;
+  const Pc = (Math.PI ** 2 * EI) / Math.max((k * Lu) ** 2, 1e-9);
+  const Cm = 1;
+  const denom = 1 - Pu / Math.max(0.75 * Pc, 1e-6);
+  const deltaNs = denom <= 0.05 ? 2.5 : Math.min(2.5, Math.max(1, Cm / denom));
+  const deltaS = Q >= 0.05 ? Math.min(2.5, Math.max(1, 1 / Math.max(1 - Q, 0.15))) : 1;
+  const delta = noDespl ? (kLur > lim ? deltaNs : 1) : Math.max(deltaS, kLur > lim ? deltaNs : 1);
+  return { r, kLur, lim, noDespl, Pc, EI, delta, Mc: Mu * delta, esbelta: kLur > lim };
 }
 
 /* ---------------------------------------------------------------------- *
@@ -419,7 +463,8 @@ export const reservorioApoyado: Engine = (raw) => {
     const pesoLosa = gammaC * (Math.PI * (D + 2 * 0.15) ** 2 / 4) * tLosa;
 
     const presHidro = (y: number) => Math.max(0, gammaW * (HL - y));
-    const lamHs = laminaCilindrica(HL, R, tMuro, fc, presHidro, nu);
+    const femHs = femCilindro({ H: HL, R, t: tMuro, fc, presion: presHidro, nu });
+    const lamHs = femHs.pts;
     const NhsMax = maxAbs(lamHs, "N");
     const MhsMax = maxAbs(lamHs, "M");
     const muestraHs = muestrear(lamHs);
@@ -443,8 +488,8 @@ export const reservorioApoyado: Engine = (raw) => {
 
     const presImp = (y: number) => presionDinamica(Pi, HL, hns.hiEBP, y);
     const presConv = (y: number) => presionDinamica(Pc, HL, hns.hcEBP, y);
-    const lamImp = laminaCilindrica(HL, R, tMuro, fc, presImp, nu);
-    const lamConv = laminaCilindrica(HL, R, tMuro, fc, presConv, nu);
+    const lamImp = femCilindro({ H: HL, R, t: tMuro, fc, presion: presImp, nu }).pts;
+    const lamConv = femCilindro({ H: HL, R, t: tMuro, fc, presion: presConv, nu }).pts;
 
     const nPts = lamHs.length;
     const envolNPts: { x: number; M: number }[] = [];
@@ -483,6 +528,7 @@ export const reservorioApoyado: Engine = (raw) => {
       tMuro, tLosa, pesoMuro, pesoDomo, pesoLosa, lamHs, NhsMax, MhsMax, muestraHs, hns, per,
       WwEff, Pw, Pr, Pi, Pc, Vbasal, Mvolteo, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
       dCmMuro, asHorizFinal, barHoriz, rhoHoriz, phiVcMuro, muroCortanteOk, asVertFinal, barVert,
+      femNodos: femHs.nNodos, femElem: femHs.nElem,
     };
   }
 
@@ -561,18 +607,19 @@ export const reservorioApoyado: Engine = (raw) => {
       formulaTex: String.raw`p(y)=\gamma_w\,(H_L-y)`,
       result: `p(0)=${fmt(gammaW * HL, 3)} t/m² (base) · p(HL)=0 (superficie)`,
       note: "y se mide desde la base del muro (y=0) hacia la corona (y=HL). La presión del agua es máxima en la base y decrece linealmente hasta cero en la superficie libre." },
-    { n: "06", title: "Análisis de la pared — lámina cilíndrica empotrada en la base y libre en la corona",
-      formula: "D_p·w'''' + (Ec·e/R²)·w = p(y)   ·   D_p = Ec·e³/[12(1−ν²)]   (solución numérica equivalente a las tablas PCA)",
+    { n: "06", title: "Motor FEM de la pared — lámina cilíndrica axisimétrica (viga de Hermite + Winkler de anillo)",
+      formula: "D_p·w'''' + (Ec·e/R²)·w = p(y)   ·   D_p = Ec·e³/[12(1−ν²)]   ·   FEM 1D, base empotrada, corona libre",
       formulaTex: String.raw`D_p\,w''''+\dfrac{E_c\,e}{R^2}\,w=p(y)\qquad D_p=\dfrac{E_c\,e^3}{12(1-\nu^2)}`,
-      substitution: `Ec=${fmt(EcConcreto(fc) * 10, 0)} t/m² · e=${fmt(tMuroRound, 3)} m · R=${fmt(R, 2)} m`,
+      substitution: `Ec=${fmt(EcConcreto(fc) * 10, 0)} t/m² · e=${fmt(tMuroRound, 3)} m · R=${fmt(R, 2)} m · ${pasadaMuro.femElem} elem. · ${pasadaMuro.femNodos} nudos`,
       result: `N_θ,máx=${fmt(NhsMax, 2)} t/m · M_y,máx=${fmt(MhsMax, 2)} t·m/m`,
-      note: "El muro se modela como una viga sobre fundación elástica: w(y) es su deflexión radial. N_θ es la tensión de anillo (tracción horizontal, resistida por el acero de anillo) y M_y el momento de flexión vertical (por el empotramiento en la base), resistido por el acero vertical.",
+      note: "Motor FEM propio de este reservorio circular: cada elemento es una viga de Hermite (4 GDL) con resorte de anillo consistente k=Ec e/R². No es una viga simple ni un pórtico: es la discretización de la lámina cilíndrica de Timoshenko (tablas PCA).",
       table: { caption: "Tensión de anillo N y momento vertical M por hidrostática (y desde la base)",
         headers: ["y/HL", "N (t/m)", "M (t·m/m)"],
         rows: muestraHs.map((p) => [`${(p.y / HL).toFixed(1)} HL`, fmt(p.N, 2), fmt(p.M, 3)]) },
       desarrollo: [
-        `Rigidez de placa D_p=Ec e³/[12(1−ν²)] y resorte de anillo k=Ec e/R². Se integra D_p w''''+k w=p(y) por RK4 (disparo) con w=w'=0 en la base y M=V=0 en la corona — equivalente a las tablas PCA, no a una viga simple.`,
-        `p(y)=γw(HL−y) triangular. De w(y) se obtiene N_θ=Ec e w/R (tracción de anillo) y M_y=−D_p w'' (flexión vertical). Máximos: N_θ=${fmt(NhsMax, 2)} t/m, M_y=${fmt(MhsMax, 2)} t·m/m (el momento vive junto al empotramiento; el anillo crece hacia media altura).`,
+        `Malla: ${pasadaMuro.femElem} elementos de Hermite, ${pasadaMuro.femNodos} nudos. GDL: deflexión radial w y giro θ=w' en cada nudo. Base w=θ=0; corona libre (M=V=0).`,
+        `Rigidez de placa D_p=Ec e³/[12(1−ν²)] y resorte de anillo k=Ec e/R². Se ensambla K_viga+K_Winkler y se resuelve K u = F (cargas nodales consistentes de p(y)).`,
+        `De w se obtiene N_θ=Ec e w/R (acero de anillo) y M_y de las fuerzas del elemento (acero vertical). Máximos: N_θ=${fmt(NhsMax, 2)} t/m, M_y=${fmt(MhsMax, 2)} t·m/m.`,
       ] },
     { n: "07", title: "Análisis sísmico — modelo de Housner (masa impulsiva y convectiva)",
       formula: "Wi/Wa = tanh(0,866 D/HL)/(0,866 D/HL)   ·   Wc/Wa = 0,230(D/HL)·tanh(3,68 HL/D)",
@@ -694,8 +741,12 @@ export const reservorioApoyado: Engine = (raw) => {
     vPtsEnv: packPts(envolVPts),
     MhsMax: MhsMax.toFixed(3), NhsMax: NhsMax.toFixed(3), MenvMax: MenvMax.toFixed(3), NenvMax: NenvMax.toFixed(3), VenvMax: VenvMax.toFixed(3),
     asHoriz: barHoriz.texto, asVert: barVert.texto, asLosa: barLosa.texto, asRing: `${ringPick.barra} · As=${fmt(AsRing, 2)} cm²`,
+    asRingN: `${nRingAp} Ø ${ringPick.barra}`,
+    bRing: (bRing * 100).toFixed(0), hRing: (hRing * 100).toFixed(0),
+    rec: "4",
     Wtotal: Wtotal.toFixed(2), Vbasal: Vbasal.toFixed(2), Mvolteo: Mvolteo.toFixed(2),
     Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hns.hiIBP.toFixed(3), hcIBP: hns.hcIBP.toFixed(3),
+    femNodos: String(pasadaMuro.femNodos), femElem: String(pasadaMuro.femElem),
   };
 
   return out(
@@ -779,7 +830,9 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const pesoCono = gammaC * tCono * Math.PI * (R + rp) * LsCono;
     const pesoDomoSup = gammaC * tDomoSup * 2 * Math.PI * domoSup.Rs * (domoSup.Rs - Math.sqrt(Math.max(domoSup.Rs ** 2 - domoSup.a ** 2, 0)));
     const pesoDomoInf = gammaC * tDomoInf * 2 * Math.PI * domoInf.Rs * (domoInf.Rs - Math.sqrt(Math.max(domoInf.Rs ** 2 - rp * rp, 0)));
-    const pesoAnillos = gammaC * (0.3 * 0.4 * 2 * Math.PI * R + 0.3 * 0.4 * 2 * Math.PI * rp);
+    const pesoAnilloSup = gammaC * 0.3 * 0.4 * 2 * Math.PI * R;
+    const pesoAnilloInf = gammaC * 0.3 * 0.4 * 2 * Math.PI * rp;
+    const pesoAnillos = pesoAnilloSup + pesoAnilloInf;
     const Wcuba = pesoMuro + pesoCono + pesoDomoSup + pesoDomoInf + pesoAnillos;
 
     const WsobreCono = pesoMuro + pesoDomoSup + Math.PI * R * R * h1 * 1.0 + pesoAnillos / 2;
@@ -796,7 +849,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const ringInf = elegirBarraAnillo(AsRingInf > 0 ? AsRingInf : 0.01);
 
     const presHidro = (y: number) => Math.max(0, 1.0 * (HL - y));
-    const lamHs = laminaCilindrica(h1, R, tMuro, fc, presHidro, nu);
+    const femHs = femCilindro({ H: h1, R, t: tMuro, fc, presion: presHidro, nu });
+    const lamHs = femHs.pts;
     const NhsMax = maxAbs(lamHs, "N");
     const MhsMax = maxAbs(lamHs, "M");
 
@@ -815,8 +869,8 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const Pc = (SaConv * hns.Wc) / sismo.Rwc;
     const presImp = (y: number) => presionDinamica(Pi, h1, hns.hiEBP, y);
     const presConv = (y: number) => presionDinamica(Pc, h1, hns.hcEBP, y);
-    const lamImp = laminaCilindrica(h1, R, tMuro, fc, presImp, nu);
-    const lamConv = laminaCilindrica(h1, R, tMuro, fc, presConv, nu);
+    const lamImp = femCilindro({ H: h1, R, t: tMuro, fc, presion: presImp, nu }).pts;
+    const lamConv = femCilindro({ H: h1, R, t: tMuro, fc, presion: presConv, nu }).pts;
 
     let NenvMax = 0, MenvMax = 0, VenvMax = 0;
     const envolNPts: { x: number; M: number }[] = [];
@@ -848,11 +902,12 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     const muroCortanteOk = VenvMax <= phiVcMuro;
 
     return {
-      tMuro, tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
+      tMuro, tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnilloSup, pesoAnilloInf, pesoAnillos, Wcuba,
       WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
       lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, lamImp, lamConv, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
       dCmMuro, asHorizFinal, barHoriz, asVertFinal, barVert, rhoHoriz, phiVcMuro, muroCortanteOk,
       SaConv, dMaxOleaje, okBordeLibre,
+      femNodos: femHs.nNodos, femElem: femHs.nElem,
     };
   }
 
@@ -865,11 +920,12 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
   const tMuro = Math.ceil(Math.max(0.2, h1 / 14) / 0.025) * 0.025;
   const pasada = pasadaMuro(tMuro);
   const {
-    tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnillos, Wcuba,
+    tCono, pesoMuro, pesoCono, pesoDomoSup, pesoDomoInf, pesoAnilloSup, pesoAnilloInf, pesoAnillos, Wcuba,
     WsobreCono, NfiConoBase, HconoInward, TconoInward, wInfDomo, TringInfDomo, TringInf, AsRingInf, ringInf,
     lamHs, NhsMax, MhsMax, hns, per, Pi, Pc, NenvMax, MenvMax, VenvMax, envolNPts, envolMPts, envolVPts,
     barHoriz, barVert, rhoHoriz, dCmMuro, phiVcMuro, muroCortanteOk,
     SaConv, dMaxOleaje, okBordeLibre,
+    femNodos, femElem,
   } = pasada;
   void tCono;
 
@@ -917,27 +973,29 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
         ["2", "Fondo cónico (tronco de cono)", fmt(pesoCono, 2)],
         ["3", "Cúpula superior (techo)", fmt(pesoDomoSup, 2)],
         ["4", "Cúpula inferior (fondo)", fmt(pesoDomoInf, 2)],
-        ["5", "Anillos circulares (sup. + inf.)", fmt(pesoAnillos, 2)],
+        ["5", "Anillo inferior (inflexión)", fmt(pesoAnilloInf, 2)],
+        ["6", "Anillo superior", fmt(pesoAnilloSup, 2)],
         ["Σ", "Total cuba (sin agua)", fmt(Wcuba, 2)],
-        ["6", "Agua almacenada", fmt(Vreal, 2)],
+        ["7", "Agua almacenada", fmt(Vreal, 2)],
       ], zonas: layoutTanqueIntze({ R, rp, h1, hCono, fInf, fSup, tMuro, tDomoInf, tDomoSup, HL }) },
       result: `W cuba=${fmt(Wcuba, 2)} t · W agua=${fmt(Vreal, 2)} t`,
       desarrollo: [
         `Pared: W=γc·π[(R+e)²−R²]·h1=${fmt(gammaC, 2)}·π[(${fmt(R + tMuro, 2)})²−${fmt(R, 2)}²]·${fmt(h1, 2)}=${fmt(pesoMuro, 2)} t.`,
         `Cono: W=γc·e·π(R+r')·Ls, con Ls=√(h_c²+(R−r')²)=${fmt(LsCono, 2)} m (longitud de la generatriz) → ${fmt(pesoCono, 2)} t.`,
         `Cúpulas superior e inferior: W=γc·e·2π·Rs·(Rs−√(Rs²−a²)) — área exacta de casquete esférico, no aproximada como plana → domo sup=${fmt(pesoDomoSup, 2)} t, domo inf=${fmt(pesoDomoInf, 2)} t.`,
-        `Anillos (vigas collarín superior e inferior, sección estimada 0,30×0,40 m): ${fmt(pesoAnillos, 2)} t.`,
+        `Anillos (vigas collarín, sección 0,30×0,40 m): superior ${fmt(pesoAnilloSup, 2)} t + inferior ${fmt(pesoAnilloInf, 2)} t = ${fmt(pesoAnillos, 2)} t.`,
         `Peso total de la cuba (sin agua): ${fmt(Wcuba, 2)} t. Peso del agua almacenada (γw=1,0 t/m³): ${fmt(Vreal, 2)} t.`,
       ] },
-    { n: nn(3), title: "Análisis de la pared cilíndrica (lámina sobre base empotrada)",
-      formula: "D_p·w''''+(Ec·e/R²)w=p(y) — hidrostática, solución numérica",
-      formulaTex: String.raw`D_p\,w''''+\dfrac{E_c\,e}{R^2}\,w=p(y)`,
+    { n: nn(3), title: "Motor FEM de la pared — lámina cilíndrica axisimétrica (Hermite + Winkler de anillo)",
+      formula: "D_p·w''''+(Ec·e/R²)w=p(y)   ·   FEM 1D, base empotrada, corona libre",
+      formulaTex: String.raw`D_p\,w''''+\dfrac{E_c\,e}{R^2}\,w=p(y)\qquad D_p=\dfrac{E_c\,e^3}{12(1-\nu^2)}`,
+      substitution: `e=${fmt(tMuro, 3)} m · R=${fmt(R, 2)} m · ${femElem} elem. · ${femNodos} nudos`,
       result: `N_θ,máx=${fmt(NhsMax, 2)} t/m · M_y,máx=${fmt(MhsMax, 2)} t·m/m`,
-      note: "N_θ (tensión de anillo, resistida por el acero horizontal) y M_y (momento vertical, resistido por el acero vertical) son las mismas magnitudes explicadas en el reservorio apoyado: el muro se modela como viga sobre fundación elástica bajo la presión hidrostática.",
+      note: "Motor FEM propio de la cuba INTZE (el mismo de la pestaña circular): cada elemento es una viga de Hermite (4 GDL) con resorte de anillo k=Ec e/R². No es RK4 ni una tabla PCA: es la discretización de la lámina cilíndrica.",
       desarrollo: [
-        "El muro se modela igual que en el reservorio apoyado: viga sobre fundación elástica (rigidez de resorte del anillo k=Ec·e/R²) resuelta por integración numérica RK4 (método de disparo) de la ecuación diferencial de la lámina cilíndrica, no por fórmulas cerradas de tabla.",
-        `Presión hidrostática triangular: p(y)=γw·(HL−y), máxima en la base p(0)=${fmt(1.0 * HL, 2)} t/m² y nula en la superficie libre (y=HL=${fmt(HL, 2)} m).`,
-        `De la solución completa w(y), M(y), N(y) a lo largo de toda la altura, se extraen los máximos: N_θ,máx=${fmt(NhsMax, 2)} t/m (tracción de anillo hidrostática) y M_y,máx=${fmt(MhsMax, 2)} t·m/m (flexión vertical), típicamente cerca de la base empotrada.`,
+        `Malla: ${femElem} elementos de Hermite, ${femNodos} nudos. GDL: deflexión radial w y giro θ=w' en cada nudo. Base w=θ=0; corona libre (M=V=0).`,
+        `Presión hidrostática triangular: p(y)=γw·(HL−y), máxima en la base p(0)=${fmt(1.0 * HL, 2)} t/m² y nula en la superficie libre. Impulsiva y convectiva se resuelven con la misma malla y se combinan por SRSS.`,
+        `De w se obtiene N_θ=Ec e w/R (acero de anillo) y M_y de las fuerzas del elemento (acero vertical). Máximos hidrostáticos: N_θ=${fmt(NhsMax, 2)} t/m, M_y=${fmt(MhsMax, 2)} t·m/m.`,
       ] },
     { n: nn(4), title: "Relación D/HL y masa impulsiva Wi (Housner / ACI 350.3-06 §9.2)",
       formula: "Wi/Wa = tanh(0,866·D/HL) / (0,866·D/HL)",
@@ -1157,7 +1215,13 @@ function disenarCubaIntze(raw: Record<string, string>, nStart: number): CubaIntz
     asHoriz: barHoriz.texto, asVert: barVert.texto,
     asRingSup: `${ringSup.barra} · As=${fmt(AsRingSup, 2)} cm²`,
     asRingInf: `${ringInf.barra}${TringInf >= 0 ? ` · As=${fmt(AsRingInf, 2)} cm²` : " (mínimo)"}`,
+    asRingSupN: `${nSup} Ø ${ringSup.barra}`,
+    asRingInfN: `${nInf} Ø ${ringInf.barra}`,
+    bRingSup: String(bRingSup), hRingSup: String(hRingSup),
+    bRingInf: String(bRingInf), hRingInf: String(hRingInf),
+    rec: "4",
     Wcuba: Wcuba.toFixed(2), Wagua: Vreal.toFixed(2),
+    femNodos: String(femNodos), femElem: String(femElem),
   };
 
   return { steps, dims, checks, Wcuba, Wagua: Vreal, D, R, HL, Htotal, h1, rp, fInf, hCono, tMuro, tDomoSup, tDomoInf, anilloInferior: TringInf, hns, per, pesoTotalCuba: Wcuba + Vreal };
@@ -1256,8 +1320,8 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const qadm = num(raw, "qadm", 2);
 
   const Rcol = cuba.R * 0.82;
-  const nCol = numOrAuto(raw, "nCol", Math.max(4, Math.min(12, Math.round((2 * Math.PI * Rcol) / 3.75 / 2) * 2)));
-  const nArr = Math.max(1, Math.round(numOrAuto(raw, "nArr", Math.max(1, Math.round(Htorre / 4.5)))));
+  const nCol = numOrAuto(raw, "nCol", Math.max(6, Math.min(12, Math.round((2 * Math.PI * Rcol) / 3.0 / 2) * 2)));
+  const nArr = Math.max(1, Math.round(numOrAuto(raw, "nArr", Math.max(1, Math.ceil(Htorre / 3.5)))));
   const hEntre = Htorre / nArr;
 
   const sismo = leerSismo(raw);
@@ -1268,7 +1332,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const EcTm2 = EcConcreto(fc) * 10;
   const nuConc = 0.2;
   const Gc = EcTm2 / (2 * (1 + nuConc));
-  const rhoProp = 0.02;
+  let rhoCol = 0.01;
 
   // Modelo de Housner (masa impulsiva Wi + convectiva Wc), igual que en el reservorio apoyado y en
   // el fuste: la masa impulsiva vibra solidaria con el pórtico (su periodo es el del pórtico), pero
@@ -1281,11 +1345,11 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const SaConv = sismo.Z * sismo.U * sismo.S * Cconv;
   const Pc = (SaConv * hns.Wc) / sismo.Rwc;
 
-  /** Un análisis matricial completo (rigidez directa 3D) del pórtico espacial para un Ø de columna de prueba. */
-  function analizarTorreMatricial(dColT: number) {
-    const bArrT = Math.max(0.25, dColT * 0.65);
-    const dArrT = Math.max(0.3, dColT * 0.85);
-    const dDiagT = Math.max(0.2, dColT * 0.5);
+  /** Un análisis matricial completo (rigidez directa 3D) del pórtico espacial para un Ø y una cuantía de prueba. */
+  function analizarTorreMatricial(dColT: number, rhoT = 0.01) {
+    const bArrT = Math.max(0.25, Math.min(0.40, dColT * 0.70));
+    const dArrT = Math.max(0.30, Math.min(0.50, dColT * 0.90));
+    const dDiagT = Math.max(0.18, Math.min(0.30, dColT * 0.50));
     const RcolBase = Rcol * 1.35;
     const modelo = construirTorreColumnas(nCol, Rcol, Htorre, nArr, dColT, bArrT, dArrT, dDiagT, hcgCuba, EcTm2, Gc, RcolBase);
     const pesoTorreT = gammaC * modelo.Acol * Htorre * nCol;
@@ -1375,25 +1439,34 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         MuArrT = Math.max(M1, M2);
         const sign1 = fl.My1 !== 0 ? Math.sign(fl.My1) : 1;
         const sign2 = fl.My2 !== 0 ? Math.sign(fl.My2) : 1;
-        perfilViga = [{ x: 0, M: sign1 * M1 }, { x: 1, M: sign2 * M2 }];
+        const mA = sign1 * M1;
+        const mB = sign2 * M2;
+        perfilViga = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: t, M: (1 - t) * mA + t * mB }));
       }
       const V1 = Math.hypot(fl.Vy1, fl.Vz1) * VtorreT;
       const V2 = Math.hypot(fl.Vy2, fl.Vz2) * VtorreT;
       if (Math.max(V1, V2) > VuArrT) {
         const sv1 = fl.Vy1 !== 0 ? Math.sign(fl.Vy1) : 1;
         const sv2 = fl.Vy2 !== 0 ? Math.sign(fl.Vy2) : 1;
-        perfilVigaV = [{ x: 0, M: sv1 * V1 }, { x: 1, M: sv2 * V2 }];
+        const vA = sv1 * V1;
+        const vB = sv2 * V2;
+        perfilVigaV = [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: t, M: (1 - t) * vA + t * vB }));
       }
       VuArrT = Math.max(VuArrT, Math.hypot(fl.Vy1, fl.Vz1) * VtorreT);
     });
 
     const AgColT = modelo.Acol * 1e4;
-    const AsColT = rhoProp * AgColT;
-    const PhiPnT = (0.8 * 0.7 * (0.85 * fc * (AgColT - AsColT) + fy * AsColT)) / 1000;
-    const PhiMnT = (0.65 * AsColT * fy * (dColT * 100 - 8)) / 100 / 1000;
-    const interaccionT = PuColT / Math.max(PhiPnT, 1e-6) + MuColT / Math.max(PhiMnT, 1e-6);
-    const r = dColT / 4;
-    const kLuR = (1.2 * hEntre) / r;
+    const AsColT = rhoT * AgColT;
+    const cap = capacidadCircularPM(dColT, 0.04, AsColT, fc, fy);
+    const PhiPnT = cap.PhiPnMax;
+    const PhiMnT = cap.PhiMn;
+    const delta1 = Math.abs(dxUnit) * VtorreT;
+    const Q = (WtotalT * delta1) / Math.max(VtorreT * (Htorre + hcgCuba), 1e-6);
+    const kCol = Q <= 0.05 ? 1.0 : 1.2;
+    const mag = magnificarEsbeltez(PuColT, MuColT, dColT, hEntre, kCol, fc, Q);
+    const MuDiseno = mag.Mc;
+    const interaccionT = PuColT / Math.max(PhiPnT, 1e-6) + MuDiseno / Math.max(PhiMnT, 1e-6);
+    const kLuR = mag.kLur;
     const derivaMasterT = dxUnit * VtorreT;
     const derivaRatioT = (derivaMasterT * (0.75 * Rtorre)) / (Htorre + hcgCuba);
 
@@ -1406,7 +1479,8 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       const fl = unit.forces[ei];
       const Ncomb = Math.abs(fg.N1) + Math.abs(fl.N1) * VtorreT;
       const Mcomb = Math.hypot(fl.My1, fl.Mz1) * VtorreT;
-      const util = Ncomb / Math.max(PhiPnT, 1e-6) + Mcomb / Math.max(PhiMnT, 1e-6);
+      const Mc = Mcomb * mag.delta;
+      const util = Ncomb / Math.max(PhiPnT, 1e-6) + Mc / Math.max(PhiMnT, 1e-6);
       elemStress.push({ n1: el.n1, n2: el.n2, tipo: "col", val: util });
     });
     let maxBeamDemand = 1e-6;
@@ -1435,17 +1509,30 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
       WiTotalT, hIabsT, PiT,
       PuColT, MuColT, VuColT, MuArrT, VuArrT, PhiPnT, PhiMnT, interaccionT, kLuR, derivaRatioT,
       bArrT, dArrT, dDiagT, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress, beamsByLvl,
+      mag, Q, MuDiseno, rhoT,
     };
   }
 
   let dCol = numOrAuto(raw, "dCol", 0);
   const dColAuto = dCol <= 0;
   if (dColAuto) {
-    dCol = 0.35;
-    for (let iter = 0; iter < 20; iter++) {
-      const r = analizarTorreMatricial(dCol);
-      if (r.interaccionT <= 1 && r.kLuR <= 22 && r.derivaRatioT <= LIMITE_DERIVA_CONCRETO) break;
-      dCol = Math.round((dCol + 0.05) / 0.05) * 0.05;
+    dCol = 0.40;
+    rhoCol = 0.01;
+    for (let iter = 0; iter < 24; iter++) {
+      const r = analizarTorreMatricial(dCol, rhoCol);
+      const phiVcT = (0.85 * 0.53 * Math.sqrt(fc) * (0.8 * dCol * 100) * (dCol * 100 - 8)) / 1000;
+      const okPM = r.interaccionT <= 1;
+      const okDeriva = r.derivaRatioT <= LIMITE_DERIVA_CONCRETO;
+      const okV = r.VuColT <= phiVcT;
+      const okEsbeltez = r.kLuR <= 100;
+      if (okPM && okDeriva && okV && okEsbeltez) break;
+      if (!okPM && rhoCol < 0.025 - 1e-9) {
+        rhoCol = Math.min(0.025, rhoCol + 0.0025);
+        continue;
+      }
+      dCol = Math.round((dCol + 0.05) * 20) / 20;
+      rhoCol = 0.01;
+      if (dCol > 0.80) break;
     }
   }
 
@@ -1456,7 +1543,10 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     PuColT: PuCol, MuColT: MuCol, VuColT: VuCol, MuArrT: MvigaArr, VuArrT: VvigaArr,
     PhiPnT: PhiPnRho, PhiMnT: PhiMnAprox, interaccionT: interaccion, derivaRatioT: derivaRatio,
     bArrT: bArr, dArrT: dArr, dDiagT: dDiag, perfilColumna, perfilViga, perfilColumnaV, perfilVigaV, elemStress, beamsByLvl,
-  } = analizarTorreMatricial(dCol);
+    mag, Q, MuDiseno,
+    rhoT: rhoUsada,
+  } = analizarTorreMatricial(dCol, rhoCol);
+  rhoCol = rhoUsada;
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
   const DcimAuto = Dcim <= 0;
@@ -1478,7 +1568,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const phiVcArr = (0.85 * 0.53 * Math.sqrt(fc) * bArr * 100 * (dArr * 100 - 5)) / 1000;
   const vigaCortanteOk = VvigaArr <= phiVcArr;
   const AgCol = (Math.PI * dCol * dCol / 4) * 1e4;
-  const AsColReq = rhoProp * AgCol;
+  const AsColReq = rhoCol * AgCol;
   const longCol = elegirLongCol(AsColReq, AgCol);
   const estCol = estribosColumna(dCol, longCol.barra);
   const phiVcCol = (0.85 * 0.53 * Math.sqrt(fc) * (0.8 * dCol * 100) * (dCol * 100 - 8)) / 1000;
@@ -1503,16 +1593,17 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
   const nn = (k: number) => String(nCubaNum + 1 + k).padStart(2, "0");
   const steps: CalcStep[] = [
     ...cuba.steps,
-    { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,75 m en el perímetro · Ø columna crece hasta cumplir esbeltez, interacción P–M y deriva, evaluados con el pórtico espacial completo",
-      substitution: `Rcol=${fmt(Rcol, 2)} m · nArr por tramos de ≈4,5 m`,
-      result: `nCol=${nCol} columnas Ø${fmt(dCol * 100, 0)} cm · H torre=${fmt(Htorre, 2)} m · ${nArr} nivel(es) de arriostre`,
-      note: "Geometría obtenida automáticamente a partir del volumen y la altura de la torre; puede sobrescribirse indicando nCol, Ø de columna o niveles de arriostre en los datos de entrada.",
+    { n: nn(0), title: "Predimensionamiento de la torre de columnas", formula: "nCol por separación de ≈3,0 m (mín. 6) · nArr por tramos de ≤3,50 m · Ø mínimo que cumple P–M amplificado, corte y deriva",
+      substitution: `Rcol=${fmt(Rcol, 2)} m · h_entre ≤ 3,50 m`,
+      result: `nCol=${nCol} columnas Ø${fmt(dCol * 100, 0)} cm · ρ=${fmt(rhoCol * 100, 2)} % · H torre=${fmt(Htorre, 2)} m · ${nArr} nivel(es) de arriostre`,
+      note: "Geometría automática a partir del volumen y la altura de la torre. Se puede sobrescribir nCol, Ø o niveles de arriostre. El Ø no se infla para forzar columna corta: la esbeltez se resuelve magnificando el momento (E.060 10.10).",
       desarrollo: [
-        `Número de columnas: se busca una separación perimetral de ≈3,75 m en el círculo de radio Rcol=0,82·R_cuba=${fmt(Rcol, 2)} m → nCol=redondear(2π·Rcol/3,75/2)×2=${nCol} (forzado a número par, por simetría del pórtico circular).`,
-        `Niveles de arriostre: nArr=redondear(Htorre/4,5)=${nArr}, con separación entre niveles h_entre=Htorre/nArr=${fmt(hEntre, 2)} m (tramos de columna de esbeltez moderada entre vigas de anillo).`,
-        "El diámetro de columna Ø_col se predimensiona iterativamente (ver paso de fuerzas en columnas): arranca en 0,35 m y crece en pasos de 0,05 m hasta que, evaluado con el pórtico espacial completo, se cumplan a la vez la interacción P-M ≤ 1, la esbeltez kL/r ≤ 22 y la deriva de la torre ≤ 0,007 — las tres verificaciones dependen unas de otras (un Ø mayor rigidiza la torre, baja el periodo, cambia la fuerza sísmica y la esbeltez), por eso se resuelven juntas en un bucle, no en pasos independientes.",
+        `Número de columnas: separación perimetral ≈3,0 m en el círculo Rcol=0,82·R_cuba=${fmt(Rcol, 2)} m, con mínimo 6 (un péndulo de 4 patas concentra demasiado axial de volteo) → nCol=${nCol} (par, por simetría).`,
+        `Niveles de arriostre: nArr=ceil(Htorre/3,50)=${nArr}, h_entre=Htorre/nArr=${fmt(hEntre, 2)} m. Tramos cortos entre anillos bajan kLu/r sin engrosar el fuste de cada columna.`,
+        `Ø arranca en 0,40 m y ρ en 1 % (mínimo E.060 10.9.1). Si la interacción P–M amplificada supera 1, primero sube la cuantía hasta 2,5 %; solo entonces crece el Ø de 5 en 5 cm. Criterios de paro: P/φPn+Mδ/φMn ≤ 1, deriva ≤ 0,007, Vu ≤ φVc y kLu/r ≤ 100.`,
+        `Resultado: Ø=${fmt(dCol * 100, 0)} cm con ρ=${fmt(rhoCol * 100, 2)} %. No se usa kLu/r ≤ 22 como tope geométrico: ese límite solo decide si el momento se magnifica.`,
       ] },
-    { n: nn(1), title: "Modelo matricial del pórtico espacial (método de la rigidez directa)",
+    { n: nn(1), title: "Motor FEM de la torre — pórtico espacial de 12 GDL (rigidez directa)",
       formula: "Elemento viga-columna 3D de 12 GDL por nudo (axial, flexión biaxial, torsión) · K = ΣTᵀkₗT · Ku=F",
       formulaTex: String.raw`K=\sum T^{\mathsf T} k_\ell\, T\qquad K\,u=F`,
       substitution: `Nudos=${nCol}×(${nArr}+1)+1 · Elementos: ${nCol}×${nArr} columnas + ${nCol}×${nArr} vigas de anillo + ${2 * nCol * nArr} diagonales en X`,
@@ -1539,17 +1630,32 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
         `Pi=Sa(Ti)·Wi,total/Rtorre=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Ct, 3)}·${fmt(sismo.S, 2)}·${fmt(WiTotal, 2)}/${fmt(Rtorre, 2)}=${fmt(Pi, 2)} t. R=${fmt(Rtorre, 2)} corresponde al sistema "péndulo invertido" de E.030 (más conservador que un pórtico ordinario, por su baja redundancia estructural: toda la masa impulsiva está en un solo nivel). Pc=Sa(Tc)·Wc/Rwc=${fmt(SaConv, 4)}·${fmt(hns.Wc, 2)}/${fmt(sismo.Rwc, 2)}=${fmt(Pc, 2)} t (Rwc≈1: el oleaje no disipa energía por ductilidad estructural).`,
         `Cortante basal (SRSS, fuera de fase): V=√(Pi²+Pc²)=${fmt(Vtorre, 2)} t. Momento de volteo en la base: M=√((Pi·hi)²+(Pc·hc)²)=√((${fmt(Pi, 2)}·${fmt(hIabs, 2)})²+(${fmt(Pc, 2)}·${fmt(hCabs, 2)})²)=${fmt(Mtorre, 2)} t·m.`,
       ] },
-    { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (resultado directo de la matriz)",
-      formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²) por columna   ·   P/φPn + M/φMn ≤ 1",
-      formulaTex: String.raw`N=N_{grav}\pm N_{sismo}\qquad M=\sqrt{M_y^2+M_z^2}\qquad \dfrac{P}{\phi P_n}+\dfrac{M}{\phi M_n}\le 1`,
-      substitution: `ρ=${fmt(rhoProp * 100, 1)}% · columna más solicitada de las ${nCol} del modelo`,
-      result: `Pu=${fmt(PuCol, 2)} t · Mu=${fmt(MuCol, 2)} t·m · φPn=${fmt(PhiPnRho, 1)} t · φMn≈${fmt(PhiMnAprox, 2)} t·m`,
-      note: `La interacción P/φPn+M/φMn ≤ 1 es el criterio de falla combinada carga axial + flexión de una columna de concreto armado (diagrama de interacción). P/φPn+M/φMn=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤" : ">"} 1. Verificar con el diagrama de interacción P–M–M del módulo "Diagramas de interacción" para el detallado final del acero.`,
+    { n: nn(3), title: "Fuerzas en columnas — envolvente gravedad + sismo (matriz 3D)",
+      formula: "N = N_grav ± N_sismo   ·   M = √(My²+Mz²)   ·   Mc = δ·M   ·   P/φPn + Mc/φMn ≤ 1",
+      formulaTex: String.raw`N=N_{grav}\pm N_{sismo}\qquad M=\sqrt{M_y^2+M_z^2}\qquad M_c=\delta M\qquad \dfrac{P}{\phi P_n}+\dfrac{M_c}{\phi M_n}\le 1`,
+      substitution: `ρ=${fmt(rhoCol * 100, 2)}% · columna más solicitada de las ${nCol} · δ=${fmt(mag.delta, 2)}`,
+      result: `Pu=${fmt(PuCol, 2)} t · M1er=${fmt(MuCol, 2)} t·m · Mc=${fmt(MuDiseno, 2)} t·m · φPn=${fmt(PhiPnRho, 1)} t · φMn=${fmt(PhiMnAprox, 2)} t·m`,
+      note: `Interacción P/φPn+Mc/φMn=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤" : ">"} 1. Capacidad circular con barras en anillo (E.060 10.3), no un diagrama de viga rectangular.`,
       ok: interaccion <= 1,
       desarrollo: [
-        `Para cada columna se combina la carga axial gravitacional (caso b del paso anterior, N_grav) con el efecto sísmico escalado por V (caso a): N=N_grav±N_sismo. La flexión sísmica se obtiene como resultante biaxial: M=√(My²+Mz²)·V, y se identifica la columna con mayor demanda combinada de las ${nCol} del modelo: Pu=${fmt(PuCol, 2)} t, Mu=${fmt(MuCol, 2)} t·m.`,
-        `Capacidad axial pura aproximada (cuantía de ensayo ρ=${fmt(rhoProp * 100, 1)}%): φPn=0,8·0,7·[0,85f'c(Ag−As)+fy·As]=${fmt(PhiPnRho, 1)} t. Capacidad a flexión aproximada: φMn=0,65·As·fy·(0,8h)≈${fmt(PhiMnAprox, 2)} t·m (estimación rápida de brazo interno, no un diagrama de interacción completo).`,
-        `Interacción: Pu/φPn+Mu/φMn=${fmt(PuCol, 2)}/${fmt(PhiPnRho, 1)}+${fmt(MuCol, 2)}/${fmt(PhiMnAprox, 2)}=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤ 1, cumple." : "> 1, no cumple: se incrementa Ø_col y se repite todo el análisis matricial."}`,
+        `Para cada columna, N=N_grav±N_sismo y M=√(My²+Mz²)·V del pórtico espacial. Gobierna Pu=${fmt(PuCol, 2)} t y M de primer orden=${fmt(MuCol, 2)} t·m.`,
+        `Capacidad circular: φPn,máx=0,80·0,65·[0,85 f'c (Ag−As)+fy As]=${fmt(PhiPnRho, 1)} t. φMn=φ(As fy Ds/π + 0,085 f'c D³)=${fmt(PhiMnAprox, 2)} t·m, con Ds diámetro del anillo de barras.`,
+        `El momento de diseño es el de primer orden magnificado por esbeltez: Mc=δ·M=${fmt(mag.delta, 2)}·${fmt(MuCol, 2)}=${fmt(MuDiseno, 2)} t·m (paso siguiente).`,
+        `Interacción: Pu/φPn+Mc/φMn=${fmt(PuCol, 2)}/${fmt(PhiPnRho, 1)}+${fmt(MuDiseno, 2)}/${fmt(PhiMnAprox, 2)}=${fmt(interaccion, 2)} ${interaccion <= 1 ? "≤ 1, cumple con la sección mínima." : "> 1: se sube ρ o el Ø y se vuelve a resolver la matriz."}`,
+      ] },
+    { n: `${nn(3)}b`, title: "Esbeltez y segundo orden — E.060 10.10 (no se agranda el Ø para forzar kLu/r ≤ 22)",
+      formula: "kLu/r  ·  Q=ΣPΔ/(VH)  ·  Pc=π² EI/(k Lu)²  ·  δ=Cm/(1−Pu/(0,75 Pc))  ·  Mc=δ M",
+      formulaTex: String.raw`\frac{kL_u}{r}\qquad Q=\dfrac{\sum P\Delta}{VH}\qquad P_c=\dfrac{\pi^2 EI}{(k L_u)^2}\qquad \delta=\dfrac{C_m}{1-P_u/(0{,}75 P_c)}\qquad M_c=\delta M`,
+      substitution: `Lu=h_entre=${fmt(hEntre, 2)} m · r=D/4=${fmt(mag.r, 3)} m · k=${mag.noDespl ? "1,0 (sin desplazamiento, Q≤0,05)" : "1,2 (con desplazamiento)"} · EI=0,40 Ec Ig`,
+      result: `kLu/r=${fmt(mag.kLur, 1)} ${mag.esbelta ? ">" : "≤"} ${mag.lim} → ${mag.esbelta ? "esbelta, se magnifica" : "corta, δ=1"} · Q=${fmt(Q, 3)} · δ=${fmt(mag.delta, 2)} · Pc=${fmt(mag.Pc, 1)} t`,
+      note: "kLu/r = 22 (pórtico con desplazamiento) o 34 (sin desplazamiento) es el umbral para aplicar 10.10, no un máximo de esbeltez ni un motivo para pasar de Ø 40 cm a Ø 105 cm. El tope normativo es kLu/r ≤ 100.",
+      ok: mag.kLur <= 100,
+      desarrollo: [
+        `Radio de giro de la circular: r=D/4=${fmt(dCol, 2)}/4=${fmt(mag.r, 3)} m. Longitud no arriostrada Lu=h_entre=${fmt(hEntre, 2)} m (entre vigas de anillo). Factor k=${mag.noDespl ? "1,0" : "1,2"} según el índice de estabilidad Q.`,
+        `Índice de estabilidad del piso: Q=ΣP·Δ₁/(V·H)=${fmt(Wtotal, 1)}·δ₁ / (${fmt(Vtorre, 2)}·${fmt(Htorre + cuba.Htotal / 2, 2)})=${fmt(Q, 3)} ${Q <= 0.05 ? "≤ 0,05 → pórtico sin desplazamiento lateral apreciable (las diagonales en X arriostran)." : "> 0,05 → hay que considerar efectos de traslación."} Límite de columna corta: kLu/r ${mag.noDespl ? "≤ 34" : "≤ 22"}.`,
+        `kLu/r=${fmt(mag.kLur, 1)} ${mag.esbelta ? "supera el umbral: la columna es esbelta y el momento de primer orden se magnifica." : "no supera el umbral: se diseña con el momento de primer orden (δ=1)."}`,
+        `EI=0,40 Ec Ig=${fmt(mag.EI, 1)} t·m² (E.060 10.10.6, βdns=0). Carga crítica Pc=π² EI/(k Lu)²=${fmt(mag.Pc, 1)} t.`,
+        `δ=Cm/(1−Pu/(0,75 Pc))=${fmt(mag.delta, 2)} (Cm=1, curvatura simple sísmica, tope 2,5). Mc=δ·M=${fmt(MuDiseno, 2)} t·m. kLu/r=${fmt(mag.kLur, 1)} ${mag.kLur <= 100 ? "≤ 100, dentro del máximo de la norma." : "> 100, hay que acortar Lu (más arriostres) o crecer Ø."}`,
       ] },
     { n: nn(4), title: "Vigas de arriostre — momento y cortante de la matriz", formula: "M_viga, V_viga = resultado directo del elemento más solicitado bajo sismo",
       substitution: `Sección de prueba ${fmt(bArr * 100, 0)}×${fmt(dArr * 100, 0)} cm · h entre niveles=${fmt(hEntre, 2)} m`,
@@ -1586,12 +1692,12 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     { n: "16b", title: "Detalle de acero de columnas — longitudinal y confinamiento E.060 21.4",
       formula: "As=ρ Ag  ·  n·as ≥ As  ·  s_conf=mín(8db, 0,25h, 10 cm) en ℓp  ·  s_fuera=mín(16db, 0,5h, 20 cm)",
       formulaTex: String.raw`A_s=\rho A_g\qquad s_{\mathrm{conf}}=\min(8d_b,0{,}25h,10)\qquad \ell_p=\max(h,45\,\mathrm{cm})`,
-      substitution: `Ø=${fmt(dCol * 100, 0)} cm · ρ=${fmt(rhoProp * 100, 1)} % · Pu=${fmt(PuCol, 2)} t · Mu=${fmt(MuCol, 2)} t·m · Vu=${fmt(VuCol, 2)} t · h_entre=${fmt(hEntre, 2)} m`,
+      substitution: `Ø=${fmt(dCol * 100, 0)} cm · ρ=${fmt(rhoCol * 100, 2)} % · Pu=${fmt(PuCol, 2)} t · Mc=${fmt(MuDiseno, 2)} t·m · Vu=${fmt(VuCol, 2)} t · h_entre=${fmt(hEntre, 2)} m`,
       result: `${longCol.n} Ø ${longCol.barra} (As,prov=${fmt(longCol.AsProv, 2)} cm²) · estribos Ø ${estCol.barEstribo} @ ${fmt(estCol.sConf, 0)} cm en ℓp=${fmt(estCol.Lp, 0)} cm y @ ${fmt(estCol.sFuera, 0)} cm fuera`,
       note: "En torre tipo péndulo invertido cada extremo de tramo (base empotrada y nudo de viga de anillo) es rótula potencial: se confina ℓp en ambos extremos de cada entrepiso. El cortante Vu se verifica contra φVc del núcleo.",
       desarrollo: [
-        `Área gruesa Ag=π Ø²/4=${fmt(AgCol, 0)} cm². Con cuantía de ensayo ρ=0,02 (E.060 columnas, rango 1–4 %): As,req=0,02·Ag=${fmt(AsColReq, 1)} cm².`,
-        `Se elige un paquete simétrico practicable: ${longCol.n} Ø ${longCol.barra} → As,prov=${fmt(longCol.AsProv, 2)} cm² (dentro de 0,01Ag–0,04Ag). Las barras se reparte en el perímetro de la sección circular, con recubrimiento 4 cm.`,
+        `Área gruesa Ag=π Ø²/4=${fmt(AgCol, 0)} cm². Cuantía de diseño ρ=${fmt(rhoCol * 100, 2)} % (mínimo 1 % E.060 10.9.1; no se fuerza 2 % si el P–M ya cumple): As,req=ρ·Ag=${fmt(AsColReq, 1)} cm².`,
+        `Paquete simétrico: ${longCol.n} Ø ${longCol.barra} → As,prov=${fmt(longCol.AsProv, 2)} cm² (entre 0,01Ag y 0,04Ag). Barras en el perímetro, recubrimiento 4 cm.`,
         `Longitud de rótula ℓp=máx(h, 45 cm)=${fmt(estCol.Lp, 0)} cm en CADA extremo del tramo (base y nudo de arriostre). Estribos de confinamiento Ø ${estCol.barEstribo} con s=mín(8db, 0,25h, 10 cm)=${fmt(estCol.sConf, 0)} cm. Fuera de ℓp: s=mín(16db, 0,5h, 20 cm)=${fmt(estCol.sFuera, 0)} cm.`,
         `Cortante de la columna más demandada Vu=${fmt(VuCol, 2)} t frente a φVc≈0,85·0,53√f'c·(0,8Ø)·d=${fmt(phiVcCol, 2)} t. ${VuCol <= phiVcCol ? "El concreto cubre el corte; los estribos son de confinamiento, no de corte." : "Se requiere reducir s por corte además del confinamiento."}`,
       ] },
@@ -1627,7 +1733,8 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
 
   const checks: CalcCheck[] = [
     ...cuba.checks,
-    ok("Interacción P–M de columna ≤ 1", fmt(interaccion, 2), "≤ 1", interaccion <= 1),
+    ok("Interacción P–M de columna ≤ 1 (momento magnificado)", fmt(interaccion, 2), "≤ 1", interaccion <= 1),
+    ok(`Esbeltez kLu/r ≤ 100 (E.060 10.10)`, fmt(mag.kLur, 1), `≤ 100 (umbral corto ${mag.lim})`, mag.kLur <= 100),
     ok("Cortante de viga de arriostre ≤ φVc", `${fmt(VvigaArr, 2)} t`, `≤ ${fmt(phiVcArr, 2)} t`, vigaCortanteOk),
     ok(`Deriva de la torre ≤ ${LIMITE_DERIVA_CONCRETO}`, fmt(derivaRatio, 4), `≤ ${LIMITE_DERIVA_CONCRETO}`, derivaRatio <= LIMITE_DERIVA_CONCRETO),
     ok("q_máx cimentación ≤ q_adm", `${fmt(qmax / 10, 3)} kg/cm²`, `≤ ${fmt(qadm, 2)} kg/cm²`, qmax / 10 <= qadm),
@@ -1639,6 +1746,10 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     nCol: String(nCol), dCol: dCol.toFixed(2), Htorre: Htorre.toFixed(2), Rcol: Rcol.toFixed(2), RcolBase: (Rcol * 1.35).toFixed(2), nArr: String(nArr),
     bArr: bArr.toFixed(2), dArr: dArr.toFixed(2),
     Dcim: Dcim.toFixed(2), asArr: fmt(asArr, 2),
+    asCol: `${longCol.n} Ø ${longCol.barra}`,
+    nColLong: String(longCol.n), barCol: longCol.barra,
+    estColBar: estCol.barEstribo, estColS: String(estCol.sConf),
+    asViga: `${(vigasNivel[vigasNivel.length - 1]?.nLong ?? 4)} Ø ${vigasNivel[vigasNivel.length - 1]?.bar.barra ?? '5/8"'}`,
     PuCol: PuCol.toFixed(2), MuCol: MuCol.toFixed(2), derivaRatio: derivaRatio.toFixed(4),
     mPtsColumna: packPts(perfilColumna), mPtsViga: packPts(perfilViga),
     vPtsColumna: packPts(perfilColumnaV), vPtsViga: packPts(perfilVigaV),
@@ -1647,6 +1758,7 @@ export const tanqueElevadoColumnas: Engine = (raw) => {
     Wtotal: Wtotal.toFixed(2), Vbasal: Vtorre.toFixed(2), Mvolteo: Mtorre.toFixed(2),
     Wfuste: pesoTorreT.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
     Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hIabs.toFixed(3), hcIBP: hCabs.toFixed(3),
+    femNodos: String(modeloFinal.nodes.length), femElem: String(modeloFinal.elements.length),
   };
 
   const recomendacion = cuba.Wagua > 500
@@ -1676,8 +1788,9 @@ export const tanqueElevadoFuste: Engine = (raw) => {
 
   const sismo = leerSismo(raw);
   const Ct = 60;
-  const T1 = Htorre / Ct;
-  const Csis = e030C(T1, sismo.Tp, sismo.Tl);
+  const Tnorm = Htorre / Ct;
+  let T1 = Tnorm;
+  let Csis = e030C(T1, sismo.Tp, sismo.Tl);
   const R0fuste = SISTEMAS.find((s) => s.value === "ca-muros")!.R0;
   const Rfuste = num(raw, "Rfuste", R0fuste);
   const hcg = Htorre + cuba.Htotal / 2;
@@ -1694,7 +1807,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   // masa impulsiva — el oleaje (Wc) sigue teniendo su propio periodo largo, independiente de la
   // rigidez del fuste, y se combina por SRSS igual que en cualquier tanque.
   const hns = cuba.hns;
-  const SaImp = sismo.Z * sismo.U * sismo.S * Csis;
+  let SaImp = sismo.Z * sismo.U * sismo.S * Csis;
   const Cconv = e030C(hns.Tc, sismo.Tp, sismo.Tl);
   const SaConv = sismo.Z * sismo.U * sismo.S * Cconv;
   const Pc = (SaConv * hns.Wc) / sismo.Rwc;
@@ -1720,6 +1833,14 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       const pesoFusteT = gammaC * AfusteT * Htorre;
       const WiTotalT = hns.Wi + cuba.Wcuba + pesoFusteT;
       const hIabsT = (hns.Wi * hIabsAgua + cuba.Wcuba * hcg + pesoFusteT * hFusteCG) / WiTotalT;
+      const femSeed = femFusteCantilever({
+        H: Htorre, Dext: DextT, Dint: DintT, fc,
+        Pi: 1, Pc: 0, hI: hIabsT, hC: hCabs,
+        Wshaft: pesoFusteT, Wtop: cuba.pesoTotalCuba, WiTotal: WiTotalT, nElem: 8,
+      });
+      T1 = femSeed.T;
+      Csis = e030C(T1, sismo.Tp, sismo.Tl);
+      SaImp = sismo.Z * sismo.U * sismo.S * Csis;
       const PiT = (SaImp * WiTotalT) / Rfuste;
       const VfusteT = Math.sqrt(PiT * PiT + Pc * Pc);
       const MfusteT = Math.sqrt((PiT * hIabsT) ** 2 + (Pc * hCabs) ** 2);
@@ -1743,11 +1864,25 @@ export const tanqueElevadoFuste: Engine = (raw) => {
   const WiTotal = hns.Wi + cuba.Wcuba + pesoFuste;
   const hIabs = (hns.Wi * hIabsAgua + cuba.Wcuba * hcg + pesoFuste * hFusteCG) / WiTotal;
   const hcgComb = (cuba.pesoTotalCuba * hcg + pesoFuste * hFusteCG) / Wtotal;
+  T1 = femFusteCantilever({
+    H: Htorre, Dext, Dint, fc,
+    Pi: 1, Pc: 0, hI: hIabs, hC: hCabs,
+    Wshaft: pesoFuste, Wtop: cuba.pesoTotalCuba, WiTotal, nElem: 16,
+  }).T;
+  Csis = e030C(T1, sismo.Tp, sismo.Tl);
+  SaImp = sismo.Z * sismo.U * sismo.S * Csis;
   const Pi = (SaImp * WiTotal) / Rfuste;
-  const Vfuste = Math.sqrt(Pi * Pi + Pc * Pc);
-  const Mfuste = Math.sqrt((Pi * hIabs) ** 2 + (Pc * hCabs) ** 2);
-  const perfilFusteM = [{ x: 0, M: Mfuste }, { x: Htorre, M: Mfuste - Vfuste * Htorre }];
-  const perfilFusteV = [{ x: 0, M: Vfuste }, { x: Htorre, M: Vfuste }];
+  const Vclosed = Math.sqrt(Pi * Pi + Pc * Pc);
+  const Mclosed = Math.sqrt((Pi * hIabs) ** 2 + (Pc * hCabs) ** 2);
+  const femFuste = femFusteCantilever({
+    H: Htorre, Dext, Dint, fc,
+    Pi, Pc, hI: hIabs, hC: hCabs,
+    Wshaft: pesoFuste, Wtop: cuba.pesoTotalCuba, WiTotal, nElem: 16,
+  });
+  const Vfuste = femFuste.Vbase > 1e-6 ? femFuste.Vbase : Vclosed;
+  const Mfuste = femFuste.Mbase > 1e-6 ? femFuste.Mbase : Mclosed;
+  const perfilFusteM = femFuste.mPts.length >= 2 ? femFuste.mPts : [{ x: 0, M: Mfuste }, { x: Htorre, M: Math.max(0, Mfuste - Vfuste * Htorre) }];
+  const perfilFusteV = femFuste.vPts.length >= 2 ? femFuste.vPts : [{ x: 0, M: Vfuste }, { x: Htorre, M: Vfuste }];
 
   let Dcim = numOrAuto(raw, "Dcim", 0);
   const DcimAutoF = Dcim <= 0;
@@ -1764,7 +1899,11 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     }
   }
 
-  const derivaTubo = derivaFuste(Vfuste, Htorre, EcTm2, Ifuste, Rfuste, false);
+  const derivaFormula = derivaFuste(Vfuste, Htorre, EcTm2, Ifuste, Rfuste, false);
+  const deltaInelFem = femFuste.deltaTop * (0.75 * Rfuste);
+  const derivaTubo = femFuste.deltaTop > 1e-12
+    ? { deltaElastica: femFuste.deltaTop, deltaInelastica: deltaInelFem, derivaRatio: deltaInelFem / Htorre }
+    : derivaFormula;
 
   const cBase = Dext / 2;
   const AfusteCm2 = Afuste * 1e4;
@@ -1812,15 +1951,16 @@ export const tanqueElevadoFuste: Engine = (raw) => {
         "En cada iteración se recalculan el área anular A=(π/4)(Dext²−Dint²), la inercia I=(π/64)(Dext⁴−Dint⁴), el peso, la fuerza sísmica V, el momento M, el esfuerzo σ=P/A±M·c/I, la deriva y el corte — y se detiene apenas σ≤0,45f'c, deriva≤0,007 y Vu≤φVc se cumplen a la vez.",
         `Resultado: Ø ext=${fmt(Dext, 2)} m, Ø int=${fmt(Dint, 2)} m, e=${fmt(eFuste * 100, 0)} cm. Peso del fuste=γc·A·Htorre=${fmt(gammaC, 2)}·${fmt(Afuste, 3)}·${fmt(Htorre, 2)}=${fmt(pesoFuste, 2)} t. Peso total (cuba+agua+fuste)=${fmt(Wtotal, 2)} t.`,
       ] },
-    { n: nn(1), title: "Periodo impulsivo del fuste Ti = H/Ct (E.030 art. 28)",
-      formula: "Ti = Htorre / Ct   ·   Ct=60 (muros estructurales de concreto)",
-      formulaTex: String.raw`T_i=\dfrac{H_{\mathrm{torre}}}{C_t}\qquad C_t=60`,
-      substitution: `Htorre=${fmt(Htorre, 2)} m · Ct=60`,
-      result: `Ti=${fmt(T1, 3)} s  →  C(Ti)=${fmt(Csis, 3)}  →  Sa,imp=${fmt(SaImp, 4)} g`,
-      note: "El agua impulsiva y la cuba se mueven solidarias con el fuste, así que vibran con el periodo del fuste. A diferencia de la torre de columnas, aquí no hay matriz de rigidez: el fuste es una sección continua y Ti se estima con la fórmula normativa de muros.",
+    { n: nn(1), title: "Motor FEM del fuste — tubo anular en voladizo (12 GDL) y periodo impulsivo",
+      formula: "k=1/δ(F=1)   ·   Ti=2π√(Wi,total/(g·k))   ·   comparación normativa Ti,E030=H/Ct",
+      formulaTex: String.raw`k=\dfrac{1}{\delta(F=1)}\qquad T_i=2\pi\sqrt{\dfrac{W_{i,\mathrm{total}}}{g\,k}}\qquad T_{E.030}=\dfrac{H}{C_t}`,
+      substitution: `Htorre=${fmt(Htorre, 2)} m · ${femFuste.nElem} elem. anulares · ${femFuste.nNodos} nudos · Ct=60`,
+      result: `Ti,FEM=${fmt(T1, 3)} s  →  C(Ti)=${fmt(Csis, 3)}  →  Sa,imp=${fmt(SaImp, 4)} g   ·   Ti,E.030=H/60=${fmt(Tnorm, 3)} s`,
+      note: "Motor FEM propio de esta pestaña: el fuste se discretiza como pórtico espacial de tubos anulares (viga-columna 12 GDL), empotrado en la base. La cuba entra como nudo maestro en hi, unido a la corona por un enlace rígido (×300): k=1/δ se mide donde actúa la masa impulsiva, no recortada a H. H/Ct queda como referencia normativa de muros.",
       desarrollo: [
-        `Ti=Htorre/Ct=${fmt(Htorre, 2)}/60=${fmt(T1, 3)} s (E.030 art. 28, sistemas de muros estructurales, Ct=60).`,
-        `C(Ti)=${fmt(Csis, 3)} por E.030 art. 14 (Tp=${fmt(sismo.Tp, 2)} s, TL=${fmt(sismo.Tl, 2)} s). Sa,imp=Z·U·C·S=${fmt(sismo.Z, 2)}·${fmt(sismo.U, 2)}·${fmt(Csis, 3)}·${fmt(sismo.S, 2)}=${fmt(SaImp, 4)} g.`,
+        `Malla: ${femFuste.nElem} elementos de tubo anular (A, I, J de la sección hueca), ${femFuste.nNodos} nudos (incluye el nudo maestro de la cuba). Caso unitario Fx=1 t en hi=${fmt(hIabs, 2)} m → δ=${fmt(1 / Math.max(femFuste.kEff, 1e-9) * 1000, 2)} mm → k=${fmt(femFuste.kEff, 1)} t/m.`,
+        `Ti=2π√(Wi,total/(g·k))=${fmt(T1, 3)} s. C(Ti)=${fmt(Csis, 3)} por E.030 art. 14. Sa,imp=Z·U·C·S=${fmt(SaImp, 4)} g.`,
+        `Referencia E.030 art. 28 (muros, Ct=60): Ti=H/Ct=${fmt(Htorre, 2)}/60=${fmt(Tnorm, 3)} s. El diseño usa el periodo FEM.`,
       ] },
     { n: `${nn(1)}b`, title: "Masa impulsiva total y fuerza Pi en la base del fuste",
       formula: "Wi,total = Wi + Wcuba + Wfuste  ·  Pi = Sa,imp · Wi,total / Rfuste  ·  hi = Σ(W·h)/Wi,total",
@@ -1846,16 +1986,16 @@ export const tanqueElevadoFuste: Engine = (raw) => {
         `Pc=Sa,conv·Wc/Rwc=${fmt(SaConv, 4)}·${fmt(hns.Wc, 2)}/${fmt(sismo.Rwc, 2)}=${fmt(Pc, 2)} t.`,
         `Brazo desde la base: hc=Htorre+hc,IBP=${fmt(Htorre, 2)}+${fmt(hns.hcIBP, 3)}=${fmt(hCabs, 2)} m. Este brazo es el mayor de todas las cargas laterales: aunque Pc sea menor que Pi, su contribución al volteo M=Pc·hc puede ser relevante.`,
       ] },
-    { n: `${nn(1)}d`, title: "Cortante basal y momento de volteo — combinación SRSS",
-      formula: "V=√(Pi²+Pc²)  ·  M=√[(Pi·hi)²+(Pc·hc)²]",
+    { n: `${nn(1)}d`, title: "Cortante basal y momento de volteo — FEM + combinación SRSS",
+      formula: "V=√(Pi²+Pc²)  ·  M=√[(Pi·hi)²+(Pc·hc)²]  ·  perfiles M(z), V(z) del tubo FEM",
       formulaTex: String.raw`V=\sqrt{P_i^2+P_c^2}\qquad M=\sqrt{(P_i h_i)^2+(P_c h_c)^2}`,
-      substitution: `Pi=${fmt(Pi, 2)} t · hi=${fmt(hIabs, 2)} m · Pc=${fmt(Pc, 2)} t · hc=${fmt(hCabs, 2)} m`,
-      result: `V=${fmt(Vfuste, 2)} t · M=${fmt(Mfuste, 2)} t·m  (base del fuste)`,
-      note: "Pi y Pc están fuera de fase (Ti≪Tc). Sumarlas en valor absoluto sobreestimaría el sismo. SRSS (raíz de la suma de cuadrados) es la combinación de ACI 350.3 y de la práctica de tanques elevados.",
+      substitution: `Pi=${fmt(Pi, 2)} t · hi=${fmt(hIabs, 2)} m · Pc=${fmt(Pc, 2)} t · hc=${fmt(hCabs, 2)} m · ${femFuste.nElem} elem.`,
+      result: `V_FEM=${fmt(Vfuste, 2)} t · M_FEM=${fmt(Mfuste, 2)} t·m  (base)   ·   cerrado: V=${fmt(Vclosed, 2)} t, M=${fmt(Mclosed, 2)} t·m`,
+      note: "Pi se aplica en el nudo maestro a hi (CG ponderado de agua+cuba+fuste) y Pc en hc. Enlaces rígidos coronan el fuste con la cuba, de modo que M_base recupera el brazo real. Cada caso se resuelve en el pórtico 3D y se combina por SRSS punto a punto. El valor cerrado (voladizo) queda como cotejo.",
       desarrollo: [
-        `V=√(Pi²+Pc²)=√(${fmt(Pi, 2)}²+${fmt(Pc, 2)}²)=${fmt(Vfuste, 2)} t.`,
-        `M=√[(Pi·hi)²+(Pc·hc)²]=√[(${fmt(Pi, 2)}·${fmt(hIabs, 2)})²+(${fmt(Pc, 2)}·${fmt(hCabs, 2)})²]=${fmt(Mfuste, 2)} t·m.`,
-        `Si se hubiera sumado en valor absoluto, V_abs=Pi+Pc=${fmt(Pi + Pc, 2)} t (mayor) y M_abs=Pi·hi+Pc·hc=${fmt(Pi * hIabs + Pc * hCabs, 1)} t·m: ese valor no es el de diseño; el diseño usa SRSS.`,
+        `Caso impulsivo: Fx=Pi en z=hi=${fmt(hIabs, 2)} m (nudo maestro), más peso propio del fuste y de la cuba en la corona. Caso convectivo: Fx=Pc en z=hc=${fmt(hCabs, 2)} m.`,
+        `V_FEM (base)=${fmt(Vfuste, 2)} t frente a √(Pi²+Pc²)=${fmt(Vclosed, 2)} t. M_FEM (base)=${fmt(Mfuste, 2)} t·m frente a √[(Pi·hi)²+(Pc·hc)²]=${fmt(Mclosed, 2)} t·m.`,
+        "Si se hubiera sumado en valor absoluto, Pi+Pc sobreestimaría el sismo: impulsivo y convectivo están fuera de fase (Ti≪Tc).",
       ] },
     { n: nn(2), title: "Esfuerzos en la sección anular del fuste", formula: "σ = P/A ± M·c/I",
       formulaTex: String.raw`\sigma=\dfrac{P}{A}\pm\dfrac{M\,c}{I}`,
@@ -1920,7 +2060,7 @@ export const tanqueElevadoFuste: Engine = (raw) => {
       note: "El fuste continuo, al comportarse como tubo en voladizo, es muy rígido: la deriva suele ser gobernada por el límite normativo con amplio margen respecto a la torre de columnas.",
       ok: derivaTubo.derivaRatio <= LIMITE_DERIVA_CONCRETO,
       desarrollo: [
-        `Desplazamiento elástico de un voladizo bajo carga puntual en la punta (fórmula clásica de resistencia de materiales): Δe=V·H³/(3·E·I)=${fmt(Vfuste, 2)}·${fmt(Htorre, 2)}³/(3·${fmt(EcTm2, 0)}·${fmt(Ifuste, 3)})=${fmt(derivaTubo.deltaElastica * 1000, 2)} mm.`,
+        `Desplazamiento elástico en la corona, del pórtico FEM (SRSS de los casos impulsivo y convectivo): Δe=${fmt(derivaTubo.deltaElastica * 1000, 2)} mm. Fórmula clásica de voladizo V·H³/(3EI)=${fmt(derivaFormula.deltaElastica * 1000, 2)} mm (cotejo).`,
         `Desplazamiento inelástico: Δinel=0,75·R·Δe=0,75·${fmt(Rfuste, 1)}·${fmt(derivaTubo.deltaElastica * 1000, 2)}=${fmt(derivaTubo.deltaInelastica * 1000, 2)} mm.`,
         `Deriva=Δinel/Htorre=${fmt(derivaTubo.deltaInelastica * 1000, 2)}/${fmt(Htorre * 1000, 0)}=${fmt(derivaTubo.derivaRatio, 4)} ${derivaTubo.derivaRatio <= LIMITE_DERIVA_CONCRETO ? "≤" : ">"} 0,007 (límite E.030 para concreto armado).`,
       ] },
@@ -1952,11 +2092,13 @@ export const tanqueElevadoFuste: Engine = (raw) => {
     ...cuba.dims,
     Dfuste: Dfuste.toFixed(2), eFuste: eFuste.toFixed(3), Htorre: Htorre.toFixed(2), Dcim: Dcim.toFixed(2),
     AsFuste: fmt(AsFusteFinal, 1), derivaRatio: derivaTubo.derivaRatio.toFixed(4),
-    mPtsFuste: packPts(perfilFusteM), vPtsFuste: packPts(perfilFusteV),
+    asFusteV: barFusteV.texto, asFusteH: barFusteH.texto,
+    mPtsFuste: packPts(perfilFusteM), vPtsFuste: packPts(perfilFusteV), nPtsFuste: packPts(femFuste.nPts),
     Wtotal: Wtotal.toFixed(2), Vbasal: Vfuste.toFixed(2), Mvolteo: Mfuste.toFixed(2),
     hcgCuba: (cuba.Htotal / 2).toFixed(2), hcgAbs: hcg.toFixed(2), hFusteCG: hFusteCG.toFixed(2), hcgComb: hcgComb.toFixed(2),
     Wfuste: pesoFuste.toFixed(2), WcubaTotal: cuba.pesoTotalCuba.toFixed(2),
     Pi: Pi.toFixed(2), Pc: Pc.toFixed(2), hiIBP: hIabs.toFixed(3), hcIBP: hCabs.toFixed(3),
+    femNodos: String(femFuste.nNodos), femElem: String(femFuste.nElem), kEff: femFuste.kEff.toFixed(1),
   };
 
   const recomendacion = cuba.Wagua < 500
@@ -2067,36 +2209,84 @@ export const reservorioCuadrado: Engine = (raw) => {
   const demX = demandaDireccion(hnsX, perX);
   const demY = demandaDireccion(hnsY, perY);
 
-  /** Analiza un par de muros (longitud Lwall) sometidos a la demanda de la dirección perpendicular. */
-  function analizarMuro(Lwall: number, hns: Housner, dem: ReturnType<typeof demandaDireccion>) {
+  /** Analiza un par de muros (longitud Lwall) con FEM de placa MITC4; si falla, viga empotrada-empotrada. */
+  function analizarMuro(Lwall: number, tWall: number, hns: Housner, dem: ReturnType<typeof demandaDireccion>) {
     const presImp = (y: number) => presionDinamica(dem.Pi, HL, hns.hiEBP, y);
     const presConv = (y: number) => presionDinamica(dem.Pc, HL, hns.hcEBP, y);
+    const presHs = (y: number) => Math.max(0, gammaW * (HL - y));
+    const pBase = gammaW * HL + Math.sqrt(presImp(0) ** 2 + presConv(0) ** 2);
+
+    const opts = { L: Lwall, H: Htotal, t: tWall, fc, techo: true as const, nx: 8, nz: 10 };
+    const hs = femMuroRect({ ...opts, presion: presHs });
+    const imp = femMuroRect({ ...opts, presion: presImp });
+    const conv = femMuroRect({ ...opts, presion: presConv });
+    const same =
+      hs.ok && imp.ok && conv.ok &&
+      hs.mVert.length === imp.mVert.length && hs.mVert.length === conv.mVert.length &&
+      hs.mHor.length === imp.mHor.length && hs.mHor.length === conv.mHor.length &&
+      Number.isFinite(hs.MvertMax) && Math.abs(hs.MvertMax) + Math.abs(imp.MvertMax) > 1e-8;
+    if (same) {
+      const vert = envolverDiagramas(
+        { pts: hs.mVert, vpts: hs.vVert },
+        { pts: imp.mVert, vpts: imp.vVert },
+        { pts: conv.mVert, vpts: conv.vVert },
+      );
+      const horizEnv = envolverDiagramas(
+        { pts: hs.mHor, vpts: hs.vHor },
+        { pts: imp.mHor, vpts: imp.vHor },
+        { pts: conv.mHor, vpts: conv.vHor },
+      );
+      const last = horizEnv.mPts.length - 1;
+      const mid = horizEnv.mPts[Math.floor(horizEnv.mPts.length / 2)]?.M ?? 0;
+      const MhorEsqEnv = Math.abs(hs.MhorEsq) + Math.hypot(imp.MhorEsq, conv.MhorEsq);
+      const MhorVanoEnv = Math.abs(hs.MhorVano) + Math.hypot(imp.MhorVano, conv.MhorVano);
+      return {
+        vert,
+        horiz: {
+          MA: Math.max(Math.abs(horizEnv.mPts[0]?.M ?? 0), MhorEsqEnv),
+          MB: Math.max(Math.abs(horizEnv.mPts[last]?.M ?? 0), MhorEsqEnv),
+          Mmid: Math.max(Math.abs(mid), MhorVanoEnv),
+          pts: horizEnv.mPts,
+          vpts: horizEnv.vPts,
+        },
+        pBase,
+        femNodos: hs.nNodos,
+        femElem: hs.nElem,
+        femOk: true as const,
+      };
+    }
+
     const vertHs = vigaFijaLineal(gammaW * HL, 0, HL);
     const vertImp = vigaFijaLineal(presImp(0), presImp(HL), HL);
     const vertConv = vigaFijaLineal(presConv(0), presConv(HL), HL);
     const vert = envolverDiagramas(vertHs, vertImp, vertConv);
-
-    const pBase = gammaW * HL + Math.sqrt(presImp(0) ** 2 + presConv(0) ** 2);
     const horiz = vigaFijaLineal(pBase, pBase, Lwall);
-
-    return { vert, horiz, pBase };
+    return { vert, horiz, pBase, femNodos: 0, femElem: 0, femOk: false as const };
   }
 
-  const muroLy = analizarMuro(Ly, hnsX, demX);
-  const muroLx = analizarMuro(Lx, hnsY, demY);
+  let muroLy = analizarMuro(Ly, tMuroFlex, hnsX, demX);
+  let muroLx = analizarMuro(Lx, tMuroFlex, hnsY, demY);
 
-  const MvertMax = Math.max(muroLy.vert.Mmax, muroLx.vert.Mmax);
-  const VvertMax = Math.max(muroLy.vert.Vmax, muroLx.vert.Vmax);
-  const MhorEsq = Math.max(muroLy.horiz.MA, muroLy.horiz.MB, muroLx.horiz.MA, muroLx.horiz.MB);
-  const MhorVano = Math.max(muroLy.horiz.Mmid, muroLx.horiz.Mmid);
-  const VhorMax = Math.max(...muroLy.horiz.vpts.map((p) => Math.abs(p.M)), ...muroLx.horiz.vpts.map((p) => Math.abs(p.M)));
-  const VmuroMax = Math.max(VvertMax, VhorMax);
+  let MvertMax = Math.max(muroLy.vert.Mmax, muroLx.vert.Mmax);
+  let VvertMax = Math.max(muroLy.vert.Vmax, muroLx.vert.Vmax);
+  let MhorEsq = Math.max(muroLy.horiz.MA, muroLy.horiz.MB, muroLx.horiz.MA, muroLx.horiz.MB);
+  let MhorVano = Math.max(muroLy.horiz.Mmid, muroLx.horiz.Mmid);
+  let VhorMax = Math.max(...muroLy.horiz.vpts.map((p) => Math.abs(p.M)), ...muroLx.horiz.vpts.map((p) => Math.abs(p.M)));
+  let VmuroMax = Math.max(VvertMax, VhorMax);
 
   // El espesor final del muro debe satisfacer flexión (predimensionado) Y cortante Vu≤φVc=0,85·0,53√f'c·b·d;
   // se resuelve en forma cerrada (sin iterar) despejando "d" directamente de la demanda de cortante.
   const dReqCorteCm = (VmuroMax * 1000) / (0.85 * 0.53 * Math.sqrt(fc) * 100);
   const tMuroCorte = Math.ceil((dReqCorteCm + 5) / 2.5) * 0.025;
   const tMuro = Math.max(tMuroFlex, tMuroCorte);
+  muroLy = analizarMuro(Ly, tMuro, hnsX, demX);
+  muroLx = analizarMuro(Lx, tMuro, hnsY, demY);
+  MvertMax = Math.max(muroLy.vert.Mmax, muroLx.vert.Mmax);
+  VvertMax = Math.max(muroLy.vert.Vmax, muroLx.vert.Vmax);
+  MhorEsq = Math.max(muroLy.horiz.MA, muroLy.horiz.MB, muroLx.horiz.MA, muroLx.horiz.MB);
+  MhorVano = Math.max(muroLy.horiz.Mmid, muroLx.horiz.Mmid);
+  VhorMax = Math.max(...muroLy.horiz.vpts.map((p) => Math.abs(p.M)), ...muroLx.horiz.vpts.map((p) => Math.abs(p.M)));
+  VmuroMax = Math.max(VvertMax, VhorMax);
   const tLosa = Math.max(0.2, tMuro - 0.025);
   const pesoMuro = gammaC * perimetro * tMuro * Htotal;
   const pesoTecho = gammaC * Lx * Ly * tTecho;
@@ -2197,16 +2387,19 @@ export const reservorioCuadrado: Engine = (raw) => {
       substitution: `Rwi=${fmt(sismo.Rwi, 2)} · Rwc=${fmt(sismo.Rwc, 2)}`,
       result: `X: Pi=${fmt(demX.Pi, 2)} t, Pc=${fmt(demX.Pc, 2)} t → V=${fmt(demX.Vbasal, 2)} t · Y: Pi=${fmt(demY.Pi, 2)} t, Pc=${fmt(demY.Pc, 2)} t → V=${fmt(demY.Vbasal, 2)} t`,
       note: "Pi y Pc son las fuerzas resultantes impulsiva y convectiva de cada dirección; se combinan por SRSS para el corte basal, y se distribuyen en altura (paso siguiente) para obtener la presión sobre los muros perpendiculares a cada dirección." },
-    { n: "10", title: "Envolvente de flexión vertical del muro (hidrostática + sismo SRSS, franja empotrada-empotrada)",
-      formula: "Viga empotrada-empotrada de luz HL bajo carga lineal — envolvente M_env=|M_hs|+√(Mi²+Mc²)",
+    { n: "10", title: "Motor FEM de los muros — placa MITC4 (envolvente vertical hidrostática + sismo SRSS)",
+      formula: "Lámina MITC4 en el plano del muro · base empotrada · esquinas ux=uy=θz=0 (nudo monolítico) · corona apoyada · M_env=|M_hs|+√(Mi²+Mc²)",
       formulaTex: String.raw`M_{env}=|M_{hs}|+\sqrt{M_i^2+M_c^2}`,
+      substitution: `${muroLy.femOk || muroLx.femOk ? `${Math.max(muroLy.femElem, muroLx.femElem)} elem. MITC4 · ${Math.max(muroLy.femNodos, muroLx.femNodos)} nudos` : "reserva analítica: viga empotrada-empotrada"}`,
       result: `M_env,máx=${fmt(MvertMax, 2)} t·m/m · V_env,máx=${fmt(VvertMax, 2)} t/m`,
-      note: "Franja vertical de 1,00 m empotrada en la base (losa de fondo) y en la corona (losa de techo)." },
-    { n: "11", title: "Envolvente de flexión horizontal del muro (entre esquinas, franja empotrada-empotrada)",
-      formula: "Viga empotrada-empotrada de luz = longitud del muro, bajo la presión de la base (gobernante)",
-      formulaTex: String.raw`M_{esquina}=\dfrac{w\,L^2}{12}\qquad M_{vano}=\dfrac{w\,L^2}{24}`,
+      note: muroLy.femOk || muroLx.femOk
+        ? "Motor FEM propio de este reservorio rectangular: cada muro es una placa MITC4 (Bathe–Dvorkin, sin bloqueo por cortante). Las esquinas se empotran en giro (θz=0) para representar el nudo monolítico con el muro perpendicular. Los momentos en el apoyo se recuperan extrapolando el promedio de Gauss de los dos elementos más próximos, no muestreando en el borde natural del elemento."
+        : "Reserva analítica (viga empotrada-empotrada) porque el sistema de placa no convergió. Franja vertical de 1,00 m empotrada en la base y en la corona." },
+    { n: "11", title: "Motor FEM — franja horizontal entre esquinas (mxx de la placa MITC4)",
+      formula: "Misma malla MITC4 · franja a ~0,25 H · esquina empotrada (θz=0) · M_esquina y M_vano de mxx",
+      formulaTex: String.raw`M_{xx}^{\mathrm{FEM}}(y)\ \text{en la franja horizontal}`,
       result: `M_esquina=${fmt(MhorEsq, 2)} t·m/m · M_vano=${fmt(MhorVano, 2)} t·m/m · V_máx=${fmt(VhorMax, 2)} t/m`,
-      note: "Método simplificado y conservador: cada muro se analiza como viga empotrada-empotrada en las esquinas (restricción total del muro perpendicular), sin modelar el giro real del pórtico cerrado." },
+      note: "El nudo de caja anula ux, uy y el giro en planta θz: la esquina trabaja como empotramiento (M de esquina > M de vano, análogo a wL²/12 frente a wL²/24), no como apoyo simple.", },
     { n: "12", title: "Acero vertical del muro — flexión amplificada por durabilidad sanitaria",
       formula: "Mu=Sn·M_env   ·   Mu=φf'c·b·d²ω(1−0,59ω)   ·   φ=0,9   ·   Sn=1,3 (ACI 350-06 Tabla 4.1, exposición normal)",
       formulaTex: String.raw`M_u=S_n\,M_{env}=\phi f'_c\,b\,d^2\,\omega(1-0{,}59\,\omega)\qquad \phi=0{,}9\qquad S_n=1{,}3`,
@@ -2256,12 +2449,16 @@ export const reservorioCuadrado: Engine = (raw) => {
     MvertMax: MvertMax.toFixed(3), VvertMax: VvertMax.toFixed(3), MhorEsq: MhorEsq.toFixed(3), MhorVano: MhorVano.toFixed(3),
     asVert: barVert.texto, asHorEsq: barHorEsq.texto, asHorVano: barHorVano.texto, asLosa: barLosa.texto,
     asTechoEsq: barTechoEsq.texto, asTechoVano: barTechoVano.texto,
+    rec: "4",
     Wtotal: Wtotal.toFixed(2), FSvolteo: FSvolteo.toFixed(2), FSdeslizamiento: FSdeslizamiento.toFixed(2),
     Vbasal: VbasalGob.toFixed(2), Mvolteo: Math.max(MvolteoDirX, MvolteoDirY).toFixed(2),
     Pi: (MvolteoDirX >= MvolteoDirY ? demX.Pi : demY.Pi).toFixed(2),
     Pc: (MvolteoDirX >= MvolteoDirY ? demX.Pc : demY.Pc).toFixed(2),
     hiIBP: (MvolteoDirX >= MvolteoDirY ? hnsX.hiIBP : hnsY.hiIBP).toFixed(3),
     hcIBP: (MvolteoDirX >= MvolteoDirY ? hnsX.hcIBP : hnsY.hcIBP).toFixed(3),
+    femNodos: String(Math.max(muroLy.femNodos, muroLx.femNodos)),
+    femElem: String(Math.max(muroLy.femElem, muroLx.femElem)),
+    femOk: muroLy.femOk || muroLx.femOk ? "1" : "0",
   };
 
   return out(

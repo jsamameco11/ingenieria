@@ -34,11 +34,12 @@ import {
   type OfferKind,
   type Thread,
 } from "../lib/mercado";
+import { NoticiasModule } from "./NoticiasModule";
 import { useAuth } from "../ui/AuthProvider";
 import { fetchMyTastes, recordSiteBehavior } from "../lib/siteTaste/store";
 import { rankByCategory, similarLabel, type TasteScore } from "../lib/siteTaste/rank";
 
-export type MercadoVista = "vitrina" | "publicar" | "mios" | "mensajes" | "publicitar";
+export type MercadoVista = "vitrina" | "publicar" | "mios" | "mensajes" | "publicitar" | "noticias";
 
 const AD_FAMILIES = [
   "Ingeniería civil",
@@ -89,34 +90,8 @@ function Cover({ src, name }: { src: string; name: string }) {
   return <span className="mcd-cover-ph" aria-hidden>{name.slice(0, 1).toUpperCase()}</span>;
 }
 
-const PLAZA_TABS: { id: string; vista: MercadoVista; label: string }[] = [
-  { id: "compras", vista: "vitrina", label: "Vitrina" },
-  { id: "compras-publicar", vista: "publicar", label: "Publicar" },
-  { id: "compras-mios", vista: "mios", label: "Mis artículos" },
-  { id: "mensajes", vista: "mensajes", label: "Mensajes" },
-  { id: "publicitar", vista: "publicitar", label: "Publicitar" },
-];
-
 function goPlaza(page: string, thread?: string) {
   window.dispatchEvent(new CustomEvent("mcd-go", { detail: { page, thread } }));
-}
-
-function PlazaNav({ current }: { current: MercadoVista }) {
-  return (
-    <nav className="plaza-tabs" aria-label="Plaza profesional">
-      {PLAZA_TABS.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className={t.vista === current ? "on" : ""}
-          aria-current={t.vista === current ? "page" : undefined}
-          onClick={() => goPlaza(t.id)}
-        >
-          {t.label}
-        </button>
-      ))}
-    </nav>
-  );
 }
 
 function PlazaEmpty({
@@ -156,7 +131,6 @@ class InboxErrorBoundary extends Component<{ children: ReactNode }, { err: strin
     if (!this.state.err) return this.props.children;
     return (
       <div className="plaza-desk is-inbox plaza-inbox-fallback" data-guest-ok>
-        <PlazaNav current="mensajes" />
         <div className="wa-empty plaza-inbox-crash">
           <span className="plaza-empty-mark" aria-hidden>MC</span>
           <h3>No se pudo abrir Mensajes</h3>
@@ -172,6 +146,7 @@ class InboxErrorBoundary extends Component<{ children: ReactNode }, { err: strin
 
 export function MercadoModule({ vista }: { vista: MercadoVista }) {
   if (vista === "mensajes") return <InboxErrorBoundary><InboxView /></InboxErrorBoundary>;
+  if (vista === "noticias") return <NoticiasModule />;
   if (vista === "publicitar") return <PublishView kind="ad" />;
   if (vista === "publicar") return <PublishView kind="product" />;
   if (vista === "mios") return <MineView />;
@@ -262,7 +237,6 @@ function VitrinaView() {
 
   return (
     <div className="plaza-shell" data-guest-ok>
-      <PlazaNav current="vitrina" />
       <header className="plaza-hero">
         <div>
           <p className="plaza-kicker">Plaza compartida · Folio PDF e Ingeniería</p>
@@ -561,7 +535,6 @@ function PublishView({ kind }: { kind: ListingKind }) {
 
   return (
     <div className="plaza-shell" data-guest-ok>
-      <PlazaNav current={kind === "ad" ? "publicitar" : "publicar"} />
       <header className="plaza-hero">
         <div>
           <p className="plaza-kicker">{kind === "ad" ? "Alcance profesional" : "Nuevo aviso"}</p>
@@ -800,7 +773,6 @@ function MineView() {
 
   return (
     <div className="plaza-shell" data-guest-ok>
-      <PlazaNav current="mios" />
       <header className="plaza-hero">
         <div>
           <p className="plaza-kicker">Su vitrina</p>
@@ -1075,7 +1047,6 @@ function InboxView() {
 
   return (
     <div className="plaza-desk is-inbox" data-guest-ok>
-      <PlazaNav current="mensajes" />
       {user && boot && link.status !== "live" && link.status !== "off" ? (
         <div className="wa-boot" role="status" aria-live="polite">
           <p className="plaza-kicker">Enlace seguro · plaza Folio</p>

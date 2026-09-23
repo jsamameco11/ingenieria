@@ -206,3 +206,21 @@ export function invertBeam(L: number, wIn: number, loads: { x: number; P: number
 export function packPts(pts: { x: number; M: number }[]) {
   return pts.map((p) => `${p.x.toFixed(3)},${p.M.toFixed(3)}`).join(";");
 }
+
+export function packV(pts: StripPt[]) {
+  return packPts(pts.map((p) => ({ x: p.x, M: p.V })));
+}
+
+/** Luz libre máxima entre estaciones (resta 2·cara si se pasa el semi-ancho de apoyo). */
+export function clearSpanLn(stations: number[], L: number, face = 0): number {
+  const s = [...stations].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  if (s.length < 2) return Math.max(L - 2 * face, 1.2);
+  let ln = 0;
+  for (let i = 1; i < s.length; i++) ln = Math.max(ln, s[i] - s[i - 1] - 2 * face);
+  return Math.max(ln, 1.2);
+}
+
+/** Predimensión de viga de cimentación: h = ℓn / 7, redondeado a 5 cm, mínimo 40 cm. */
+export function predimHBeam(ln: number): number {
+  return Math.max(0.4, Math.ceil((ln / 7) * 20 - 1e-9) / 20);
+}

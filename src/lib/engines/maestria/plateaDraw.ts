@@ -94,5 +94,15 @@ export function punchToView(spec: PunchSpec, W = 560, H = 400) {
     right: Math.abs(px1 - L) <= 1e-6,
     top: Math.abs(py1 - B) <= 1e-6,
   };
-  return { outline, full, col: colBox, colPoly: colOn, colOn, peri, segs, sc, pad, W, H, x0, x1, y0, y1, L, B, edges, xy };
+  const slabsSrc = spec.slab?.length ? spec.slab : [{ x0: 0, y0: 0, x1: L, y1: B }];
+  const slabs = slabsSrc
+    .map((r) => ({
+      x0: Math.max(r.x0, x0),
+      y0: Math.max(r.y0, y0),
+      x1: Math.min(r.x1, x1),
+      y1: Math.min(r.y1, y1),
+    }))
+    .filter((r) => r.x1 - r.x0 > 0.02 && r.y1 - r.y0 > 0.02)
+    .map((r) => [xy(r.x0, r.y0), xy(r.x1, r.y0), xy(r.x1, r.y1), xy(r.x0, r.y1)]);
+  return { outline, full, col: colBox, colPoly: colOn, colOn, peri, segs, slabs, sc, pad, W, H, x0, x1, y0, y1, L, B, edges, xy };
 }

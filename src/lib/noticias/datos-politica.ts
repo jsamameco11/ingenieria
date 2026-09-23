@@ -1,0 +1,103 @@
+import { art, type Noticia } from "./tipos";
+
+/** Política · 2 categorías × 3 noticias. */
+export const NOTICIAS_POLITICA: Noticia[] = [
+  // ── 26 · Política Nacional ──
+  art("politica-nacional", 1,
+    "Congreso aprueba reforma electoral con voto preferencial eliminado",
+    "La norma regirá desde las elecciones regionales y municipales de 2027.",
+    [
+      "El Pleno aprobó la reforma electoral que elimina el voto preferencial para el Congreso. Desde 2027 se votará por listas cerradas y bloqueadas definidas en primarias.",
+      "La norma crea las elecciones primarias obligatorias y simultáneas para todos los partidos. El ausentismo en primarias se sancionará con multa electoral.",
+      "El JNE y la ONPE respaldan la reforma por simplificar el escrutinio y reducir actas observadas. Estiman un ahorro de 120 millones de soles por proceso.",
+      "Partidos pequeños advierten que las listas cerradas favorecen a las cúpulas. Anuncian demandas ante el Tribunal Constitucional.",
+      "Las primarias serán abiertas y simultáneas con voto voluntario y padrón del Reniec. Los partidos que no superen el 5% de votos perderán la inscripción.",
+      "La ONPE estima ahorrar 120 millones por proceso al eliminar el conteo preferencial. El escrutinio se acortaría de 5 días a 48 horas.",
+    ],
+    [
+      { medio: "Congreso de la República", nota: "Votación del Pleno y texto sustitutorio." },
+      { medio: "JNE – ONPE", nota: "Opinión técnica conjunta." },
+    ],
+    "19 sep 2026"),
+  art("politica-nacional", 2,
+    "Ejecutivo presenta presupuesto 2027 con énfasis en seguridad y agua",
+    "El proyecto destina 12% más a orden interno y saneamiento rural.",
+    [
+      "El Ejecutivo presentó al Congreso el proyecto de presupuesto 2027 por 264 000 millones de soles. Seguridad ciudadana y agua potable concentran los mayores incrementos.",
+      "El pliego de Interior crece 12% para 5 000 nuevos policías y equipamiento. Vivienda suma 3 000 millones para agua rural y el bono de vivienda social.",
+      "El MEF proyecta un déficit de 2% del PBI cumpliendo la regla fiscal. La oposición pide reasignar gastos de publicidad estatal hacia salud.",
+      "El Congreso tiene hasta el 30 de noviembre para aprobar la ley. Se prevén tres semanas de debate descentralizado en regiones.",
+      "El presupuesto total equivale al 21% del PBI con 60% destinado a gasto corriente. La inversión pública concentrará 45 000 millones en transportes y saneamiento.",
+      "Las reservas internacionales cubren 5 veces la deuda externa de corto plazo. El riesgo país bajó a 150 puntos básicos, el menor de la región.",
+    ],
+    [
+      { medio: "MEF", nota: "Proyecto de Ley de Presupuesto 2027." },
+      { medio: "Congreso – Comisión de Presupuesto", nota: "Cronograma de debate." },
+    ],
+    "17 sep 2026"),
+  art("politica-nacional", 3,
+    "Encuesta: aprobación presidencial sube a 28% por seguridad",
+    "El norte registra el mayor repunte tras los operativos.",
+    [
+      "La aprobación presidencial subió a 28%, seis puntos más que el mes pasado, impulsada por los operativos de seguridad. Es su mejor registro en un año.",
+      "El norte del país registra el mayor repunte con 36% de aprobación. En Lima el avance es moderado y en el sur se mantiene el rechazo mayoritario.",
+      "La inseguridad sigue como principal preocupación con 62%, seguida por la economía. El 55% cree que el país va por mal camino pese a la mejora puntual.",
+      "Analistas advierten que el repunte es frágil y atado a resultados contra la extorsión. Recomiendan sostener las políticas más allá de la emergencia.",
+      "La desaprobación se mantiene en 65% con la economía como segunda preocupación. Solo el 18% cree que la seguridad mejorará en los próximos meses.",
+      "El sondeo abarcó 1 200 casos urbanos y rurales con muestreo probabilístico. El margen de error es de ±2,8% con 95% de confianza.",
+    ],
+    [
+      { medio: "Encuestadora nacional", nota: "Ficha técnica: 1 200 casos, margen ±2,8%." },
+      { medio: "RPP", nota: "Análisis de la tendencia." },
+    ],
+    "15 sep 2026"),
+  // ── 27 · Política Internacional ──
+  art("politica-internacional", 1,
+    "EE.UU.: el Congreso define la agenda interna rumbo a las midterms",
+    "La Cámara y el Senado negocian la ley de infraestructura y el techo de gasto.",
+    [
+      "El Congreso de Estados Unidos entró a la recta decisiva del calendario legislativo previo a las elecciones de medio término. La Cámara de Representantes y el Senado negocian la ley de infraestructura y los topes de gasto federal.",
+      "El presidente de la Cámara afirmó que su bancada buscará aprobar el paquete antes del receso, mientras el líder de la mayoría en el Senado condicionó su apoyo a recortes en programas piloto. Ambas declaraciones constan en los registros oficiales del Capitolio.",
+      "Las encuestas agregadas muestran una contienda cerrada por el control de ambas cámaras. Los analistas citados por medios estadounidenses coinciden en que el resultado definirá la segunda mitad del mandato presidencial.",
+      "La Casa Blanca señaló mediante su portavoz que el Ejecutivo promulgará lo aprobado sin vetos anticipados. Las primarias partidarias se realizarán entre marzo y junio del próximo año.",
+      "Están en juego los 435 escaños de la Cámara y 34 del Senado cada dos años. El partido del presidente suele perder 25 escaños en promedio histórico.",
+      "El gasto de campaña superará los 10 000 millones de dólares, récord mundial. Los super PACs concentran el 60% del financiamiento televisivo.",
+    ],
+    [
+      { medio: "Congreso de EE.UU. – Registro del Capitolio", nota: "Declaraciones oficiales de líderes de bancada." },
+      { medio: "Agencia AP", nota: "Cobertura del calendario legislativo." },
+    ],
+    "18 sep 2026"),
+  art("politica-internacional", 2,
+    "La UE elige nuevo liderazgo con agenda verde y digital",
+    "El Parlamento europeo definió presidentes para el periodo 2026-2031.",
+    [
+      "El Parlamento Europeo eligió a sus nuevas autoridades para el periodo 2026-2031. La agenda prioriza el pacto verde, la inteligencia artificial y la defensa común.",
+      "La nueva Comisión propone un fondo de 800 000 millones de euros para competitividad. América Latina figura como socio en minerales críticos y energía.",
+      "El acuerdo UE-Mercosur entraría en vigor el próximo año tras dos décadas de negociación. Exportadores peruanos siguen con atención sus cláusulas espejo.",
+      "Diplomáticos peruanos gestionan una cumbre UE–Alianza del Pacífico en Lima. Sería la primera en suelo sudamericano.",
+      "El Parlamento europeo tiene 720 eurodiputados elegidos cada cinco años. Los dos grupos mayoritarios suman el 45% de los escaños.",
+      "El fondo de competitividad financiará chips, defensa y redes eléctricas. España y Alemania lideran las partidas con 120 000 millones cada uno.",
+    ],
+    [
+      { medio: "Parlamento Europeo", nota: "Resultados de la votación." },
+      { medio: "Cancillería del Perú", nota: "Agenda bilateral con la UE." },
+    ],
+    "16 sep 2026"),
+  art("politica-internacional", 3,
+    "China: la Asamblea Popular aprueba el nuevo plan quinquenal",
+    "El Parlamento chino define metas de consumo interno y tecnología propia.",
+    [
+      "La Asamblea Popular Nacional de China aprobó el nuevo plan quinquenal con énfasis en consumo interno y autosuficiencia tecnológica. El documento fue respaldado por más del 95% de los casi 3 000 delegados, según la agencia oficial Xinhua.",
+      "El primer ministro Li Qiang presentó el informe de gestión ante el pleno del Gran Palacio del Pueblo. Anunció una meta de crecimiento en torno al 5% y mayor gasto en pensiones rurales.",
+      "El plan crea un fondo estatal para semiconductores y eleva la edad de jubilación de forma gradual. Los legisladores aprobaron además enmiendas a la ley de empresas estatales.",
+      "Observadores citados por medios internacionales señalan que el cónclave confirma la continuidad del liderazgo actual. La próxima sesión plenaria se realizará en marzo del próximo año.",
+      "La APN sesiona diez días anuales con 2 980 delegados de provincias y el Ejército. Aprueba leyes, el presupuesto y los nombramientos del Consejo de Estado.",
+      "El plan fija 12% del PBI en investigación y 50 nuevas universidades de élite. La jubilación subirá de 60 a 63 años para hombres en forma gradual.",
+    ],
+    [
+      { medio: "Agencia Xinhua", nota: "Cobertura oficial de la sesión plenaria." },
+      { medio: "BBC Mundo", nota: "Análisis del plan quinquenal." },
+    ],
+    "15 sep 2026"),
+];

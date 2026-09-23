@@ -314,6 +314,7 @@ export function OnboardingSheet({
   err,
   busy,
   onSubmit,
+  onSkip,
 }: {
   spec: SiteQuestionnaire;
   theme: OnboardingTheme;
@@ -322,6 +323,7 @@ export function OnboardingSheet({
   err: string;
   busy: boolean;
   onSubmit: () => void;
+  onSkip?: () => void;
 }) {
   return (
     <div
@@ -411,6 +413,25 @@ export function OnboardingSheet({
           </p>
         ) : null}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+          {onSkip ? (
+            <button
+              type="button"
+              onClick={onSkip}
+              disabled={busy}
+              style={{
+                background: "transparent",
+                color: theme.muted,
+                border: `1px solid ${theme.line}`,
+                borderRadius: theme.pill,
+                padding: "12px 18px",
+                cursor: busy ? "wait" : "pointer",
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              Omitir por ahora
+            </button>
+          ) : null}
           <button
             type="submit"
             disabled={busy}
@@ -506,6 +527,20 @@ export function SiteOnboardingGate({
     }
   };
 
+  const skip = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const token = await getToken();
+      if (token) await saveOnboardingRest(token, platform, { ...answers, skipped: true }, email);
+      setOpen(false);
+    } catch {
+      setOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <OnboardingSheet
       spec={spec}
@@ -514,6 +549,7 @@ export function SiteOnboardingGate({
       err={err}
       busy={busy}
       onSubmit={() => void submit()}
+      onSkip={() => void skip()}
       onChange={(id, value) => setAnswers((s) => ({ ...s, [id]: value }))}
     />
   );

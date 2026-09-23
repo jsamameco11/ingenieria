@@ -69,7 +69,7 @@ export function PlanesModule() {
     <div className="planes-shell plaza-shell" data-guest-ok>
       <header className="plaza-hero">
         <div>
-          <p className="plaza-kicker">PLA-05 · Plan Pro · Culqi</p>
+          <p className="plaza-kicker">PLA-06 · Plan Pro · Culqi</p>
           <h2>Planes</h2>
           <p>
             {plansLive

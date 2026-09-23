@@ -1,6 +1,24 @@
-import { fmt, num, str, type Engine } from "../../types";
-import { invertBeam, packPts } from "./matrixBeam";
-import { asFlex, fmtBar, ldTension, ok, oneWayShear, out, pendingPlantOut, pickSlabBar, punchCapacity, punchGeom, round05, step } from "./steel";
+import { barByName, fmt, num, str, type Engine } from "../../types";
+import { designBeamStirrups } from "../../estribos";
+import { clearSpanLn, invertBeam, packPts, packV, predimHBeam } from "./matrixBeam";
+import {
+  asFlex,
+  colCantilevers,
+  fmtBar,
+  ldTension,
+  ok,
+  oneWayShear,
+  out,
+  pendingPlantOut,
+  pickBeamBars,
+  pickSlabBar,
+  punchCapacity,
+  punchGeom,
+  punchMomentAmp,
+  round05,
+  step,
+  transverseCantilever,
+} from "./steel";
 import {
   cellOn,
   colXY,
@@ -94,52 +112,59 @@ function iterateH(opts: {
   qnFn: (h: number) => number;
   lv: number;
   quFn: (h: number) => number;
-  PuMax: number;
-  t1: number;
-  t2: number;
+  cols: { cx: number; cy: number; t1: number; t2: number; Pu: number }[];
   B: number;
   L: number;
-  cx: number;
-  cy: number;
   painted?: { x0: number; y0: number; x1: number; y1: number }[];
+  skipPunch?: boolean;
 }) {
   let h = Math.max(0.35, opts.h0);
   const rows: string[][] = [];
-  for (let i = 0; i < 14; i++) {
-    const d = h * 100 - opts.rec;
-    const qn = opts.qnFn(h);
-    const qu = opts.quFn(h);
+  const evalH = (hh: number) => {
+    const d = hh * 100 - opts.rec;
+    const qn = opts.qnFn(hh);
+    const qu = opts.quFn(hh);
     const Mu = (qu * Math.max(opts.lv, 0) ** 2) / 2;
     const sh = oneWayShear(qu * Math.max(opts.lv - d / 100, 0), 100, d, opts.fc);
-    const pg = punchGeom(opts.cx, opts.cy, opts.t1, opts.t2, d / 100, opts.B, opts.L, opts.painted);
-    const beta = Math.max(opts.t1, opts.t2) / Math.max(Math.min(opts.t1, opts.t2), 0.1);
-    const cap = punchCapacity(opts.fc, pg.b0, d, beta, pg.alphaS);
-    const Vu = Math.max(0, opts.PuMax - qu * pg.Acrit);
-    const flexOk = d >= 12;
-    const okAll = qn > 0 && sh.ok && Vu <= cap.phiVn + 1e-6 && flexOk && h >= opts.lv / 2 - 1e-6;
+    const fb = opts.cols[0] ?? { cx: opts.L / 2, cy: opts.B / 2, t1: 0.3, t2: 0.3, Pu: 0 };
+    let worst = {
+      Vu: 0,
+      phiVn: 1,
+      ratio: 0,
+      pg: punchGeom(fb.cx, fb.cy, fb.t1, fb.t2, d / 100, opts.B, opts.L, opts.painted),
+      cap: punchCapacity(opts.fc, 100, d, 1, 40),
+    };
+    if (!opts.skipPunch) {
+      for (const c of opts.cols) {
+        const pg = punchGeom(c.cx, c.cy, c.t1, c.t2, d / 100, opts.B, opts.L, opts.painted);
+        const beta = Math.max(c.t1, c.t2) / Math.max(Math.min(c.t1, c.t2), 0.1);
+        const cap = punchCapacity(opts.fc, pg.b0, d, beta, pg.alphaS);
+        const amp = punchMomentAmp(pg.kind);
+        const Vu = Math.max(0, amp * Math.max(0, c.Pu - qu * pg.Acrit));
+        const ratio = Vu / Math.max(cap.phiVn, 0.01);
+        if (ratio >= worst.ratio) worst = { Vu, phiVn: cap.phiVn, ratio, pg, cap };
+      }
+    }
+    const punchOk = opts.skipPunch || worst.Vu <= worst.phiVn + 1e-6;
+    const okAll = qn > 0 && sh.ok && punchOk && d >= 12;
+    return { h: hh, d, qn, qu, Mu, sh, pg: worst.pg, cap: worst.cap, Vu: worst.Vu, okAll };
+  };
+  for (let i = 0; i < 16; i++) {
+    const r = evalH(h);
     rows.push([
       String(i + 1),
       h.toFixed(2),
-      d.toFixed(1),
-      qn.toFixed(2),
-      Mu.toFixed(3),
-      `${sh.Vu.toFixed(2)}/${sh.phiVc.toFixed(2)}`,
-      `${Vu.toFixed(1)}/${cap.phiVn.toFixed(1)}`,
-      okAll ? "OK" : "NO",
+      r.d.toFixed(1),
+      r.qn.toFixed(2),
+      r.Mu.toFixed(3),
+      `${r.sh.Vu.toFixed(2)}/${r.sh.phiVc.toFixed(2)}`,
+      opts.skipPunch ? "—" : `${r.Vu.toFixed(1)}/${r.cap.phiVn.toFixed(1)}`,
+      r.okAll ? "OK" : "NO",
     ]);
-    if (okAll) return { h, d, qn, qu, Mu, sh, pg, cap, Vu, rows, ok: true };
+    if (r.okAll) return { ...r, rows, ok: true };
     h = round05(h + 0.05);
   }
-  const d = h * 100 - opts.rec;
-  const qn = opts.qnFn(h);
-  const qu = opts.quFn(h);
-  const Mu = (qu * Math.max(opts.lv, 0) ** 2) / 2;
-  const sh = oneWayShear(qu * Math.max(opts.lv - d / 100, 0), 100, d, opts.fc);
-  const pg = punchGeom(opts.cx, opts.cy, opts.t1, opts.t2, d / 100, opts.B, opts.L, opts.painted);
-  const beta = Math.max(opts.t1, opts.t2) / Math.max(Math.min(opts.t1, opts.t2), 0.1);
-  const cap = punchCapacity(opts.fc, pg.b0, d, beta, pg.alphaS);
-  const Vu = Math.max(0, opts.PuMax - qu * pg.Acrit);
-  return { h, d, qn, qu, Mu, sh, pg, cap, Vu, rows, ok: false };
+  return { ...evalH(h), rows, ok: false };
 }
 
 function wallEngine(raw: Record<string, string>) {
@@ -170,13 +195,10 @@ function wallEngine(raw: Record<string, string>) {
       void h;
       return Pum / B;
     },
-    PuMax: Pum,
-    t1: tw,
-    t2: 1,
+    cols: [{ cx: 0.5, cy: B / 2 + eMuro, t1: tw, t2: 1, Pu: Pum }],
     B,
     L: 1,
-    cx: 0.5,
-    cy: B / 2 + eMuro,
+    skipPunch: true,
   });
   const qn = it.qn;
   if (BIn <= 0.4) B = round05(Math.max(B, Psm / Math.max(qn, 0.3)));
@@ -215,12 +237,12 @@ function wallEngine(raw: Record<string, string>) {
         "d=100h-\\mathrm{rec}\\qquad h\\ge\\max(0.35,\\ell_v/2)\\qquad \\phi V_c=0.85\\cdot 0.53\\sqrt{f'_c}bd",
         `ℓv izq/der = ${fmt(lvL, 2)} / ${fmt(lvR, 2)} m    ·    rec = ${fmt(rec, 1)} cm (E.060 7.7.1, concreto contra suelo)    ·    f'c = ${fmt(fc, 0)} kg/cm²    ·    h inicial = ${fmt(hfIn, 2)} m`,
         `h = ${fmt(it.h, 2)} m    ·    d = ${fmt(it.d, 1)} cm    ·    Vu = ${fmt(it.sh.Vu, 2)} t/m    ·    φVc = ${fmt(it.sh.phiVc, 2)} t/m`,
-        "El peralte se itera de 5 en 5 cm. Gobiernan: (1) h ≥ 35 cm y h ≥ ℓv/2 del vuelo, (2) corte a una distancia d de la cara del muro, (3) flexión Mu = qu ℓv²/2 con d ≥ 12 cm, (4) σn > 0. Un muro corrido no punzona (flujo en una dirección).",
+        "El peralte se itera de 5 en 5 cm. Gobiernan: (1) h ≥ 35 cm (E.060 / ACI 13.3, mínimo de zapata), (2) corte a una distancia d de la cara del muro, (3) flexión Mu = qu ℓv²/2 con d ≥ 12 cm, (4) σn > 0. Un muro corrido no punzona (flujo en una dirección).",
         {
           desarrollo: [
             `Vuelo gobernante ℓv = máx(${fmt(lvL, 2)}, ${fmt(lvR, 2)}) = ${fmt(lvGob, 2)} m.`,
             `Recubrimiento rec = ${fmt(rec, 1)} cm → peralte efectivo d = 100 h − rec.`,
-            `Mínimo geométrico: h ≥ ℓv/2 = ${fmt(lvGob / 2, 2)} m y h ≥ 0,35 m.`,
+            `Mínimo geométrico: h ≥ 0,35 m (E.060). ℓv/2 = ${fmt(lvGob / 2, 2)} m es una guía de predimension, no un límite de norma.`,
             `Última fila: h = ${fmt(it.h, 2)} m → d = ${fmt(it.d, 1)} cm.`,
             `qu = pu/B = ${fmt(Pum, 2)}/${fmt(B, 2)} = ${fmt(qu, 2)} t/m².`,
             `Vu (sección a d de la cara) = qu(ℓv−d) = ${fmt(qu, 2)}×${fmt(Math.max(lvGob - it.d / 100, 0), 3)} = ${fmt(it.sh.Vu, 2)} t/m.`,
@@ -263,7 +285,6 @@ function wallEngine(raw: Record<string, string>) {
       ok("|e| ≤ B/6", `${fmt(Math.abs(e), 3)}`, `≤ ${fmt(B / 6, 3)}`, inKern),
       ok("Corte 1 dir.", `${fmt(it.sh.Vu, 2)}`, `≤ ${fmt(it.sh.phiVc, 2)}`, it.sh.ok),
       ok("h ≥ 35 cm", `${fmt(it.h * 100, 0)} cm`, "≥ 35", it.h >= 0.35),
-      ok("h ≥ ℓv/2", `${fmt(it.h, 2)} m`, `≥ ${fmt(lvGob / 2, 2)}`, it.h + 1e-6 >= lvGob / 2),
     ],
     [{ title: "Voladizos", rows: [["Lado", "ℓv", "Mu"], ["Izq.", fmt(lvL, 2), fmt((qu * Math.max(lvL, 0) ** 2) / 2, 3)], ["Der.", fmt(lvR, 2), fmt((qu * Math.max(lvR, 0) ** 2) / 2, 3)]] }],
     {
@@ -281,6 +302,8 @@ function wallEngine(raw: Record<string, string>) {
       asSup: fmtBar(dist),
       asSupT: fmtBar(dist),
       AsPrin: flex.As.toFixed(2),
+      AsDist: AsDist.toFixed(2),
+      asPrinPanes: JSON.stringify(Object.fromEntries(["P1", "P2", "P3", "P4"].map((id) => [id, fmtBar(prin)]))),
       mPts: packPts(mTransPts),
       mPtsTrans: packPts(mTransPts),
       vPtsTrans: packPts(mTransPts.map((p) => ({ x: p.x, M: p.V }))),
@@ -315,24 +338,8 @@ export const calcZapataCorrida: Engine = (raw) => {
 
   const geom = paintedInertia(m);
   const A = Math.max(geom.A, 0.1);
-  let sumP = 0;
-  let Mx = 0;
-  let My = 0;
-  const loads: { col: MaeCol; x: number; y: number; Pserv: number; Pu: number; M2: number; M3: number }[] = [];
-  for (const c of cols) {
-    const p = puCol(c);
-    const xy = colXY(m, c);
-    const mom = momentsAt(c, hfIn);
-    sumP += p.Pserv;
-    Mx += p.Pserv * (xy.y - geom.yc) + mom.M2;
-    My += p.Pserv * (xy.x - geom.xc) + mom.M3;
-    loads.push({ col: c, x: xy.x, y: xy.y, Pserv: p.Pserv, Pu: p.Pu, M2: mom.M2, M3: mom.M3 });
-  }
-  const sumPu = loads.reduce((s, c) => s + c.Pu, 0);
-  const ex = My / Math.max(sumP, 0.1);
-  const ey = Mx / Math.max(sumP, 0.1);
-  const Bapprox = A / Math.max(m.axesX[m.axesX.length - 1] - m.axesX[0], 0.5);
   const L = m.axesX[m.axesX.length - 1] - m.axesX[0];
+  const Bapprox = A / Math.max(L, 0.5);
   const B = Math.max(Bapprox, m.axesY[m.axesY.length - 1] - m.axesY[0], 0.6);
   const xOrg = m.axesX[0];
   const yOrg = m.axesY[0];
@@ -344,40 +351,68 @@ export const calcZapataCorrida: Engine = (raw) => {
     }
   }
 
-  const typ = loads.reduce((a, b) => (b.Pu > a.Pu ? b : a), loads[0]);
-  const lv = Math.max(
-    ...loads.map((c) => {
-      const left = c.x - m.axesX[0];
-      const right = m.axesX[m.axesX.length - 1] - c.x;
-      const bot = c.y - m.axesY[0];
-      const top = m.axesY[m.axesY.length - 1] - c.y;
-      return Math.max(0.1, Math.min(left, right, bot, top) + Math.max(c.col.t1, c.col.t2) / 2);
-    }),
-    0.25,
-  );
+  const packLoads = (hArm: number) => {
+    let sumP = 0;
+    let Mx = 0;
+    let My = 0;
+    const loads: { col: MaeCol; x: number; y: number; Pserv: number; Pu: number; M2: number; M3: number }[] = [];
+    for (const c of cols) {
+      const p = puCol(c);
+      const xy = colXY(m, c);
+      const mom = momentsAt(c, hArm);
+      sumP += p.Pserv;
+      Mx += p.Pserv * (xy.y - geom.yc) + mom.M2;
+      My += p.Pserv * (xy.x - geom.xc) + mom.M3;
+      loads.push({ col: c, x: xy.x, y: xy.y, Pserv: p.Pserv, Pu: p.Pu, M2: mom.M2, M3: mom.M3 });
+    }
+    return { loads, sumP, sumPu: loads.reduce((s, c) => s + c.Pu, 0), Mx, My };
+  };
 
-  const it = iterateH({
+  let packed = packLoads(hfIn);
+  const lv = Math.max(
+    ...packed.loads.map((c) => {
+      const cant = colCantilevers(c.x - xOrg, c.y - yOrg, c.col.t1, c.col.t2, painted);
+      return transverseCantilever(cant);
+    }),
+    0.2,
+  );
+  const quOf = (h: number, sumPuV: number) => (sumPuV + 1.4 * (2.4 * h + gt * Math.max(Df - h, 0)) * A + 1.7 * sc * A) / A;
+  let it = iterateH({
     h0: hfIn,
     rec,
     fc,
     qnFn: (h) => qNet(qadm, gt, Df, h, sc),
     lv,
-    quFn: (h) => (sumPu + 1.4 * 2.4 * h * A) / A,
-    PuMax: typ.Pu,
-    t1: typ.col.t1,
-    t2: typ.col.t2,
+    quFn: (h) => quOf(h, packed.sumPu),
+    cols: packed.loads.map((c) => ({ cx: c.x - xOrg, cy: c.y - yOrg, t1: c.col.t1, t2: c.col.t2, Pu: c.Pu })),
     B,
     L,
-    cx: typ.x - m.axesX[0],
-    cy: typ.y - m.axesY[0],
     painted,
   });
+  packed = packLoads(it.h);
+  it = iterateH({
+    h0: it.h,
+    rec,
+    fc,
+    qnFn: (h) => qNet(qadm, gt, Df, h, sc),
+    lv,
+    quFn: (h) => quOf(h, packed.sumPu),
+    cols: packed.loads.map((c) => ({ cx: c.x - xOrg, cy: c.y - yOrg, t1: c.col.t1, t2: c.col.t2, Pu: c.Pu })),
+    B,
+    L,
+    painted,
+  });
+  const { loads, sumP, sumPu, Mx, My } = packed;
+  const typ = loads.reduce((a, b) => (b.Pu > a.Pu ? b : a), loads[0]);
+  const ex = My / Math.max(sumP, 0.1);
+  const ey = Mx / Math.max(sumP, 0.1);
 
   const qserv = (sumP + 2.4 * it.h * A + gt * Math.max(Df - it.h, 0) * A + sc * A) / A;
-  const qu = (sumPu + 1.4 * (2.4 * it.h + gt * Math.max(Df - it.h, 0)) * A + 1.7 * sc * A) / A;
+  const qu = quOf(it.h, sumPu);
   const Ixx = Math.max(geom.Ixx, 1e-4);
   const Iyy = Math.max(geom.Iyy, 1e-4);
-  const qAt = (x: number, y: number) => qserv + (Mx * (y - geom.yc)) / Ixx + (My * (x - geom.xc)) / Iyy;
+  const qCol = sumP / A;
+  const qAt = (x: number, y: number) => qCol + (Mx * (y - geom.yc)) / Ixx + (My * (x - geom.xc)) / Iyy;
   const corners: { x: number; y: number }[] = [];
   for (let iy = 0; iy < nyOf(m); iy++) {
     for (let ix = 0; ix < nxOf(m); ix++) {
@@ -386,9 +421,10 @@ export const calcZapataCorrida: Engine = (raw) => {
     }
   }
   const qs = corners.map((p) => qAt(p.x, p.y));
-  const qmax = Math.max(...qs, qserv);
-  const qmin = Math.min(...qs, qserv);
+  const qmax = Math.max(...qs, qCol);
+  const qmin = Math.min(...qs, qCol);
   const inKern = qmin >= -0.02;
+  const qadmT = qadm * 10;
 
   const mBeams = ensureGradeBeams(m);
   const runs = collectGradeBeams(mBeams);
@@ -414,16 +450,67 @@ export const calcZapataCorrida: Engine = (raw) => {
       return db > da ? b : a;
     }, pool[0]) ?? { run: undefined, w: sumPu / Math.max(L, 0.2), wSoil: qu * B, nCol: cols.length, sumP: sumPu, beam: fallbackBeam };
   const beam = gov.beam;
-  const hBeam = Math.max(hBeamIn, it.h);
-  const dBeam = hBeam * 100 - rec;
-  const flexLong = asFlex(Math.max(beam.Mmax, -beam.Mmin), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
-  const longB = pickSlabBar(flexLong.As / Math.max(bBeam, 0.3), hBeam * 100);
-  const shBeam = oneWayShear(beam.Vmax, Math.max(bBeam, 0.3) * 100, dBeam, fc);
+  const govStations = (gov.run
+    ? loadsOnGradeBeam(gov.run, runPts, runs)
+    : loads.map((c) => ({ x: c.x - m.axesX[0], P: c.Pu, M: c.M3 }))
+  ).map((c) => c.x);
+  const faceVC = Math.max(0.15, (typ?.col.t2 ?? 0.4) / 2, (typ?.col.t1 ?? 0.4) / 2);
+  const lnVC = clearSpanLn(govStations, gov.run?.L ?? L, faceVC);
+  const hPred = predimHBeam(lnVC);
+  let hBeam = Math.max(hBeamIn, it.h, hPred, 0.4);
+  let dBeam = hBeam * 100 - rec;
+  let flexLong = asFlex(Math.max(-beam.Mmin, 0), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
+  let flexSup = asFlex(Math.max(beam.Mmax, 0), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
+  let vcInf = pickBeamBars(flexLong.As, Math.max(bBeam, 0.3) * 100, rec);
+  let vcSup = pickBeamBars(Math.max(flexSup.As, 0.5), Math.max(bBeam, 0.3) * 100, rec);
+  const estBar = barByName('3/8"');
+  let shSt = designBeamStirrups({
+    b: Math.max(bBeam, 0.3) * 100,
+    h: hBeam * 100,
+    d: dBeam,
+    rec: Math.min(rec, 5),
+    fc,
+    fy,
+    Vu: beam.Vmax,
+    VA: beam.Vmax,
+    Av: 2 * estBar.as,
+    L: gov.run?.L ?? L,
+    destName: estBar.name,
+    destDb: estBar.db,
+    dbLong: vcInf.db,
+    nRamas: 2,
+    sismico: true,
+  });
+  for (let k = 0; k < 10; k++) {
+    dBeam = hBeam * 100 - rec;
+    flexLong = asFlex(Math.max(-beam.Mmin, 0), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
+    flexSup = asFlex(Math.max(beam.Mmax, 0), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
+    vcInf = pickBeamBars(flexLong.As, Math.max(bBeam, 0.3) * 100, rec);
+    vcSup = pickBeamBars(Math.max(flexSup.As, 0.5), Math.max(bBeam, 0.3) * 100, rec);
+    shSt = designBeamStirrups({
+      b: Math.max(bBeam, 0.3) * 100,
+      h: hBeam * 100,
+      d: dBeam,
+      rec: Math.min(rec, 5),
+      fc,
+      fy,
+      Vu: beam.Vmax,
+      VA: beam.Vmax,
+      Av: 2 * estBar.as,
+      L: gov.run?.L ?? L,
+      destName: estBar.name,
+      destDb: estBar.db,
+      dbLong: vcInf.db,
+      nRamas: 2,
+      sismico: true,
+    });
+    if (shSt.sectionOk) break;
+    hBeam = round05(hBeam + 0.05);
+  }
+  const shBeam = { Vu: beam.Vmax, phiVc: shSt.phiVc, ok: shSt.sectionOk };
   const flex = asFlex(it.Mu, 100, it.d, fc, fy, it.h * 100);
   const prin = pickSlabBar(flex.As, it.h * 100);
   const dist = pickSlabBar(0.0018 * 100 * it.h * 100, it.h * 100);
-  const flexSup = asFlex(Math.max(beam.Mmax, 0), Math.max(bBeam, 0.3) * 100, dBeam, fc, fy, hBeam * 100);
-  const supLong = pickSlabBar(Math.max(flexSup.As / Math.max(bBeam, 0.3), dist.asProv * 0.5), hBeam * 100);
   const supTrans = pickSlabBar(0.0018 * 100 * it.h * 100 * 0.5, it.h * 100);
   const vcKg = 0.53 * Math.sqrt(Math.max(fc, 1));
   const paneRows: string[][] = [];
@@ -439,25 +526,42 @@ export const calcZapataCorrida: Engine = (raw) => {
         const dc = Math.hypot(c.x - (x0 + x1) / 2, c.y - (y0 + y1) / 2);
         return dc < da ? c : a;
       }, loads[0]);
-      const face = near ? Math.max(near.col.t1, near.col.t2) / 2 : 0;
-      const lvPane = Math.max(0.05, near ? Math.min(near.y - y0, y1 - near.y) - face : (y1 - y0) / 2);
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const faceX = near ? near.col.t2 / 2 : 0;
+      const faceY = near ? near.col.t1 / 2 : 0;
+      const lvY = near ? Math.min(near.y - y0, y1 - near.y) - faceY : dy / 2;
+      const lvX = near ? Math.min(near.x - x0, x1 - near.x) - faceX : dx / 2;
+      const lvPane = Math.max(0.05, dx >= dy ? lvY : lvX);
       const MuPane = (it.qu * lvPane * lvPane) / 2;
       const bar = pickSlabBar(asFlex(MuPane, 100, it.d, fc, fy, it.h * 100).As, it.h * 100);
-      paneRows.push([`${ix + 1},${iy + 1}`, fmt(x1 - x0, 2), fmt(y1 - y0, 2), fmt(lvPane, 2), fmt(MuPane, 3), fmtBar(bar)]);
+      paneRows.push([`P${ix + 1}-${iy + 1}`, fmt(dx, 2), fmt(dy, 2), fmt(lvPane, 2), fmt(MuPane, 3), fmtBar(bar)]);
     }
   }
   const punchRows: string[][] = [];
-  let punchWorst = { Vu: it.Vu, phiVn: it.cap.phiVn, pg: it.pg, cap: it.cap, col: typ, ok: it.Vu <= it.cap.phiVn + 1e-6 };
+  let punchWorst: {
+    Vu: number;
+    phiVn: number;
+    pg: ReturnType<typeof punchGeom>;
+    cap: ReturnType<typeof punchCapacity>;
+    col: (typeof loads)[number];
+    amp: number;
+    ok: boolean;
+  } | null = null;
   for (const c of loads) {
     const pg = punchGeom(c.x - xOrg, c.y - yOrg, c.col.t1, c.col.t2, it.d / 100, B, L, painted);
     const beta = Math.max(c.col.t1, c.col.t2) / Math.max(Math.min(c.col.t1, c.col.t2), 0.1);
     const cap = punchCapacity(fc, pg.b0, it.d, beta, pg.alphaS);
-    const Vu = Math.max(0, c.Pu - it.qu * pg.Acrit);
+    const amp = punchMomentAmp(pg.kind);
+    const Vu = Math.max(0, amp * Math.max(0, c.Pu - it.qu * pg.Acrit));
     const okP = Vu <= cap.phiVn + 1e-6;
-    punchRows.push([c.col.id, pg.kind, fmt(pg.b0, 0), fmt(pg.Acrit, 2), fmt(Vu, 1), fmt(cap.phiVn, 1), fmt(Vu / Math.max(cap.phiVn, 0.01), 2), okP ? "OK" : "NO"]);
-    if (Vu / Math.max(cap.phiVn, 0.01) > punchWorst.Vu / Math.max(punchWorst.phiVn, 0.01)) {
-      punchWorst = { Vu, phiVn: cap.phiVn, pg, cap, col: c, ok: okP };
+    punchRows.push([c.col.id, pg.kind, fmt(amp, 2), fmt(pg.b0, 0), fmt(pg.Acrit, 2), fmt(Vu, 1), fmt(cap.phiVn, 1), fmt(Vu / Math.max(cap.phiVn, 0.01), 2), okP ? "OK" : "NO"]);
+    if (!punchWorst || Vu / Math.max(cap.phiVn, 0.01) > punchWorst.Vu / Math.max(punchWorst.phiVn, 0.01)) {
+      punchWorst = { Vu, phiVn: cap.phiVn, pg, cap, col: c, amp, ok: okP };
     }
+  }
+  if (!punchWorst) {
+    punchWorst = { Vu: it.Vu, phiVn: it.cap.phiVn, pg: it.pg, cap: it.cap, col: typ, amp: 1, ok: it.Vu <= it.cap.phiVn + 1e-6 };
   }
   const lvCant = lv;
   const mTransPts = Array.from({ length: 13 }, (_, i) => {
@@ -486,7 +590,7 @@ export const calcZapataCorrida: Engine = (raw) => {
   }
   const qCornerRows = corners.map((p, i) => [`V${i + 1}`, fmt(p.x, 2), fmt(p.y, 2), fmt(qAt(p.x, p.y), 2)]);
   const ldPrin = ldTension(fy, fc, prin.db);
-  const ldLong = ldTension(fy, fc, longB.db);
+  const ldLong = ldTension(fy, fc, vcInf.db);
   const Dshare = 0.7 * sumP;
   const Lshare = 0.3 * sumP;
   const PuComb = 1.4 * Dshare + 1.7 * Lshare;
@@ -496,7 +600,7 @@ export const calcZapataCorrida: Engine = (raw) => {
 
   return out(
     `Zapata ${isL ? "en L / irregular" : "corrida"}  A=${fmt(A, 1)} m²  ·  h=${fmt(it.h, 2)} m  ·  ${cols.length} col.  ·  ${runRes.length} VC`,
-    `Transv. ${fmtBar(prin)}  ·  viga ${fmtBar(longB)}  ·  qmáx=${fmt(qmax, 2)} t/m². ${ejemploNota}`,
+    `Transv. ${fmtBar(prin)}  ·  VC ${vcInf.text} inf. / ${vcSup.text} sup.  ·  qmáx=${fmt(qmax, 2)} t/m². ${ejemploNota}`,
     [
       step(
         "01",
@@ -564,18 +668,19 @@ export const calcZapataCorrida: Engine = (raw) => {
         "\\sigma_n=\\sigma_{adm}-\\gamma_t D_f-\\gamma_c h-s/c\\qquad q=\\dfrac{\\sum P}{A}\\pm\\dfrac{M_x c_y}{I_{xx}}\\pm\\dfrac{M_y c_x}{I_{yy}}",
         `σadm = ${fmt(qadm, 2)} kg/cm² = ${fmt(qadm * 10, 2)} t/m²    ·    γt = ${fmt(gt, 2)} t/m³    ·    Df = ${fmt(Df, 2)} m    ·    h = ${fmt(it.h, 2)} m    ·    s/c = ${fmt(sc, 2)} t/m²`,
         `σn = ${fmt(it.qn, 2)} t/m²    ·    qserv = ${fmt(qserv, 2)}    ·    qmáx = ${fmt(qmax, 2)}    ·    qmín = ${fmt(qmin, 2)} t/m²    ·    ex = ${fmt(ex, 3)} m    ·    ey = ${fmt(ey, 3)} m`,
-        "E.050: el admisible se usa neto (se descuenta relleno y peso propio). qmín ≥ 0 evita despegue; si despega, la presión se redistribuye (contacto parcial) y qmáx real sube.",
+        "E.050: σn es el admisible NETO (ya descontó relleno, peso propio y s/c). Por eso q en vértices se calcula SOLO con las cargas de columnas ΣP/A ± Mc/I, no con la presión total bruta. Comparar q_bruta contra σn duplicaría el peso propio.",
         {
           ok: qmax <= it.qn + 0.05 && it.qn > 0 && inKern,
           desarrollo: [
-            `σn = ${fmt(qadm * 10, 2)} − ${fmt(gt, 2)}×${fmt(Df, 2)} − 2.4×${fmt(it.h, 2)} − ${fmt(sc, 2)} = ${fmt(it.qn, 2)} t/m².`,
-            `qserv = (ΣP + γc h A + γt (Df−h) A + s/c A) / A = ${fmt(qserv, 2)} t/m².`,
+            `σn = ${fmt(qadmT, 2)} − ${fmt(gt, 2)}×${fmt(Df, 2)} − 2.4×${fmt(it.h, 2)} − ${fmt(sc, 2)} = ${fmt(it.qn, 2)} t/m² (admisible para la estructura).`,
+            `q de columnas (neta): ΣP/A = ${fmt(sumP, 1)}/${fmt(A, 2)} = ${fmt(qCol, 2)} t/m².`,
+            `Presión bruta total (información): qserv = (ΣP + γc h A + γt (Df−h) A + s/c A) / A = ${fmt(qserv, 2)} t/m²  vs  σadm = ${fmt(qadmT, 2)} t/m².`,
             `Excentricidad de la resultante: ex = My/ΣP = ${fmt(My, 1)}/${fmt(sumP, 1)} = ${fmt(ex, 3)} m; ey = Mx/ΣP = ${fmt(ey, 3)} m.`,
-            `En cada vértice q = qserv + Mx (y−ȳ)/Ixx + My (x−x̄)/Iyy. qmáx = ${fmt(qmax, 2)} t/m² ${qmax <= it.qn + 0.05 ? "≤ σn (CUMPLE)" : "> σn (NO — ensanchar planta o bajar cargas)"}.`,
+            `En cada vértice q = ΣP/A + Mx (y−ȳ)/Ixx + My (x−x̄)/Iyy. qmáx = ${fmt(qmax, 2)} t/m² ${qmax <= it.qn + 0.05 ? "≤ σn (CUMPLE)" : "> σn (NO — ensanchar planta o bajar cargas)"}.`,
             `qmín = ${fmt(qmin, 2)} t/m² ${inKern ? "≥ 0, contacto completo." : "< 0, hay despegue: redistribuir o recentrar."}`,
           ],
           table: {
-            caption: "Presión de servicio en vértices",
+            caption: "Presión neta de servicio en vértices (solo columnas)",
             headers: ["Vértice", "x (m)", "y (m)", "q (t/m²)"],
             rows: qCornerRows.slice(0, 16),
           },
@@ -584,20 +689,20 @@ export const calcZapataCorrida: Engine = (raw) => {
       step(
         "04",
         "Prediseño de h — corte 1 dir., punzonamiento 11.12 y flexión de vuelo",
-        "h ← h + 5 cm hasta σn, Vu ≤ φVc, Vu ≤ φVn y h ≥ ℓv/2    ·    rec ≥ 7.5 cm",
+        "h ← h + 5 cm hasta σn>0, Vu ≤ φVc y Vu ≤ φVn en TODAS las columnas    ·    rec ≥ 7.5 cm    ·    h ≥ 35 cm",
         "h\\leftarrow h+0.05\\,\\mathrm{m}\\quad d=h-\\mathrm{rec}",
-        `ℓv gob. ≈ ${fmt(lv, 2)} m    ·    rec = ${fmt(rec, 1)} cm (E.060 7.7.1, concreto contra suelo)    ·    h inicial = ${fmt(hfIn, 2)} m`,
-        `h = ${fmt(it.h, 2)} m    ·    d = ${fmt(it.d, 1)} cm    ·    ${it.ok ? "CUMPLE el lazo" : "no convergió: revise σadm o luces"}`,
-        "Cada fila es un espesor ensayado. Gobiernan: corte a d de la cara (una dirección, E.060 11.3), punzonamiento de cada columna (11.12) y Mu = qu ℓv²/2 del vuelo. d = 100h − rec (rec ≥ 7,5 cm contra suelo).",
+        `ℓv gob. = ${fmt(lv, 2)} m (vuelo real al borde pintado)    ·    rec = ${fmt(rec, 1)} cm (E.060 7.7.1)    ·    h inicial = ${fmt(hfIn, 2)} m`,
+        `h = ${fmt(it.h, 2)} m    ·    d = ${fmt(it.d, 1)} cm    ·    ${it.ok ? "CUMPLE el lazo" : "no convergió: revise σadm, luces o cargas"}`,
+        "Cada fila es un espesor ensayado. Gobiernan corte a d de la cara (E.060 11.3) y punzonamiento de la columna peor (11.12, con amplificación de momento en borde/esquina). El mínimo de norma es h ≥ 35 cm, no h ≥ ℓv/2.",
         {
           desarrollo: [
-            `Vuelo gobernante ℓv ≈ ${fmt(lv, 2)} m (mínimo de vuelos a borde más medio lado de columna).`,
-            `Mínimo geométrico: h ≥ ℓv/2 = ${fmt(lv / 2, 2)} m y h ≥ 0,35 m.`,
+            `Vuelo gobernante ℓv = ${fmt(lv, 2)} m (máximo de los cuatro rayos desde la cara del pedestal hasta salir del concreto pintado).`,
+            `Mínimo de norma: h ≥ 0,35 m. ℓv/2 = ${fmt(lv / 2, 2)} m es solo guía de predimension.`,
             `Peralte efectivo d = 100 h − rec. Última fila: h = ${fmt(it.h, 2)} m → d = ${fmt(it.d, 1)} cm.`,
-            `qu última = (ΣPu + 1,4 γc h A)/A = ${fmt(it.qu, 2)} t/m².`,
+            `qu última = (ΣPu + 1,4 (γc h + γt (Df−h)) A + 1,7 s/c A)/A = ${fmt(it.qu, 2)} t/m².`,
             `Vu (1 dir.) = qu(ℓv−d) = ${fmt(it.qu, 2)}×${fmt(Math.max(lv - it.d / 100, 0), 3)} = ${fmt(it.sh.Vu, 2)} t/m.`,
             `vc = 0,53√f'c = ${fmt(vcKg, 2)} kg/cm² → φVc = 0,85·vc·100·d/1000 = ${fmt(it.sh.phiVc, 2)} t/m.`,
-            `Punzonamiento de la columna más cargada entra en la misma iteración (columna ${typ.col.id}).`,
+            `El lazo verifica punzonamiento de todas las columnas (no solo la de mayor Pu): gobierna ${punchWorst.col.col.id} (${punchWorst.pg.kind}).`,
           ],
           table: { caption: "Iteración de espesor h", headers: ["i", "h (m)", "d (cm)", "σn", "Mu vuelo", "Vu/φVc", "Vu/φVn punz.", "¿OK?"], rows: it.rows },
         },
@@ -609,14 +714,14 @@ export const calcZapataCorrida: Engine = (raw) => {
         "M_u=q_u\\ell_v^2/2\\qquad A_s=\\max(\\rho b d,\\,0.0018bh)",
         `qu = ${fmt(it.qu, 2)} t/m²    ·    ℓv = ${fmt(lv, 2)} m    ·    d = ${fmt(it.d, 1)} cm    ·    fy = ${fmt(fy, 0)}    ·    f'c = ${fmt(fc, 0)}`,
         `${fmtBar(prin)}    ·    As = ${fmt(flex.As, 2)} cm²/m    ·    Asmín = ${fmt(flex.Asmin, 2)} cm²/m    ·    φMn = ${fmt(flex.phiMn, 2)} t·m/m`,
-        "Barras perpendiculares al eje largo (vuelo), cara del suelo. El despiece A1 se dibuja en planta: lecho inferior longitudinal continuo de extremo a extremo; lecho superior cortado con L_teo + ℓd. No hay corte transversal ni acero a media altura.",
+        "Barras perpendiculares al eje largo (vuelo), cara del suelo. El despiece A1 es en planta: un transversal por paño (lecho inf.), un longitudinal inf. continuo por franja y un longitudinal sup. cortado (L_teo + ℓd) en cada apoyo. No hay acero a media altura.",
         {
           desarrollo: [
             `qu última (incluye 1.4 del peso propio) = ${fmt(it.qu, 2)} t/m².`,
             `Mu gob. = qu ℓv² / 2 = ${fmt(it.qu, 2)} × ${fmt(lv, 2)}² / 2 = ${fmt(it.Mu, 3)} t·m/m (voladizo, cara del suelo).`,
             `Whitney: Rn = Mu/(φ b d²) = ${fmt(flex.Rn, 1)} kg/cm², ρ de la ecuación de segundo grado, As = máx(ρbd, 0.0018 bh) = ${fmt(flex.As, 2)} cm²/m.`,
-            `Se adopta ${fmtBar(prin)} para el vuelo (cálculo). En planta: longitudinal inf. continuo ${fmtBar(longB)}. Lecho superior ${fmtBar(supLong)} cortado en apoyos/extremos (L_teo + ℓd). No hay acero a media altura ni corte transversal.`,
-            "El despiece A1 es planta: inferior continuo; superior con cortes de desarrollo.",
+            `Se adopta ${fmtBar(prin)} para el vuelo (malla de losa). En planta: longitudinal de losa ${fmtBar(dist)} (cuantía 0,0018, temperatura/reparto). La viga de cimentación lleva ${vcInf.text} inf. y ${vcSup.text} sup. (barras, no malla).`,
+            "El despiece A1 es planta: transversal inf. un Ø por paño; longitudinal inf. continuo (sin corte); superior cortado y proporcional al vano en cada apoyo.",
           ],
           table: {
             caption: "Transversal por paño (lecho inferior)",
@@ -645,23 +750,23 @@ export const calcZapataCorrida: Engine = (raw) => {
       step(
         "07",
         "Punzonamiento — E.060 11.12 / ACI 22.6.5",
-        "Vu = Pu − qu Acrit    ·    vc = mín{0.53(2+4/βc), 0.53(αs d/b0+2), 1.06} √f'c    ·    φVn = 0.85 vc b0 d",
-        "V_u=P_u-q_u A_{\\mathrm{crit}}\\qquad v_c=\\min\\{0.53(2+4/\\beta_c),\\,0.53(\\alpha_s d/b_0+2),\\,1.06\\}\\sqrt{f'_c}",
-        `${punchWorst.col.col.id} tipo ${punchWorst.pg.kind}    ·    b0 = ${fmt(punchWorst.pg.b0, 1)} cm    ·    αs = ${punchWorst.pg.alphaS}    ·    criterio ${punchWorst.cap.govern}    ·    Acrit = ${fmt(punchWorst.pg.Acrit, 2)} m²`,
+        "Vu = α (Pu − qu Acrit)    ·    vc = mín{0.53(2+4/βc), 0.53(αs d/b0+2), 1.06} √f'c    ·    φVn = 0.85 vc b0 d",
+        "V_u=\\alpha(P_u-q_u A_{\\mathrm{crit}})\\qquad v_c=\\min\\{0.53(2+4/\\beta_c),\\,0.53(\\alpha_s d/b_0+2),\\,1.06\\}\\sqrt{f'_c}",
+        `${punchWorst.col.col.id} tipo ${punchWorst.pg.kind}    ·    α = ${fmt(punchWorst.amp, 2)}    ·    b0 = ${fmt(punchWorst.pg.b0, 1)} cm    ·    αs = ${punchWorst.pg.alphaS}    ·    criterio ${punchWorst.cap.govern}    ·    Acrit = ${fmt(punchWorst.pg.Acrit, 2)} m²`,
         `Vu = ${fmt(punchWorst.Vu, 2)} t    ·    φVn = ${fmt(punchWorst.phiVn, 2)} t    ·    Vu/φVn = ${fmt(punchWorst.Vu / Math.max(punchWorst.phiVn, 0.01), 2)}    ·    ${punchWorst.ok ? "CUMPLE" : "NO"}`,
-        "αs = 40 interior, 30 borde, 20 esquina. El perímetro a d/2 se recorta si cae fuera de la zapata. Se verifica cada columna; el gráfico muestra la gobernante.",
+        "αs = 40 interior, 30 borde, 20 esquina. α = 1,00 / 1,15 / 1,25 (interior / borde / esquina) cubre de forma simplificada la transferencia de momento E.060 11.12.6. El perímetro a d/2 se recorta al concreto pintado. Se verifica cada columna.",
         {
           ok: punchWorst.ok,
           desarrollo: [
-            `Columna gobernante ${punchWorst.col.col.id}: Pu = ${fmt(punchWorst.col.Pu, 1)} t, sección ${fmt(punchWorst.col.col.t1, 2)} × ${fmt(punchWorst.col.col.t2, 2)} m, ${punchWorst.pg.kind}. El pedestal se asienta entero sobre la zapata (no a caballo del vértice).`,
+            `Columna gobernante ${punchWorst.col.col.id}: Pu = ${fmt(punchWorst.col.Pu, 1)} t, sección ${fmt(punchWorst.col.col.t1, 2)} × ${fmt(punchWorst.col.col.t2, 2)} m, ${punchWorst.pg.kind}. El pedestal se asienta entero sobre la zapata.`,
             `Perímetro crítico recortado b0 = ${fmt(punchWorst.pg.b0, 1)} cm (${punchWorst.pg.kind === "esquina" ? "L: (c1+d/2)+(c2+d/2)" : punchWorst.pg.kind === "borde" ? "tres lados" : "cuatro lados"}). Área interior Acrit = ${fmt(punchWorst.pg.Acrit, 2)} m².`,
-            `Vu = Pu − qu Acrit = ${fmt(punchWorst.col.Pu, 1)} − ${fmt(it.qu, 2)} × ${fmt(punchWorst.pg.Acrit, 2)} = ${fmt(punchWorst.Vu, 2)} t.`,
+            `Vu = α (Pu − qu Acrit) = ${fmt(punchWorst.amp, 2)} × (${fmt(punchWorst.col.Pu, 1)} − ${fmt(it.qu, 2)} × ${fmt(punchWorst.pg.Acrit, 2)}) = ${fmt(punchWorst.Vu, 2)} t.`,
             `vc = mín{0,53(2+4/βc), 0,53(αs d/b0+2), 1,06}√f'c. Gobierna ${punchWorst.cap.govern}.`,
             `φVn = 0,85 vc b0 d = ${fmt(punchWorst.phiVn, 2)} t. ${punchWorst.ok ? "CUMPLE." : "NO: subir h, capitel o ábaco."}`,
           ],
           table: {
             caption: "Punzonamiento por columna (E.060 11.12)",
-            headers: ["Col", "tipo", "b0 (cm)", "Acrit (m²)", "Vu (t)", "φVn (t)", "Vu/φVn", "¿OK?"],
+            headers: ["Col", "tipo", "α", "b0 (cm)", "Acrit (m²)", "Vu (t)", "φVn (t)", "Vu/φVn", "¿OK?"],
             rows: punchRows,
           },
         },
@@ -674,20 +779,21 @@ export const calcZapataCorrida: Engine = (raw) => {
         runRes.length
           ? `${runRes.length} tramo(s)    ·    gobierna ${gov.run?.id ?? "—"}    ·    L = ${fmt(gov.run?.L ?? L, 2)} m    ·    b trib. = ${fmt(gov.run?.b ?? B, 2)} m    ·    q(0)=${fmt(beam.q0 ?? gov.w, 2)}  q(L)=${fmt(beam.qL ?? gov.w, 2)} t/m    ·    ${gov.nCol} col.`
           : `Sin VC en planta    ·    envolvente del eje L = ${fmt(L, 2)} m    ·    B = ${fmt(B, 2)} m`,
-        `M+ = ${fmt(beam.Mmax, 2)} t·m    ·    M− = ${fmt(beam.Mmin, 2)} t·m    ·    Vmáx = ${fmt(beam.Vmax, 2)} t    ·    φVc = ${fmt(shBeam.phiVc, 2)} t    ·    ${fmtBar(longB)} inf.    ·    As = ${fmt(flexLong.As, 2)} cm²`,
-        "Cada tramo con columnas es una viga invertida rígida de extremos libres (Bowles): la reacción del suelo q(x)=a+bx se calibra a las Pu y Mc de las columnas asignadas a ESE tramo (la más cercana de esa dirección), de modo que V(L)≈0 y M(L)≈0. Borrar un vano parte el tramo y reasigna las columnas al VC que queda. Un VC sin columnas no gobierna. M− entre apoyos (lecho inf. continuo); M+ en vuelos (lecho sup.). Si L/h es grande, mayorar 1,20 o usar Winkler.",
+        `M+ = ${fmt(beam.Mmax, 2)} t·m    ·    M− = ${fmt(beam.Mmin, 2)} t·m    ·    Vmáx = ${fmt(beam.Vmax, 2)} t    ·    ${vcInf.text} inf.    ·    ${vcSup.text} sup.    ·    est. ${shSt.arregloPlano}`,
+        "Cada tramo con columnas es una viga invertida rígida de extremos libres (Bowles): la reacción del suelo q(x)=a+bx se calibra a las Pu y Mc de las columnas asignadas a ESE tramo. Predimensión h = ℓn/7 (luz libre entre caras). M− entre apoyos (lecho inf. continuo); M+ en vuelos (lecho sup. L_teo+ℓd). Si L/h es grande, mayorar 1,20 o usar Winkler.",
         {
           desarrollo: runRes.length
             ? [
                 `Se identifican ${runRes.length} tramo(s) continuo(s). Cada vano se coloca o se borra por separado (Viga cim.). Al apagar un vano, el tramo se parte y las columnas pasan al VC más cercano de esa dirección.`,
+                `Luz libre ℓn = ${fmt(lnVC, 2)} m (entre caras). Predimensión h = ℓn/7 = ${fmt(hPred, 2)} m. Adoptado h = ${fmt(hBeam, 2)} m, d = ${fmt(dBeam, 1)} cm.`,
                 `Gobierna ${gov.run?.id ?? "—"} (${gov.run?.kind === "v" ? "vertical" : "horizontal"}, L = ${fmt(gov.run?.L ?? 0, 2)} m, b trib. = ${fmt(gov.run?.b ?? 0, 2)} m, ${gov.nCol} col.): q(0) = ${fmt(beam.q0 ?? 0, 2)} t/m, q(L) = ${fmt(beam.qL ?? 0, 2)} t/m. Promedio ΣPu/L = ${fmt(gov.w, 2)} t/m. qu·b del paño = ${fmt(gov.wSoil ?? 0, 2)} t/m (comparación, no se aplica a un eje vacío).`,
                 `Equilibrio del tramo: V(L) ≈ ${fmt(beam.Vend, 2)} t, M(L) ≈ ${fmt(beam.pts[beam.pts.length - 1]?.M ?? 0, 2)} t·m (extremos libres).`,
-                `Cortante de viga: Vu = ${fmt(shBeam.Vu, 2)} t  vs  φVc = 0,85·0,53√f'c b d = ${fmt(shBeam.phiVc, 2)} t (${shBeam.ok ? "CUMPLE" : "NO — subir h o b"}).`,
-                `Flexión |M| = ${fmt(Math.max(beam.Mmax, -beam.Mmin), 2)} t·m. Whitney b = ${fmt(bBeam, 2)} m, d = ${fmt(dBeam, 1)} cm → As = ${fmt(flexLong.As, 2)} cm² → ${fmtBar(longB)} continuo inf.`,
+                `Cortante de viga: Vu = ${fmt(beam.Vmax, 2)} t  vs  φVc = ${fmt(shSt.phiVc, 2)} t y φ(Vc+Vs,máx) = ${fmt(0.85 * (shSt.Vc + shSt.VsMax), 1)} t. Estribos 2Ø ${estBar.name}: ${shSt.arregloPlano} (${shSt.sectionOk ? "sección OK" : "NO — subir h o b"}).`,
+                `Lecho inf. |M−| = ${fmt(Math.max(-beam.Mmin, 0), 2)} t·m → As = ${fmt(flexLong.As, 2)} cm² → ${vcInf.text} (corrido). Lecho sup. M+ = ${fmt(Math.max(beam.Mmax, 0), 2)} t·m → As = ${fmt(flexSup.As, 2)} cm² → ${vcSup.text} (L_teo+ℓd).`,
               ]
             : [
                 "No hay vigas de cimentación. Coloque tramos uno a uno con «Viga cim.» o restaure los bordes con «Vigas en bordes».",
-                `Mientras tanto se informa la envolvente del eje longitudinal. |M| = ${fmt(Math.max(beam.Mmax, -beam.Mmin), 2)} t·m → ${fmtBar(longB)}.`,
+                `Mientras tanto se informa la envolvente del eje longitudinal. |M| = ${fmt(Math.max(beam.Mmax, -beam.Mmin), 2)} t·m → ${vcInf.text}.`,
               ],
           table: runRes.length
             ? {
@@ -715,13 +821,13 @@ export const calcZapataCorrida: Engine = (raw) => {
         "Desarrollo y anclaje — E.060 12.2",
         "ℓd = 0.075 fy db / √f'c    ·    L_barra,sup = L_teo + ℓd    ·    L_teo ≈ 0,30 ℓn    ·    L_ext ≥ máx(d, 12 db, ℓn/16)",
         "\\ell_d=0.075\\,f_y d_b/\\sqrt{f'_c}\\qquad L_{\\mathrm{sup}}=L_{\\mathrm{teo}}+\\ell_d",
-        `fy = ${fmt(fy, 0)} kg/cm²    ·    f'c = ${fmt(fc, 0)}    ·    db transv. = ${fmt(prin.db, 2)} cm    ·    db long. = ${fmt(longB.db, 2)} cm`,
+        `fy = ${fmt(fy, 0)} kg/cm²    ·    f'c = ${fmt(fc, 0)}    ·    db transv. = ${fmt(prin.db, 2)} cm    ·    db VC = ${fmt(vcInf.db, 2)} cm`,
         `ℓd transv. = ${fmt(ldPrin, 1)} cm    ·    ℓd viga = ${fmt(ldLong, 1)} cm    ·    gancho 90° transv. ≥ ${fmt(12 * prin.db, 1)} cm`,
-        "Lecho inferior continuo de extremo a extremo. Lecho superior cortado: L_teo (0,30 ℓn desde la cara) más ℓd y extensión máx(d, 12 db, ℓn/16). Gancho 90° ≥ 12 db en borde libre. Rec ≥ 7,5 cm.",
+        "Losa: lecho inferior transversal (vuelo) y longitudinal de temperatura 0,0018. VC: inferior continuo (barras) y superior cortado L_teo + ℓd. Rec ≥ 7,5 cm.",
         {
           desarrollo: [
-            `Inferior ${fmtBar(longB)}: continuo, ℓd = ${fmt(ldLong, 1)} cm (no se corta en paños).`,
-            `Superior ${fmtBar(supLong)}: L_teo ≈ 0,30 ℓn más ℓd = ${fmt(ldTension(fy, fc, supLong.db), 1)} cm y L_ext = máx(d, 12 db, ℓn/16).`,
+            `Losa inf. long. ${fmtBar(dist)} (0,0018 bh). Transversal ${fmtBar(prin)}: ℓd = ${fmt(ldPrin, 1)} cm.`,
+            `VC inf. ${vcInf.text}: ℓd = ${fmt(ldLong, 1)} cm, continuo. VC sup. ${vcSup.text}: L_teo ≈ 0,30 ℓn + ℓd = ${fmt(ldTension(fy, fc, vcSup.db), 1)} cm.`,
             `Gancho 90° mínimo 12 db. Recubrimiento rec = ${fmt(rec, 1)} cm ≥ 7.5 cm (E.060 7.7.1).`,
           ],
         },
@@ -735,7 +841,7 @@ export const calcZapataCorrida: Engine = (raw) => {
       ok("h ≥ 35 cm", `${fmt(it.h * 100, 0)} cm`, "≥ 35", it.h >= 0.35),
       ok("Columnas clicadas", String(cols.length), "≥ 1", cols.length >= 1),
       ok("Vigas de cimentación", String(runRes.length), "≥ 1", runRes.length >= 1),
-      ok("Cortante de VC", `${fmt(shBeam.Vu, 1)} t`, `≤ ${fmt(shBeam.phiVc, 1)} t`, shBeam.ok),
+      ok("Cortante de VC", `${fmt(beam.Vmax, 1)} t`, `≤ ${fmt(0.85 * (shSt.Vc + shSt.VsMax), 1)} t`, shSt.sectionOk),
     ],
     [
       {
@@ -755,19 +861,39 @@ export const calcZapataCorrida: Engine = (raw) => {
       asPrin: fmtBar(prin),
       asDist: fmtBar(dist),
       AsPrin: flex.As.toFixed(2),
+      AsDist: (0.0018 * 100 * it.h * 100).toFixed(2),
+      asPrinPanes: JSON.stringify(Object.fromEntries(paneRows.map((r) => [r[0], r[5]]))),
       Lbeam: (gov.run?.L ?? L).toFixed(2),
       mPts: packPts(beam.pts),
       Msoil: Math.max(-beam.Mmin, 0).toFixed(3),
       Mtop: Math.max(beam.Mmax, 0).toFixed(3),
-      asLong: fmtBar(longB),
+      asLong: fmtBar(dist),
       AsLong: flexLong.As.toFixed(2),
-      asSup: fmtBar(supLong),
+      asSup: fmtBar(dist),
       asSupT: fmtBar(supTrans),
+      asVCInf: vcInf.text,
+      asVCSup: vcSup.text,
+      AsVCInf: flexLong.As.toFixed(2),
+      AsVCSup: flexSup.As.toFixed(2),
+      VmaxVC: beam.Vmax.toFixed(2),
+      estVC: `2Ø ${estBar.name} ${shSt.arregloPlano}`,
+      sApoyoVC: String(shSt.sApoyo),
+      sCentroVC: String(shSt.sCentro),
+      nEstVC: String(shSt.nTotal),
+      LzonaVC: shSt.Lzona.toFixed(2),
+      vcColsJson: JSON.stringify({
+        cols: (gov.run
+          ? loadsOnGradeBeam(gov.run, runPts, runs)
+          : loads.map((c) => ({ x: c.x - m.axesX[0], P: c.Pu, M: c.M3 }))
+        ).map((c, i) => ({ x: c.x, P: c.P, M: c.M, id: `C${i + 1}` })),
+      }),
       bBeam: bBeam.toFixed(2),
       hBeam: hBeam.toFixed(2),
+      lnVC: lnVC.toFixed(2),
+      hPred: hPred.toFixed(2),
       nBeams: String(runRes.length),
       beamGov: gov.run?.id ?? "",
-      vPts: packPts(beam.pts.map((p) => ({ x: p.x, M: p.V }))),
+      vPts: packV(beam.pts),
       vPtsTrans: packPts(vTransPts),
       mPtsTrans: packPts(mTransPts),
       punchVu: punchWorst.Vu.toFixed(2),
@@ -787,6 +913,7 @@ export const calcZapataCorrida: Engine = (raw) => {
         b0: punchWorst.pg.b0,
         kind: punchWorst.pg.kind,
         ok: punchWorst.ok,
+        slab: painted,
       }),
       studioJson: str(raw, "studioJson", ""),
       corridaJson: str(raw, "corridaJson", ""),

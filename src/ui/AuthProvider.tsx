@@ -4,6 +4,7 @@ import { folio } from "../lib/folio";
 import { installPlazaLiveWatch } from "../lib/plazaLive";
 import { exchangeGoogleSession, identityFromCredential, takePendingGoogleToken, consumeGoogleReturnPath, type GoogleIdentity } from "../lib/auth/google";
 import { currentInsight, fetchCloudProfile, fetchCloudQuotaUses, flushEvents, installId, mergeUserProfile, pushLocalEvent, readLocalEvents, readLocalProfile, readLocalQuotaUses, saveCloudProfile, saveCloudQuotaUse, writeLocalProfile, writeLocalQuotaUses } from "../lib/auth/store";
+import { saveSiteOnboarding } from "../lib/siteTaste/store";
 import { anchorIngenieriaPlatform } from "../lib/auth/masterIdentity";
 import { actionLabelOf, isEditAttempt } from "../lib/auth/editGate";
 import { OPEN_EDIT_WITHOUT_LOGIN } from "../lib/auth/access";
@@ -34,6 +35,7 @@ type AuthApi = {
   closeModal: () => void;
   completeGoogle: (identity: GoogleIdentity) => Promise<void>;
   saveProfile: (next: UserProfile) => Promise<void>;
+  skipProfile: () => Promise<void>;
   signOut: () => Promise<void>;
   track: (ev: UsageEvent) => void;
   setError: (msg: string) => void;
@@ -279,6 +281,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
+  const skipProfile = useCallback(async () => {
+    if (!session?.user) return;
+    const filled: UserProfile = {
+      ...(profile || emptyProfile()),
+      user_id: session.user.id,
+      email: session.user.email || profile?.email || "",
+      onboarding_done: true,
+    };
+    writeLocalProfile(filled);
+    setProfile(filled);
+    setModal("none");
+    await saveSiteOnboarding({
+      platform: "INGENIERIA",
+      email: filled.email,
+      answers: { skipped: true, role: filled.workplace_role || filled.craft_family || "" },
+    }).catch(() => undefined);
+  }, [session, profile]);
+
   const signOut = useCallback(async () => {
     await folio.auth.signOut();
     setProfile(null);
@@ -482,6 +502,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     completeGoogle,
     saveProfile,
+    skipProfile,
     signOut,
     track,
     setError,

@@ -244,7 +244,10 @@ export type SolveResult = {
   springForce: number[];
   springActive: boolean[];
   iteraciones: number;
+  /** Factorización correcta y lazo de contacto asentado (ningún resorte traccionado). */
   ok: boolean;
+  /** El lazo unilateral dejó de cambiar de estado antes del tope de iteraciones. */
+  contacto: boolean;
 };
 
 /** Resuelve K·u = f con lazo de contacto para los resortes sin tracción. */
@@ -254,6 +257,7 @@ export function solve(prep: PreparedModel, loads: Float64Array, maxIter = 20): S
   const springActive = model.springs.map(() => true);
   let u = new Float64Array(ndofTotal);
   let ok = true;
+  let contacto = true;
   let iteraciones = 0;
 
   const rhs = new Float64Array(sky.n);
@@ -294,12 +298,16 @@ export function solve(prep: PreparedModel, loads: Float64Array, maxIter = 20): S
       }
     });
     if (!cambio) break;
+    if (it === maxIter - 1) {
+      contacto = false;
+      ok = false;
+    }
   }
 
   const springForce = model.springs.map((s, i) =>
     springActive[i] ? -s.k * u[s.node * NDOF + s.dof] : 0,
   );
-  return { u, springForce, springActive, iteraciones, ok };
+  return { u, springForce, springActive, iteraciones, ok, contacto };
 }
 
 /** Extrae los 24 desplazamientos globales de un elemento. */

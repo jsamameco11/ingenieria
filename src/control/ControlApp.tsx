@@ -204,17 +204,24 @@ export function ControlApp() {
   useEffect(() => {
     if (!unlocked) return;
     let alive = true;
-    void adminSnapshot()
-      .then((next) => {
-        if (!alive) return;
-        setSnap(next);
-        if (!next.connected) setErr(next.message);
-      })
-      .catch((e) => {
-        if (alive) setErr(e instanceof Error ? e.message : "No se pudo cargar el panel.");
-      });
+    const pull = () => {
+      void adminSnapshot()
+        .then((next) => {
+          if (!alive) return;
+          setSnap(next);
+          if (sel) setSel(next.users.find((u) => u.user_id === sel.user_id) ?? null);
+          if (!next.connected) setErr(next.message);
+          else setErr("");
+        })
+        .catch((e) => {
+          if (alive) setErr(e instanceof Error ? e.message : "No se pudo cargar el panel.");
+        });
+    };
+    pull();
+    const timer = window.setInterval(pull, 8000);
     return () => {
       alive = false;
+      window.clearInterval(timer);
     };
   }, [unlocked]);
 

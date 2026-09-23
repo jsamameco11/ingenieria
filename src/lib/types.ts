@@ -224,6 +224,33 @@ export function spacingFor(As: number, barAs: number, b = 100) {
   return Math.min(25, Math.max(8, Math.floor(s)));
 }
 
+/** Separaciones de malla que se pueden colocar (cm). */
+export const MALLA_S = [25, 20, 15, 12.5, 12, 10, 8, 7.5] as const;
+
+/** Diámetros habituales de malla en muros (no se adopta Ø 1 3/8"). */
+export const MALLA_MURO = ['3/8"', '1/2"', '5/8"', '3/4"', '1"'] as const;
+
+/**
+ * Elige el menor Ø comercial y la mayor separación tal que As disp ≥ As req.
+ * Si Ø 3/8" @ 8 cm no alcanza, sube a 1/2", 5/8", 3/4" o 1". No se adopta una
+ * malla que deje el acero colocado por debajo del requerido: si ni el Ø mayor
+ * a s = 8 cm cubre, se devuelve esa malla para que la verificación falle.
+ */
+export function elegirMalla(AsReq: number, sMax = 25, barras: readonly string[] = MALLA_MURO): { bar: BarDef; s: number; AsProv: number } {
+  const need = Math.max(AsReq, 1e-9);
+  const spaces = MALLA_S.filter((s) => s <= sMax + 1e-9);
+  const lista = barras.map((n) => barByName(n));
+  for (const bar of lista) {
+    for (const s of spaces) {
+      const AsProv = (bar.as / s) * 100;
+      if (AsProv + 1e-6 >= need) return { bar, s, AsProv };
+    }
+  }
+  const bar = lista[lista.length - 1] ?? barByName('1"');
+  const s = spaces[spaces.length - 1] ?? 8;
+  return { bar, s, AsProv: (bar.as / s) * 100 };
+}
+
 export function rad(deg: number) {
   return (deg * Math.PI) / 180;
 }

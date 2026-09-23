@@ -1,7 +1,7 @@
 import { coefAci3 } from "../../steelEngine";
 import { fmt, num, str, type Engine } from "../../types";
-import { packPts, solveStrip, type SpanLoad, type StripPt } from "./matrixBeam";
-import { designSlabFace, emptySlabFace, applyMeshPick, ldTension, losaNegBarM, ok, out, pickSlabBar, pickMeshFamily, step, type SlabFace } from "./steel";
+import { packPts, solveStrip, type SpanLoad } from "./matrixBeam";
+import { designSlabFace, emptySlabFace, applyMeshPick, ldTension, losaNegBarM, ok, out, pickSlabBar, pickMeshFamily, step, type LosaNegCutSrc, type SlabFace } from "./steel";
 import {
   adoptRoofIfEmpty,
   edgeLabel,
@@ -167,7 +167,7 @@ export type LosaNegSide = {
   Lteo: number;
   Lext: number;
   Lbar: number;
-  src: "pórtico" | "0.30 ℓn";
+  src: LosaNegCutSrc;
   edge: boolean;
 };
 
@@ -183,50 +183,9 @@ export type LosaNegLen = {
   R: LosaNegSide;
 };
 
-function teoFromSupport(pts: StripPt[], xa: number, xb: number, from: "left" | "right"): number | null {
-  const slice = pts.filter((p) => p.x + 1e-9 >= xa && p.x - 1e-9 <= xb);
-  if (slice.length < 2) return null;
-  const EPS_M = 0.005;
-  if (from === "left") {
-    if (slice[0].M > -EPS_M) return null;
-    for (let i = 1; i < slice.length; i++) {
-      const a = slice[i - 1];
-      const b = slice[i];
-      if (a.M < 0 && b.M >= 0) {
-        const den = b.M - a.M;
-        const t = Math.abs(den) < 1e-12 ? 0 : -a.M / den;
-        return Math.max(0, a.x + t * (b.x - a.x) - xa);
-      }
-    }
-    return Math.max(0, xb - xa);
-  }
-  if (slice[slice.length - 1].M > -EPS_M) return null;
-  for (let i = slice.length - 1; i >= 1; i--) {
-    const a = slice[i - 1];
-    const b = slice[i];
-    if (b.M < 0 && a.M >= 0) {
-      const den = b.M - a.M;
-      const t = Math.abs(den) < 1e-12 ? 1 : -a.M / den;
-      return Math.max(0, xb - (a.x + t * (b.x - a.x)));
-    }
-  }
-  return Math.max(0, xb - xa);
-}
-
-function paneAtStripSpan(st: IdentifiedStrip, spanIndex: number, panes: IdentifiedPane[]) {
-  const n0 = st.nodes[spanIndex] ?? st.i0;
-  const n1 = st.nodes[spanIndex + 1] ?? n0 + 1;
-  if (st.dir === "x") {
-    const iy = st.line;
-    return panes.find((p) => iy >= p.iy0 && iy <= p.iy1 && n0 >= p.ix0 && n0 <= p.ix1 && n1 - 1 <= p.ix1);
-  }
-  const ix = st.line;
-  return panes.find((p) => ix >= p.ix0 && ix <= p.ix1 && n0 >= p.iy0 && n0 <= p.iy1 && n1 - 1 <= p.iy1);
-}
-
-function sideOf(Lteo: number, src: "pórtico" | "0.30 ℓn", edge: boolean, db: number, dCm: number, ln: number, rec: number, hasNeg: boolean): LosaNegSide {
+function sideOf(Lteo: number, src: LosaNegCutSrc, edge: boolean, db: number, dCm: number, ln: number, rec: number, hasNeg: boolean): LosaNegSide {
   if (!hasNeg) return { Lteo: 0, Lext: 0, Lbar: 0, src, edge };
-  const cut = losaNegBarM({ LteoM: Lteo, dbCm: db, dCm, lnM: ln, recCm: rec, edge });
+  const cut = losaNegBarM({ LteoM: Lteo, dbCm: db, dCm, lnM: ln, recCm: rec, edge, src, capRatio: 0.3 });
   return { Lteo, Lext: cut.LextM, Lbar: cut.LbarM, src, edge };
 }
 
@@ -312,25 +271,6 @@ export const calcLosa2d: Engine = (raw) => {
     });
   }
 
-  type TeoHit = { L: number; R: number; srcL: "pórtico" | "0.30 ℓn"; srcR: "pórtico" | "0.30 ℓn" };
-  const teoX = new Map<string, TeoHit>();
-  const teoY = new Map<string, TeoHit>();
-  const absorbTeo = (map: Map<string, TeoHit>, id: string, foundL: number | null, foundR: number | null, fallback: number) => {
-    const cur = map.get(id) ?? { L: fallback, R: fallback, srcL: "0.30 ℓn", srcR: "0.30 ℓn" };
-    if (foundL != null) {
-      cur.L = cur.srcL === "pórtico" ? Math.max(cur.L, foundL) : foundL;
-      cur.srcL = "pórtico";
-    } else if (cur.srcL !== "pórtico") {
-      cur.L = Math.max(cur.L, fallback);
-    }
-    if (foundR != null) {
-      cur.R = cur.srcR === "pórtico" ? Math.max(cur.R, foundR) : foundR;
-      cur.srcR = "pórtico";
-    } else if (cur.srcR !== "pórtico") {
-      cur.R = Math.max(cur.R, fallback);
-    }
-    map.set(id, cur);
-  };
   const stripFigs: { title: string; pts: string; L: number; MuPos: number; MuNeg: number }[] = [];
   const posXByPane = new Map<string, number>();
   const negXByPane = new Map<string, number>();
@@ -354,21 +294,6 @@ export const calcLosa2d: Engine = (raw) => {
       MuPos: Math.max(solved.Mmax, 0),
       MuNeg: Math.max(-solved.Mmin, 0),
     });
-    let xSpan = 0;
-    for (let i = 0; i < st.spans.length; i++) {
-      const Lspan = st.spans[i];
-      const pan = paneAtStripSpan(st, i, panes);
-      if (pan) {
-        absorbTeo(
-          st.dir === "x" ? teoX : teoY,
-          pan.id,
-          teoFromSupport(solved.pts, xSpan, xSpan + Lspan, "left"),
-          teoFromSupport(solved.pts, xSpan, xSpan + Lspan, "right"),
-          0.3 * Lspan,
-        );
-      }
-      xSpan += Lspan;
-    }
     const mPos = Math.max(solved.Mmax, 0) / b;
     const mNeg = Math.max(-solved.Mmin, 0) / b;
     for (const id of st.paneIds) {
@@ -427,19 +352,17 @@ export const calcLosa2d: Engine = (raw) => {
   const buildNeg = (row: (typeof rows)[number], face: SlabFace, dir: "x" | "y"): LosaNegLen => {
     const ln = dir === "x" ? row.lx : row.ly;
     const has = face.As > 1e-8;
-    const teo = (dir === "x" ? teoX : teoY).get(row.id);
-    const fb = 0.3 * ln;
     const edgeL = dir === "x" ? isEdge(row.edges.L) : isEdge(row.edges.B);
     const edgeR = dir === "x" ? isEdge(row.edges.R) : isEdge(row.edges.T);
-    const LteoL = has ? (teo?.srcL === "pórtico" ? teo.L : fb) : 0;
-    const LteoR = has ? (teo?.srcR === "pórtico" ? teo.R : fb) : 0;
-    const srcL = has && teo?.srcL === "pórtico" ? "pórtico" : "0.30 ℓn";
-    const srcR = has && teo?.srcR === "pórtico" ? "pórtico" : "0.30 ℓn";
+    const srcL: LosaNegCutSrc = "anclaje";
+    const srcR: LosaNegCutSrc = "anclaje";
+    const LteoL = 0;
+    const LteoR = 0;
     const db = has ? face.db : 0;
     const dCm = face.dCm;
     const L = sideOf(LteoL, srcL, edgeL, db, dCm, ln, rec, has);
     const R = sideOf(LteoR, srcR, edgeR, db, dCm, ln, rec, has);
-    const sample = has ? losaNegBarM({ LteoM: LteoL, dbCm: db, dCm, lnM: ln, recCm: rec, edge: edgeL }) : null;
+    const sample = has ? losaNegBarM({ LteoM: LteoL, dbCm: db, dCm, lnM: ln, recCm: rec, edge: edgeL, src: srcL, capRatio: 0.3 }) : null;
     return {
       ln,
       db,
@@ -463,7 +386,11 @@ export const calcLosa2d: Engine = (raw) => {
     [...negLens.values()].find((n) => n.y.Lext > 0)?.y;
 
   const hNeed = hMinAci(rows[0] ? Math.min(rows[0].lx, rows[0].ly) : 4, fy, exterior, tipo === "aligerada");
-  const ratio = rows.length ? Math.min(...rows.map((p) => Math.min(p.lx, p.ly) / Math.max(p.lx, p.ly, 0.05))) : 1;
+  const twoWayPanes = rows.filter((p) => p.twoWay);
+  const nOneWay = rows.filter((p) => !p.twoWay).length;
+  const ratio = twoWayPanes.length
+    ? Math.min(...twoWayPanes.map((p) => Math.min(p.lx, p.ly) / Math.max(p.lx, p.ly, 0.05)))
+    : 1;
   const nOn = rows.length;
   const first = steels[0];
   const tipoTxt = tipo === "aligerada" ? "aligerada" : "maciza";
@@ -518,7 +445,7 @@ export const calcLosa2d: Engine = (raw) => {
     ]),
   );
   const steelOk = steels.every((s) => facesOf(s).every(({ f }) => f.ok));
-  const workHalf = losaNegBarM({ LteoM: 0.3 * 3, dbCm: 1.27, dCm: dX, lnM: 3, recCm: rec });
+  const workHalf = losaNegBarM({ LteoM: 0, dbCm: 1.27, dCm: dX, lnM: 3, recCm: rec, edge: true, src: "anclaje", capRatio: 0.3 });
   const negRows = rows.flatMap((p) => {
     const n = negLens.get(p.id);
     if (!n) return [];
@@ -735,30 +662,30 @@ export const calcLosa2d: Engine = (raw) => {
       ),
       step(
         "09",
-        "Longitud de acero negativo (superior) — L teórica + extensión",
-        "L_ext = máx(12 db, d, ℓn/16)    ·    L_barra = L_teo + L_ext    ·    borde: L_barra ≥ rec + gancho 12 db",
-        "L_{\\mathrm{ext}}=\\max(12d_b,\\,d,\\,\\ell_n/16)\\qquad L_{\\mathrm{barra}}=L_{\\mathrm{teo}}+L_{\\mathrm{ext}}",
+        "Longitud de acero negativo (superior) — apoyo simple en todas las vigas",
+        "L_ext = máx(12 db, d, ℓn/16)    ·    L_teo = 0    ·    L_barra = L_ext (gancho 90° corto)",
+        "L_{\\mathrm{ext}}=\\max(12d_b,\\,d,\\,\\ell_n/16)\\qquad L_{\\mathrm{teo}}=0\\qquad L_{\\mathrm{barra}}=L_{\\mathrm{ext}}",
         demoNeg
           ? `Ø db=${fmt(demoNeg.db, 2)} cm    d=${fmt(demoNeg.dCm, 1)} cm    ℓn=${fmt(demoNeg.ln, 2)} m    12 db=${fmt(demoNeg.twelveDb, 2)} cm    d=${fmt(demoNeg.dCm, 1)} cm    ℓn/16=${fmt(demoNeg.ln16, 2)} cm`
           : `dX=${fmt(dX, 1)} cm  rec=${fmt(rec, 1)} cm  (sin As− de referencia)`,
         demoNeg
           ? `L_ext = ${fmt(demoNeg.Lext * 100, 2)} cm (${demoNeg.gov})    ·    L_teo izq/inf = ${fmt(demoNeg.L.Lteo, 2)} m (${demoNeg.L.src})    ·    L_barra = ${fmt(demoNeg.L.Lbar, 2)} m`
           : "Sin acero negativo",
-        "E.060 / ACI 318 9.7.3.8.4 y 7.7.3.8: al menos 1/3 del negativo se prolonga más allá del punto de inflexión no menos que máx(d, 12 db, ℓn/16). L_teo es la distancia desde el eje de apoyo hasta donde ya no se requiere flexión (inflexión del pórtico equivalente; si el extremo es simple y ACI sí pide As−, se toma 0,30 ℓn). La faja de negativo de losa 2 dir. cubre ~ℓn/4 a cada lado del apoyo; dentro de esa faja la barra se corta con L_teo+L_ext, no a ojo ni con una U fija por paño. En borde, L_barra no es menor que recubrimiento de apoyo + gancho 12 db. Tope 0,45 ℓn para no invadir el vano positivo.",
+        "Las vigas de la losa son apoyos simples (θ libre); el nudo no se empotra. El As− cubre el apoyo y ancla L_ext = máx(12 db, d, ℓn/16) hacia el vano, con gancho 90° corto. No se usa 0,30 ℓn (eso es losa empotrada / DDM).",
         {
           desarrollo: [
             `L_ext = máx(12 db, d, ℓn/16). Caso de verificación Ø 1/2\" (db = 1,27 cm), losa h = ${fmt(h, 0)} cm rec = ${fmt(rec, 1)} cm → d = h − rec − Ø/2 ≈ ${fmt(dX, 1)} cm, ℓn = 3,00 m:`,
             `12 db = 12×1,27 = ${fmt(workHalf.twelveDb, 2)} cm;  d = ${fmt(workHalf.dCm, 1)} cm;  ℓn/16 = 300/16 = ${fmt(workHalf.ln16, 2)} cm.`,
             `máx(${fmt(workHalf.twelveDb, 2)}, ${fmt(workHalf.dCm, 1)}, ${fmt(workHalf.ln16, 2)}) = ${fmt(workHalf.LextCm, 2)} cm  →  gobierna ${workHalf.gov}.`,
-            `L_teo típico 0,30 ℓn = 0,30×3,00 = 0,90 m.  L_barra = 0,90 + ${fmt(workHalf.LextM, 3)} = ${fmt(workHalf.LbarM, 3)} m (tope 0,45×3,00 = 1,35 m).`,
+            `Todas las vigas son apoyos simples: L_teo = 0.  L_barra = L_ext = ${fmt(workHalf.LbarM, 3)} m (gancho 90° = 12 db). No se usa 0,30 ℓn ni inflexión de pórtico: esa regla es de losa empotrada / DDM.`,
             demoNeg
               ? `En este expediente, paño de referencia ℓn = ${fmt(demoNeg.ln, 2)} m, Ø db = ${fmt(demoNeg.db, 2)} cm, d = ${fmt(demoNeg.dCm, 1)} cm: 12 db = ${fmt(demoNeg.twelveDb, 2)} cm, ℓn/16 = ${fmt(demoNeg.ln16, 2)} cm → L_ext = ${fmt(demoNeg.Lext * 100, 2)} cm (${demoNeg.gov}). L_teo = ${fmt(demoNeg.L.Lteo, 2)} m (${demoNeg.L.src}) y ${fmt(demoNeg.R.Lteo, 2)} m (${demoNeg.R.src}). L_barra = ${fmt(demoNeg.L.Lbar, 2)} / ${fmt(demoNeg.R.Lbar, 2)} m.`
               : "No hay paño con As− para sustituir.",
-            "Al menos 1/3 del As− debe recibir esa extensión; con una sola malla de apoyo se aplica a todas las barras del lecho superior.",
-            "Despiece: longitud emplazada = L_barra desde el eje; gancho 90° solo en extremo libre o borde. No se dibuja una U simétrica de ℓn/4 por paño.",
+            "Al menos 1/3 del As− debe recibir esa extensión cuando hay inflexión; con una sola malla de apoyo se aplica a todas las barras del lecho superior.",
+            "Despiece: longitud emplazada = L_barra desde el eje; gancho 90° corto (radio 3 db, ramal 12 db) solo en extremo libre o borde. No se dibuja una U simétrica de ℓn/4 por paño.",
           ],
           table: {
-            caption: "Corte de As−: L_teo + máx(12 db, d, ℓn/16)  (longitudes en m salvo db y extensiones en cm)",
+            caption: "Corte de As−: apoyo simple — L_barra = L_ext  (m salvo db y extensiones en cm)",
             headers: ["Paño", "Dir.", "Ø @ s", "ℓn", "db", "12 db", "d", "ℓn/16", "L_ext", "gobierna", "L_teo L/B", "L_barra L/B", "L_teo R/T", "L_barra R/T"],
             rows: negRows.length ? negRows : [["—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—"]],
           },
@@ -768,7 +695,9 @@ export const calcLosa2d: Engine = (raw) => {
     [
       ok("Hay paños techados", String(nOn), "≥ 1", nOn >= 1),
       ok("Hay franjas de análisis", String(strips.length), "≥ 1", strips.length >= 1 || nOn === 0),
-      ok("ℓcorto/ℓlargo ≥ 0.5", fmt(ratio, 2), "≥ 0.50", ratio >= 0.5),
+      twoWayPanes.length
+        ? ok("Paños 2 dir. ℓcorto/ℓlargo ≥ 0.5", fmt(ratio, 2), "≥ 0.50", ratio >= 0.5)
+        : ok("Paños 1 dir. (ℓl/ℓc > 2)", String(nOneWay), "ACI 6.2.1 · se arman como losa 1 dir.", true),
       ok(`h ≥ hmín ${fmt(hNeed, 1)} cm`, `${fmt(h, 0)} cm`, `≥ ${fmt(hNeed, 1)}`, h + 1e-6 >= hNeed),
       ok(tipo === "aligerada" ? "h ≥ 17 cm (aligerada)" : "h ≥ 12 cm (maciza)", `${fmt(h, 0)} cm`, tipo === "aligerada" ? "≥ 17" : "≥ 12", tipo === "aligerada" ? h >= 17 : h >= 12),
       ok("As,prov ≥ As,req en todas las caras", steelOk ? "OK" : "revisar", "As,prov ≥ As", steelOk),
@@ -804,7 +733,7 @@ export const calcLosa2d: Engine = (raw) => {
         ],
       },
       {
-        title: "Longitudes de acero negativo (m) — L_barra = L_teo + máx(12 db, d, ℓn/16)",
+        title: "Longitudes de acero negativo (m) — apoyo simple: L_barra = L_ext (no 0,30 ℓn)",
         rows: [
           ["Paño", "Dir.", "ℓn", "L_ext", "L_teo L/B", "L_barra L/B", "L_teo R/T", "L_barra R/T", "origen L_teo"],
           ...negRows.map((r) => [r[0], r[1], r[3], `${r[8]} cm`, r[10], r[11], r[12], r[13], (negLens.get(r[0])?.[r[1] === "X" ? "x" : "y"].L.src ?? "—") + " / " + (negLens.get(r[0])?.[r[1] === "X" ? "x" : "y"].R.src ?? "—")]),

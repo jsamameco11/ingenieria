@@ -2,7 +2,15 @@ import { useId } from "react";
 import { centroid, type LeaderSide, type SteelDraftSpec, type SteelLayer } from "../lib/steelDraft";
 
 function fmtSep(s: number) {
-  return Math.abs(s - Math.round(s)) < 0.051 ? String(Math.round(s)) : s.toFixed(1).replace(".", ",");
+  if (!Number.isFinite(s) || s <= 0) return "—";
+  return Number.isInteger(s) ? String(s) : String(Math.round(s * 10) / 10);
+}
+
+function qtyOf(layer: SteelLayer) {
+  if (layer.qty) return layer.qty;
+  if (layer.sCm > 0.05) return `@${fmtSep(layer.sCm)} cm`;
+  if (layer.nReal > 1) return `${layer.nReal} Ø`;
+  return "";
 }
 
 function filletedD(pts: { x: number; y: number }[], radius: number) {
@@ -26,8 +34,46 @@ function filletedD(pts: { x: number; y: number }[], radius: number) {
   return d;
 }
 
-function dimTicks(x1: number, y1: number, x2: number, y2: number, side: LeaderSide, label: string, a1 = false) {
-  const vert = Math.abs(x2 - x1) < 0.8;
+function dimTicks(x1: number, y1: number, x2: number, y2: number, side: LeaderSide, label: string, a1 = false, tiny = false) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const vert = Math.abs(dx) < Math.abs(dy);
+  if (tiny) {
+    const t = 2.6;
+    const sw = 0.55;
+    const fs = a1 ? 6.8 : 6.2;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const out = side === "left" || side === "top" ? 1 : -1;
+    const mx = (x1 + x2) / 2 + nx * out * 0.4;
+    const my = (y1 + y2) / 2 + ny * out * 0.4;
+    const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const flip = ang > 90 || ang < -90;
+    const rot = flip ? ang + 180 : ang;
+    return (
+      <g>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#5a4a28" strokeWidth={sw} />
+        <line x1={x1 - (vert ? t : 0)} y1={y1 - (vert ? 0 : t)} x2={x1 + (vert ? t : 0)} y2={y1 + (vert ? 0 : t)} stroke="#5a4a28" strokeWidth={sw} />
+        <line x1={x2 - (vert ? t : 0)} y1={y2 - (vert ? 0 : t)} x2={x2 + (vert ? t : 0)} y2={y2 + (vert ? 0 : t)} stroke="#5a4a28" strokeWidth={sw} />
+        <text
+          x={mx}
+          y={my}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={fs}
+          fill="#5a4a28"
+          fontFamily="IBM Plex Mono, ui-monospace, monospace"
+          transform={`rotate(${rot.toFixed(2)} ${mx.toFixed(1)} ${my.toFixed(1)})`}
+          stroke="#f4efe4"
+          strokeWidth="2.2"
+          paintOrder="stroke"
+        >
+          {label}
+        </text>
+      </g>
+    );
+  }
   const t = a1 ? 9 : 7;
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
@@ -152,7 +198,7 @@ function MarkBox({
         Ø {layer.bar}
       </text>
       <text x={x + 32} y={box.y + 12} textAnchor="start" fontSize={a1 ? 10.5 : 8.5} fill="#5a4a28" fontFamily="IBM Plex Mono, ui-monospace, monospace">
-        @{fmtSep(layer.sCm)} cm
+        {qtyOf(layer)}
       </text>
     </g>
   );
@@ -200,7 +246,7 @@ function LayerCallout({
         {layer.name}
       </text>
       <text x={tx} y={nameY + (a1 ? 22 : 13)} textAnchor={textAnchor} fontSize={a1 ? 19 : 10.5} fontWeight={a1 ? 700 : 500} fill={layer.color} fontFamily="IBM Plex Mono, ui-monospace, monospace">
-        Ø {layer.bar} @ {fmtSep(layer.sCm)} cm
+        Ø {layer.bar}{qtyOf(layer) ? ` ${qtyOf(layer)}` : ""}
       </text>
       {extra ? (
         <>
@@ -252,6 +298,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   const clipWall = `steel-clip-${uid}`;
   const a1 = spec.sheet === "a1";
   const plan = spec.mode === "plan";
+  const showGround = !plan && (Boolean(spec.soil) || Boolean(spec.soilFront) || spec.groundY != null);
   const scale = spec.barScale ?? 1;
   const thin = spec.lineScale ?? 1;
   const leftLayers = spec.layers.filter((l) => l.side === "left");
@@ -294,15 +341,15 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               {spec.subtitle}
             </text>
           )}
-          {plan ? null : spec.soil ? <polygon points={spec.soil} fill={`url(#${soil})`} opacity="0.78" /> : null}
-          {plan ? null : spec.soilFront ? <polygon points={spec.soilFront} fill={`url(#${soil})`} opacity="0.78" /> : null}
-          {plan ? null : <line x1="36" y1={gy} x2={spec.W - 36} y2={gy} stroke="#7d6c48" strokeWidth={a1 ? 3.1 : 2.6} />}
-          {plan
-            ? null
-            : Array.from({ length: a1 ? 28 : 22 }, (_, i) => {
+          {showGround && spec.soil ? <polygon points={spec.soil} fill={`url(#${soil})`} opacity="0.78" /> : null}
+          {showGround && spec.soilFront ? <polygon points={spec.soilFront} fill={`url(#${soil})`} opacity="0.78" /> : null}
+          {showGround ? <line x1="36" y1={gy} x2={spec.W - 36} y2={gy} stroke="#7d6c48" strokeWidth={a1 ? 3.1 : 2.6} /> : null}
+          {showGround
+            ? Array.from({ length: a1 ? 28 : 22 }, (_, i) => {
                 const x = 44 + i * ((spec.W - 88) / (a1 ? 27 : 21));
                 return <line key={i} x1={x} y1={gy} x2={x - 8} y2={gy + 9} stroke="#7d6c48" strokeWidth="1.2" />;
-              })}
+              })
+            : null}
           {spec.regions?.length ? (
             spec.regions.map((r, i) => (
               <g key={`rg-${i}`}>
@@ -329,6 +376,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             />
           ))}
           {spec.cover ? <polygon points={spec.cover} fill="none" stroke="#7a6240" strokeWidth={a1 ? 1.15 : 0.95} strokeDasharray="6 3" /> : null}
+          <g clipPath={plan && spec.regions?.length ? `url(#${clipWall})` : undefined}>
           {longLayers.map((layer) => {
             const paths = layer.barPaths?.length ? layer.barPaths : layer.barPath?.length ? [layer.barPath] : [];
             return (
@@ -339,6 +387,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               </g>
             );
           })}
+          </g>
           <g clipPath={`url(#${clipWall})`}>
           {cutLayers.map((layer) => (
             <g key={`ct-${layer.mark}`}>
@@ -349,7 +398,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
           ))}
           </g>
           {spec.dims.map((d, i) => (
-            <g key={`d-${i}`}>{dimTicks(d.x1, d.y1, d.x2, d.y2, d.side, d.label, a1)}</g>
+            <g key={`d-${i}`}>{dimTicks(d.x1, d.y1, d.x2, d.y2, d.side, d.label, a1, d.tiny)}</g>
           ))}
           {spec.markBoxes
             ? spec.layers
@@ -428,7 +477,10 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             </g>
           ) : (
             <text x="16" y={spec.H - 14} fontSize="9" fill="#5a4a28" fontFamily="IBM Plex Sans, sans-serif">
-              Flexión en el plano · temperatura en corte · dentellón solo si desliza
+              {spec.footer ??
+                (spec.soil || spec.soilFront || spec.groundY != null
+                  ? "Flexión en el plano · temperatura en corte · dentellón solo si desliza"
+                  : "Corte de sección · recubrimiento y Ø dibujados a escala")}
             </text>
           )}
         </svg>

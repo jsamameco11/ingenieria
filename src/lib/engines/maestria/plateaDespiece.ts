@@ -9,6 +9,7 @@ import {
   STEEL_DIST,
   type SteelDraftSpec,
   type SteelLayer,
+  type SteelDim,
 } from "../../steelDraft";
 import { parseGrid, type GridModel } from "../../layoutGrid";
 import {
@@ -21,7 +22,8 @@ import {
   nyOf,
   parseMae,
 } from "./types";
-import { ldTension } from "./steel";
+import { ldTension, losaNegBarM } from "./steel";
+import { clipHOnRects, clipVOnRects, orthoUnionOutline } from "./drawCommon";
 
 function nv(v: Record<string, string>, k: string, fb = 0) {
   const s = String(v[k] ?? "").trim().replace(",", ".");
@@ -195,6 +197,7 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   const H = Math.ceil(padT + Ly * sc + padB);
   const xy = (x: number, y: number) => ({ x: padL + (x - plan.x0) * sc, y: padT + (plan.y1 - y) * sc });
   const recM = rec / 100;
+  const cells = plan.cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }));
 
   const x0s = xy(plan.x0, plan.y0).x;
   const x1s = xy(plan.x1, plan.y0).x;
@@ -235,13 +238,17 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   for (let i = 0; i < nInfXShow; i++) {
     const tt = nInfXShow === 1 ? 0.5 : i / (nInfXShow - 1);
     const y = plan.y0 + recM + tt * spanY;
-    infXPaths.push(pathBothHooks90(xy(plan.x0 + recM, y), xy(plan.x1 - recM, y), "up", "up", rIX, hIX));
+    for (const seg of clipHOnRects(y, plan.x0 + recM, plan.x1 - recM, cells, recM)) {
+      infXPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "up", "up", rIX, hIX));
+    }
   }
   const infYPaths: { x: number; y: number }[][] = [];
   for (let i = 0; i < nInfYShow; i++) {
     const tt = nInfYShow === 1 ? 0.5 : i / (nInfYShow - 1);
     const x = plan.x0 + recM + tt * spanX;
-    infYPaths.push(pathBothHooks90(xy(x, plan.y0 + recM), xy(x, plan.y1 - recM), "right", "right", rIY, hIY));
+    for (const seg of clipVOnRects(x, plan.y0 + recM, plan.y1 - recM, cells, recM)) {
+      infYPaths.push(pathBothHooks90(xy(x, seg.y0), xy(x, seg.y1), "right", "right", rIY, hIY));
+    }
   }
 
   // Superiores cortados sobre ejes de columnas (L_teo + ℓd a cada lado del eje).
@@ -251,8 +258,11 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   const stepY = colYs.length >= 2 ? Math.min(...colYs.slice(1).map((y, i) => y - colYs[i])) : Ly / 2;
   const ldSX = ldTension(fy, fc, supX.db);
   const ldSY = ldTension(fy, fc, supY.db);
-  const cutX = 0.25 * Math.max(stepX, 1) + ldSX / 100;
-  const cutY = 0.25 * Math.max(stepY, 1) + ldSY / 100;
+  const dCm = Math.max(t * 100 - rec, 20);
+  const cutXM = losaNegBarM({ LteoM: 0.3 * Math.max(stepX, 1), dbCm: supX.db, dCm, lnM: Math.max(stepX, 1), recCm: rec, src: "pórtico" });
+  const cutYM = losaNegBarM({ LteoM: 0.3 * Math.max(stepY, 1), dbCm: supY.db, dCm, lnM: Math.max(stepY, 1), recCm: rec, src: "pórtico" });
+  const cutX = Math.max(cutXM.LbarM, ldSX / 100);
+  const cutY = Math.max(cutYM.LbarM, ldSY / 100);
   const rSX = bendR(supX.db, sc);
   const hSX = hookLen(supX.db, sc);
   const rSY = bendR(supY.db, sc);
@@ -262,7 +272,9 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   const nSupXShow = Math.min(nDraw(nSupXReal, 4), 4);
   const nSupYShow = Math.min(nDraw(nSupYReal, 4), 4);
   const supXPaths: { x: number; y: number }[][] = [];
+  const axisDims: SteelDim[] = [];
   const axesY = colYs.length ? colYs : [(plan.y0 + plan.y1) / 2];
+  let dimX = false;
   for (const ay of axesY) {
     for (let i = 0; i < nSupXShow; i++) {
       const tt = nSupXShow === 1 ? 0.5 : i / (nSupXShow - 1);
@@ -273,12 +285,25 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
         const xa = Math.max(plan.x0 + recM, ax - cutX);
         const xb = Math.min(plan.x1 - recM, ax + cutX);
         if (xb - xa < 0.4) continue;
-        supXPaths.push(pathBothHooks90(xy(xa, y), xy(xb, y), "down", "down", rSX, hSX));
+        for (const seg of clipHOnRects(y, xa, xb, cells, recM)) {
+          if (seg.x1 - seg.x0 < 0.3) continue;
+          supXPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "down", "down", rSX, hSX));
+          if (!dimX && xb - ax > 0.25) {
+            const yD = xy(ax, y).y - 18;
+            axisDims.push({
+              x1: xy(ax, y).x, y1: yD, x2: xy(Math.min(seg.x1, ax + cutX), y).x, y2: yD,
+              label: `eje→ext. ${cutX.toFixed(2)} m (L_teo+ℓd)`,
+              side: "top", tiny: true,
+            });
+            dimX = true;
+          }
+        }
       }
     }
   }
   const supYPaths: { x: number; y: number }[][] = [];
   const axesX = colXs.length ? colXs : [(plan.x0 + plan.x1) / 2];
+  let dimY = false;
   for (const ax of axesX) {
     for (let i = 0; i < nSupYShow; i++) {
       const tt = nSupYShow === 1 ? 0.5 : i / (nSupYShow - 1);
@@ -289,7 +314,19 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
         const ya = Math.max(plan.y0 + recM, ay - cutY);
         const yb = Math.min(plan.y1 - recM, ay + cutY);
         if (yb - ya < 0.4) continue;
-        supYPaths.push(pathBothHooks90(xy(x, ya), xy(x, yb), "left", "left", rSY, hSY));
+        for (const seg of clipVOnRects(x, ya, yb, cells, recM)) {
+          if (seg.y1 - seg.y0 < 0.3) continue;
+          supYPaths.push(pathBothHooks90(xy(x, seg.y0), xy(x, seg.y1), "left", "left", rSY, hSY));
+          if (!dimY && yb - ay > 0.25) {
+            const xD = xy(x, ay).x + 18;
+            axisDims.push({
+              x1: xD, y1: xy(x, ay).y, x2: xD, y2: xy(x, Math.min(seg.y1, ay + cutY)).y,
+              label: `eje→ext. ${cutY.toFixed(2)} m (L_teo+ℓd)`,
+              side: "right", tiny: true,
+            });
+            dimY = true;
+          }
+        }
       }
     }
   }
@@ -343,13 +380,23 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
     title: "PLANTA — DESPIECE DE PLATEA DE CIMENTACIÓN · HOJA A1",
     subtitle: "Mallas inf. continuas + sup. cortadas sobre ejes · paños, columnas y VC de la planta",
     caption: `1 Ø ${infX.bar} @ ${infX.s.toFixed(1).replace(".", ",")} cm inf. X   ·   2 Ø ${infY.bar} @ ${infY.s.toFixed(1).replace(".", ",")} cm inf. Y   ·   3 Ø ${supX.bar} @ ${supX.s.toFixed(1).replace(".", ",")} cm sup. X   ·   4 Ø ${supY.bar} @ ${supY.s.toFixed(1).replace(".", ",")} cm sup. Y   ·   t = ${t.toFixed(2)} m   ·   ${plan.beams.length} VC   ·   ${plan.cols.length} col.`,
-    note: "Despiece fiel a la planta: solo paños pintados llevan acero. Inferior X/Y continuo de borde a borde con gancho 90° corto. Superior X/Y cortado sobre cada eje de columnas (L_teo 0,25 vano + ℓd). Vigas VC sobre los ejes que tocan concreto. Rec ≥ 7,5 cm (E.060 7.7.1).",
+    note: "Despiece fiel a la planta: solo paños pintados llevan acero. Inferior X/Y continuo de borde a borde con gancho 90° corto. Superior X/Y cortado sobre cada eje de columnas (L_teo 0,30 vano + ℓd, cota desde el eje al extremo). Vigas VC sobre los ejes que tocan concreto. Rec ≥ 7,5 cm (E.060 7.7.1).",
     W, H, sheet: "a1", mode: "plan", pxPerM: sc, lineScale: 0.55, markBoxes: true,
-    outline: ptsStr([xy(plan.x0, plan.y0), xy(plan.x1, plan.y0), xy(plan.x1, plan.y1), xy(plan.x0, plan.y1)]),
+    outline: ptsStr((() => {
+      const poly = orthoUnionOutline(cells);
+      const use = poly.length >= 3 ? poly : [
+        { x: plan.x0, y: plan.y0 },
+        { x: plan.x1, y: plan.y0 },
+        { x: plan.x1, y: plan.y1 },
+        { x: plan.x0, y: plan.y1 },
+      ];
+      return use.map((p) => xy(p.x, p.y));
+    })()),
     regions, guides,
     dims: [
       { x1: xy(plan.x0, plan.y0).x, y1: xy(plan.x0, plan.y0).y + 28, x2: xy(plan.x1, plan.y0).x, y2: xy(plan.x0, plan.y0).y + 28, label: `Lx = ${Lx.toFixed(2)} m`, side: "bottom" },
       { x1: xy(plan.x0, plan.y0).x - 22, y1: xy(plan.x0, plan.y1).y, x2: xy(plan.x0, plan.y0).x - 22, y2: xy(plan.x0, plan.y0).y, label: `Ly = ${Ly.toFixed(2)} m`, side: "left" },
+      ...axisDims,
     ],
     layers, annos,
   };

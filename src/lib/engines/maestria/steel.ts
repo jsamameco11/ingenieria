@@ -488,6 +488,83 @@ export function ldTension(fy: number, fc: number, dbCm: number) {
 }
 
 /**
+ * Acero longitudinal de viga (no malla): n Ø que caben en b con recubrimiento.
+ * Se usa en vigas de cimentación; nunca Ø @ s de losa.
+ */
+export function pickBeamBars(As: number, bCm: number, recCm = 5) {
+  const names = SLAB_MESH_BARS.filter((b) => b.db <= 2.55);
+  const usable = Math.max(bCm - 2 * Math.max(recCm, 4), 10);
+  let best: { n: number; bar: (typeof SLAB_MESH_BARS)[number]; asProv: number; score: number } | null = null;
+  for (const bar of names) {
+    const pitch = Math.max(bar.db + 2.5, 6);
+    const nMax = Math.max(2, Math.min(8, Math.floor(usable / pitch) + 1));
+    for (let n = 2; n <= nMax; n++) {
+      const asProv = n * bar.as;
+      if (asProv + 1e-9 < Math.max(As, 0.4)) continue;
+      const score = n * 0.12 + bar.db;
+      if (!best || score < best.score - 1e-9 || (Math.abs(score - best.score) < 1e-9 && asProv < best.asProv)) {
+        best = { n, bar, asProv, score };
+      }
+      break;
+    }
+  }
+  if (!best) {
+    const bar = names[names.length - 1] ?? SLAB_MESH_BARS[3];
+    const n = Math.max(2, Math.ceil(Math.max(As, 0.4) / bar.as));
+    best = { n, bar, asProv: n * bar.as, score: 99 };
+  }
+  return {
+    n: best.n,
+    bar: best.bar.name,
+    db: best.bar.db,
+    asBar: best.bar.as,
+    asProv: best.asProv,
+    text: `${best.n} Ø ${best.bar.name}`,
+  };
+}
+
+/**
+ * Amplificación simplificada de Vu por transferencia de momento en el perímetro
+ * crítico (E.060 11.12.6 / ACI 22.6.4). Interior ≈ 1; borde y esquina se mayoran
+ * porque γv Mu c / J no se resuelve aquí con el tensor J completo.
+ */
+export function punchMomentAmp(kind: PunchGeom["kind"]) {
+  if (kind === "esquina") return 1.25;
+  if (kind === "borde") return 1.15;
+  return 1;
+}
+
+/** Distancia desde un punto hasta salir del concreto pintado, en una dirección. */
+export function rayCantilever(cx: number, cy: number, painted: PunchRect[], dx: number, dy: number, maxLen = 40) {
+  const slab = painted.length ? painted : [{ x0: -maxLen, y0: -maxLen, x1: maxLen, y1: maxLen }];
+  const step = 0.02;
+  let last = 0;
+  for (let s = step; s <= maxLen + 1e-9; s += step) {
+    if (!ptOnRects(cx + dx * s, cy + dy * s, slab, 1e-4)) return last;
+    last = s;
+  }
+  return last;
+}
+
+/** Vuelos desde las caras del pedestal hasta el borde libre del concreto pintado. */
+export function colCantilevers(cx: number, cy: number, c1: number, c2: number, painted: PunchRect[]) {
+  const xP = rayCantilever(cx + c2 / 2, cy, painted, 1, 0);
+  const xM = rayCantilever(cx - c2 / 2, cy, painted, -1, 0);
+  const yP = rayCantilever(cx, cy + c1 / 2, painted, 0, 1);
+  const yM = rayCantilever(cx, cy - c1 / 2, painted, 0, -1);
+  return { xP, xM, yP, yM, lv: Math.max(xP, xM, yP, yM, 0.15) };
+}
+
+/** Vuelo de losa (flexión/corte 1 dir.): el voladizo corto, no la luz de la corrida. */
+export function transverseCantilever(cant: { xP: number; xM: number; yP: number; yM: number }) {
+  const alongX = Math.max(cant.xP, cant.xM, 0);
+  const alongY = Math.max(cant.yP, cant.yM, 0);
+  if (alongX < 0.05) return Math.max(alongY, 0.15);
+  if (alongY < 0.05) return Math.max(alongX, 0.15);
+  return Math.max(Math.min(alongX, alongY), 0.15);
+}
+
+/**
  * Extensión del negativo más allá del punto de inflexión.
  * E.060 / ACI 318 9.7.3.8.4 y 7.7.3.8: ≥ máx(d, 12 db, ℓn/16).
  * Al menos 1/3 del As− se prolonga esa distancia; aquí se aplica a toda la malla.
@@ -501,7 +578,14 @@ export function losaNegLextCm(dbCm: number, dCm: number, lnM: number) {
   return { twelveDb, dCm: d, ln16, LextCm, gov };
 }
 
-/** L_barra = L_teo + máx(12 db, d, ℓn/16). En borde, no menor que recubrimiento + gancho 12 db. */
+export type LosaNegCutSrc = "pórtico" | "anclaje" | "0.30 ℓn";
+
+/**
+ * Corte del As− desde el eje de apoyo.
+ * - pórtico: L_teo (inflexión) + máx(12 db, d, ℓn/16).
+ * - anclaje: apoyo simple / M≈0 — solo L_ext (gancho 90° en borde). No se usa 0,30 ℓn.
+ * - 0.30 ℓn: la regla ACI de corte ya es la longitud total; no se suma L_ext otra vez.
+ */
 export function losaNegBarM(opts: {
   LteoM: number;
   dbCm: number;
@@ -509,14 +593,27 @@ export function losaNegBarM(opts: {
   lnM: number;
   recCm?: number;
   edge?: boolean;
+  src?: LosaNegCutSrc;
+  capRatio?: number;
 }) {
   const ext = losaNegLextCm(opts.dbCm, opts.dCm, opts.lnM);
   const LextM = ext.LextCm / 100;
   const hookMinM = opts.edge ? (opts.recCm ?? 2.5) / 100 + (12 * Math.max(opts.dbCm, 0)) / 100 : 0;
-  const raw = Math.max(Math.max(0, opts.LteoM) + LextM, hookMinM);
-  const cap = Math.max(opts.lnM, 0) * 0.45;
+  const src = opts.src ?? "pórtico";
+  const ln = Math.max(opts.lnM, 0);
+  let raw: number;
+  if (src === "anclaje") {
+    raw = Math.max(LextM, hookMinM);
+  } else if (src === "0.30 ℓn") {
+    const cutoff = Math.max(opts.LteoM, 0) > 1e-9 ? Math.max(opts.LteoM, 0) : 0.3 * ln;
+    raw = Math.max(cutoff, hookMinM);
+  } else {
+    raw = Math.max(Math.max(0, opts.LteoM) + LextM, hookMinM);
+  }
+  const capRatio = opts.capRatio ?? (src === "anclaje" ? 0.2 : 0.45);
+  const cap = ln * capRatio;
   const LbarM = cap > 1e-9 ? Math.min(raw, Math.max(cap, hookMinM)) : raw;
-  return { ...ext, LteoM: Math.max(0, opts.LteoM), LextM, LbarM, hookMinM };
+  return { ...ext, LteoM: Math.max(0, opts.LteoM), LextM, LbarM, hookMinM, src };
 }
 
 export function pendingPlantOut(title: string, how: string) {

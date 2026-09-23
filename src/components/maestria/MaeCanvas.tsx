@@ -664,7 +664,7 @@ export function LosaIdentificacion({ model, tipo = "maciza" }: { model: MaeModel
       {found.posRuns.length || found.negCuts.length ? (
         <ul>
           <li>
-            Positivo continuo: {found.posRuns.length} tramo(s). Negativo solo en viga/muro: {found.negCuts.length} apoyo(s), L = L_teo + máx(12 db, d, ℓn/16).
+            Positivo continuo: {found.posRuns.length} tramo(s). Negativo solo en viga/muro: {found.negCuts.length} apoyo(s), L = L_ext = máx(12 db, d, ℓn/16) (apoyo simple, no 0,30 ℓn).
           </li>
         </ul>
       ) : null}

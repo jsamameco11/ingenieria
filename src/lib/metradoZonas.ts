@@ -39,6 +39,8 @@ export type MetradoLayout = {
   zones: MetradoZone[];
   arrows?: MetradoArrow[];
   dims?: MetradoDim[];
+  /** Si es false, no se dibuja el terreno (cuba elevada: solo eje de revolución). */
+  ground?: boolean;
 };
 
 export const MATERIAL_META: Record<
@@ -553,24 +555,40 @@ export function layoutTanqueCircular(p: {
   const { D, HL, H, tMuro, tLosa, tDomo, fDomo } = p;
   const R = D / 2;
   const y0 = tLosa;
-  const dome = sampleSphereCrown(R, fDomo, y0 + H, 36);
-  const domeOuter = sampleSphereCrown(R + tDomo, fDomo + tDomo * 0.35, y0 + H, 36);
+  const yTop = y0 + H;
+  const crown = sphereCrownShell(R, fDomo, yTop, tDomo, 96);
+  const hAn = Math.max(0.28, tMuro + 0.1);
+  const muro: Pt[] = [
+    [R, y0],
+    [R + tMuro, y0],
+    [R + tMuro, yTop],
+    [R + tMuro + 0.12, yTop],
+    [R + tMuro + 0.12, yTop + hAn * 0.55],
+    [R - 0.04, yTop + hAn * 0.55],
+    [R - 0.04, yTop],
+    [R, yTop],
+  ];
   return {
     id: "metrado-tanque-circular",
     title: "Identificación de zonas — pesos propios",
     caption:
-      "Media sección de la cuba circular. Cada número identifica el elemento del metrado de pesos (concreto y agua).",
+      "Media sección de la cuba circular apoyada. El muro y la cúpula se dibujan como cáscaras de espesor real; el ensanche de coronación es la viga collarín. Cada número identifica el elemento del metrado.",
     origin: "Eje del tanque",
+    ground: true,
+    dims: [
+      { x1: R, y1: y0 + H * 0.45, x2: R + tMuro, y2: y0 + H * 0.45, label: `e=${(tMuro * 100).toFixed(0)} cm` },
+    ],
     zones: [
-      { n: 1, label: "Muro cilíndrico", material: "concreto", pts: rect(R, y0, tMuro, H) },
+      { n: 1, label: "Muro cilíndrico", material: "concreto", pts: muro, badge: [R + tMuro + 0.32, y0 + H * 0.55] },
       {
         n: 2,
         label: "Cúpula de techo",
         material: "concreto",
-        pts: [...dome, ...domeOuter.slice().reverse()],
+        pts: crown.closed,
+        badge: [R * 0.55, yTop + fDomo + tDomo * 0.4],
       },
-      { n: 3, label: "Losa de fondo", material: "concreto", pts: rect(0, 0, R + tMuro + 0.12, tLosa) },
-      { n: 4, label: "Agua almacenada", material: "agua", pts: rect(0, y0, R, HL) },
+      { n: 3, label: "Losa de fondo", material: "concreto", pts: rect(0, 0, R + tMuro + 0.18, tLosa), badge: [R * 0.45, tLosa * 0.45] },
+      { n: 4, label: "Agua almacenada", material: "agua", pts: rect(0, y0, R, HL), badge: [R * 0.42, y0 + HL * 0.45] },
     ],
   };
 }
@@ -586,17 +604,24 @@ export function layoutTanqueRect(p: {
 }): MetradoLayout {
   const { Ly, HL, H, tMuro, tTecho, tLosa } = p;
   const L = Ly;
+  const y0 = tLosa;
+  const yTop = y0 + H;
   return {
     id: "metrado-tanque-rect",
     title: "Identificación de zonas — pesos propios",
     caption:
-      "Corte transversal (luz Ly). Los números identifican muros, losas y el agua del metrado de pesos.",
-    origin: "Esquina interior",
+      "Corte transversal (luz corta Ly). Se ven ambos muros, la losa de techo, la losa de fondo y el agua. Cada número identifica el elemento del metrado.",
+    origin: "Eje del corte",
+    ground: true,
+    dims: [
+      { x1: -tMuro, y1: y0 + H * 0.5, x2: 0, y2: y0 + H * 0.5, label: `e=${(tMuro * 100).toFixed(0)} cm` },
+    ],
     zones: [
-      { n: 1, label: "Muros perimetrales", material: "concreto", pts: rect(-tMuro, tLosa, tMuro, H) },
-      { n: 2, label: "Losa de techo", material: "concreto", pts: rect(-tMuro, tLosa + H, L + 2 * tMuro, tTecho) },
-      { n: 3, label: "Losa de fondo", material: "concreto", pts: rect(-tMuro, 0, L + 2 * tMuro, tLosa) },
-      { n: 4, label: "Agua almacenada", material: "agua", pts: rect(0, tLosa, L, HL) },
+      { n: 1, label: "Muros perimetrales", material: "concreto", pts: rect(-tMuro, y0, tMuro, H), badge: [-tMuro - 0.22, y0 + H * 0.55] },
+      { n: 1, label: "Muros perimetrales", material: "concreto", pts: rect(L, y0, tMuro, H), badge: [L + tMuro + 0.22, y0 + H * 0.55] },
+      { n: 2, label: "Losa de techo", material: "concreto", pts: rect(-tMuro, yTop, L + 2 * tMuro, tTecho), badge: [L * 0.5, yTop + tTecho * 0.55] },
+      { n: 3, label: "Losa de fondo", material: "concreto", pts: rect(-tMuro, 0, L + 2 * tMuro, tLosa), badge: [L * 0.5, tLosa * 0.45] },
+      { n: 4, label: "Agua almacenada", material: "agua", pts: rect(0, y0, L, HL), badge: [L * 0.5, y0 + HL * 0.45] },
     ],
   };
 }
@@ -622,8 +647,8 @@ export function layoutTanqueIntze(p: {
   const yTop = yCil + h1;
   const yWater = yCil + Math.min(Math.max(HL - hCono * 0.35, h1 * 0.92), h1);
 
-  const bowl = sphereBowlShell(rp, fInf, tInf, 72);
-  const crown = sphereCrownShell(R, fSup, yTop, tSup, 72);
+  const bowl = sphereBowlShell(rp, fInf, tInf, 96);
+  const crown = sphereCrownShell(R, fSup, yTop, tSup, 96);
 
   const Ls = Math.hypot(R - rp, hCono) || 1;
   const nx = hCono / Ls;
@@ -643,7 +668,7 @@ export function layoutTanqueIntze(p: {
     [rp + bAn, yCono + hAn * 0.65],
     [rp - 0.04, yCono + hAn * 0.65],
   ];
-  const anilloSup: Pt[] = rect(R - 0.04, yCil - 0.1, tMuro + 0.22, 0.26);
+  const anilloSup: Pt[] = rect(R - 0.04, yCil - 0.12, tMuro + 0.24, 0.28);
 
   const water: Pt[] = [
     ...bowl.inner,
@@ -657,8 +682,9 @@ export function layoutTanqueIntze(p: {
     id: "metrado-tanque-intze",
     title: "Identificación de zonas — pesos de la cuba INTZE",
     caption:
-      "Media sección de la cuba tipo INTZE. La cúpula inferior es un casquete esférico de espesor radial uniforme e_domo,inf (cáscara concéntrica); el nudo de inflexión se cierra con el anillo inferior. Cada número identifica el elemento del metrado.",
+      "Media sección de la cuba tipo INTZE (eje de revolución a la izquierda). Cada cáscara se dibuja con su espesor real: pared cilíndrica, tronco de cono, cúpulas esféricas concéntricas y anillos. El n.º coincide con la tabla de metrado.",
     origin: "Eje de la cuba",
+    ground: false,
     dims: [
       {
         x1: ringOuter[0],
@@ -667,33 +693,39 @@ export function layoutTanqueIntze(p: {
         y2: yCono,
         label: `e inf.=${(tInf * 100).toFixed(0)} cm`,
       },
+      {
+        x1: R,
+        y1: yCil + h1 * 0.5,
+        x2: R + tMuro,
+        y2: yCil + h1 * 0.5,
+        label: `e=${(tMuro * 100).toFixed(0)} cm`,
+      },
     ],
     zones: [
-      { n: 1, label: "Pared cilíndrica", material: "concreto", pts: rect(R, yCil, tMuro, h1) },
-      { n: 2, label: "Fondo cónico", material: "concreto", pts: cone },
+      { n: 1, label: "Pared cilíndrica", material: "concreto", pts: rect(R, yCil, tMuro, h1), badge: [R + tMuro + 0.35, yCil + h1 * 0.55] },
+      { n: 2, label: "Fondo cónico", material: "concreto", pts: cone, badge: [(R + rp) / 2 + tMuro + 0.32, yCono + hCono * 0.55] },
       {
         n: 3,
         label: "Cúpula superior",
         material: "concreto",
         pts: crown.closed,
-        badge: [R * 0.45, yTop + fSup * 0.55],
+        badge: [R * 0.52, yTop + fSup * 0.62],
       },
       {
         n: 4,
         label: "Cúpula inferior",
         material: "concreto",
         pts: bowl.closed,
-        badge: [rp * 0.42, fInf * 0.38],
+        badge: [rp * 0.48, fInf * 0.42],
       },
-      { n: 5, label: "Anillo inf. (inflexión)", material: "concreto", pts: anilloInf, badge: [rp + bAn + 0.15, yCono + 0.12] },
-      { n: 5, label: "Anillo superior", material: "concreto", pts: anilloSup, badge: [R + tMuro + 0.35, yCil + 0.18] },
+      { n: 5, label: "Anillo inf. (inflexión)", material: "concreto", pts: anilloInf, badge: [rp + bAn + 0.28, yCono + 0.06] },
+      { n: 6, label: "Anillo superior", material: "concreto", pts: anilloSup, badge: [R + tMuro + 0.42, yCil + 0.16] },
       {
-        n: 6,
+        n: 7,
         label: "Agua almacenada",
         material: "agua",
         pts: water,
-        badge: [R * 0.42, yCil + Math.min(h1, yWater - yCil) * 0.45],
-        smooth: true,
+        badge: [R * 0.38, yCil + Math.min(h1, Math.max(0.4, yWater - yCil)) * 0.48],
       },
     ],
   };

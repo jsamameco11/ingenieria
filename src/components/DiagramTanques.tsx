@@ -108,9 +108,23 @@ export function ReservorioApoyadoCroquis({ values }: { values: Record<string, st
   const xIzq = cx - rMuroPx - tMuroPx;
   const xDer = cx + rMuroPx + tMuroPx;
 
+  const tDomo = nv(values, "tDomo", 0.08);
+  const tDomoPx = Math.max(3, tDomo * scale);
   const rDom = (xDer - xIzq) / 2;
   const RsDom = (rDom * rDom + fDomoPx * fDomoPx) / (2 * Math.max(fDomoPx, 1));
-  const domoPath = `M ${xIzq} ${yMuroTop} A ${RsDom.toFixed(2)} ${RsDom.toFixed(2)} 0 0 1 ${xDer} ${yMuroTop}`;
+  const ycDom = yMuroTop - fDomoPx + RsDom;
+  const tN = tDomoPx / RsDom;
+  const xIzqOut = cx - rDom * (1 + tN);
+  const xDerOut = cx + rDom * (1 + tN);
+  const RsOut = RsDom + tDomoPx;
+  const yRingOut = ycDom - Math.sqrt(Math.max(0, RsOut * RsOut - (xDerOut - cx) * (xDerOut - cx)));
+  const domoPath = [
+    `M ${xIzq} ${yMuroTop}`,
+    `A ${RsDom.toFixed(2)} ${RsDom.toFixed(2)} 0 0 1 ${xDer} ${yMuroTop}`,
+    `L ${xDerOut.toFixed(1)} ${yRingOut.toFixed(1)}`,
+    `A ${RsOut.toFixed(2)} ${RsOut.toFixed(2)} 0 0 0 ${xIzqOut.toFixed(1)} ${yRingOut.toFixed(1)}`,
+    "Z",
+  ].join(" ");
 
   const elevacion = (
     <g>
@@ -119,7 +133,7 @@ export function ReservorioApoyadoCroquis({ values }: { values: Record<string, st
       <rect x={xIzq} y={yMuroTop} width={tMuroPx} height={yLosaTop - yMuroTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />
       <rect x={xDer - tMuroPx} y={yMuroTop} width={tMuroPx} height={yLosaTop - yMuroTop} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1" />
       <rect x={cx - rMuroPx} y={yAgua} width={rMuroPx * 2} height={yLosaTop - yAgua} fill="url(#tq-water)" />
-      <path d={domoPath} fill="none" stroke={NAVY} strokeWidth="2.2" />
+      <path d={domoPath} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.4" />
       <line x1={xIzq - 25} y1={yAgua} x2={xIzq} y2={yAgua} stroke="#2f6a8f" strokeWidth="1" strokeDasharray="3,2" />
       <text x={xIzq - 28} y={yAgua + 3} fontSize="8" fill="#2f6a8f" textAnchor="end">
         N.A.
@@ -267,6 +281,23 @@ function sphereCap(
   return { Rs, xL, xR, yRing, poleY, sag, aFromLeft: a(true), aFromRight: a(false) };
 }
 
+function offsetSphere(cap: ReturnType<typeof sphereCap>, cx: number, tPx: number, dir: "up" | "down") {
+  const yc = dir === "up" ? cap.poleY + cap.Rs : cap.poleY - cap.Rs;
+  const Rs2 = cap.Rs + tPx;
+  const ray = (x: number, y: number) => {
+    const vx = x - cx, vy = y - yc;
+    const L = Math.hypot(vx, vy) || 1;
+    return { x: x + (tPx * vx) / L, y: y + (tPx * vy) / L };
+  };
+  const oL = ray(cap.xL, cap.yRing);
+  const oR = ray(cap.xR, cap.yRing);
+  const pole = ray(cx, cap.poleY);
+  const sag2 = Math.abs(pole.y - oL.y);
+  const r2 = Math.abs(oR.x - cx);
+  const outer = sphereCap(cx, oL.y, r2, Math.max(sag2, 1), dir);
+  return { ...outer, Rs: Rs2, xL: oL.x, xR: oR.x, yRing: oL.y, poleY: pole.y };
+}
+
 function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record<string, string>, rApoyoPx?: number) {
   const D = nv(values, "D", 8);
   const rp = nv(values, "rp", D * 0.3);
@@ -274,11 +305,16 @@ function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record
   const hCono = nv(values, "hCono", 1.5);
   const fInf = nv(values, "fInf", rp / 3);
   const fSup = nv(values, "fSup", D / 5);
+  const tMuro = nv(values, "tMuro", 0.25);
+  const tDomoSup = nv(values, "tDomoSup", 0.08);
+  const tDomoInf = nv(values, "tDomoInf", 0.12);
 
   const Rpx = (D / 2) * scale;
   const rDomePx = Math.max(10, rp * scale);
-  // Viga de inflexión (anillo más inferior): radio r' del INTZE. No se usa el costado
-  // de la cuba (R = D/2) ni el Ø del fuste: el fuste empalma con este anillo.
+  const tMuroPx = Math.max(3.2, tMuro * scale);
+  const tSupPx = Math.max(2.6, tDomoSup * scale);
+  const tInfPx = Math.max(3, tDomoInf * scale);
+  // Viga de inflexión (anillo más inferior): radio r' del INTZE. El fuste empalma con este anillo.
   const ringExtra = Math.max(5, rDomePx * 0.12);
   const rApoyo = rApoyoPx ?? rDomePx + ringExtra;
   const h1px = h1 * scale;
@@ -296,35 +332,85 @@ function cubaIntzePaths(cx: number, baseY: number, scale: number, values: Record
   const yDomoFondo = yAnilloInf + fInfPx;
   const ySoffit = yAnilloInf + ringH / 2;
 
-  const roof = sphereCap(cx, yTechoBase, Rpx, fSupPx, "up");
-  const bowl = sphereCap(cx, yAnilloInf, rDomePx, fInfPx, "down");
-  const path = [
-    `M ${roof.xL.toFixed(2)} ${yTechoBase.toFixed(2)}`,
-    roof.aFromLeft,
+  const roofIn = sphereCap(cx, yTechoBase, Rpx, fSupPx, "up");
+  const roofOut = offsetSphere(roofIn, cx, tSupPx, "up");
+  const bowlIn = sphereCap(cx, yAnilloInf, rDomePx, fInfPx, "down");
+  const bowlOut = offsetSphere(bowlIn, cx, tInfPx, "down");
+
+  const wallOutR = Rpx + tMuroPx;
+  const tx = rDomePx - Rpx;
+  const ty = yAnilloInf - yAnilloSup;
+  const tLen = Math.hypot(tx, ty) || 1;
+  const nx = ty / tLen;
+  const ny = -tx / tLen;
+  const coneOutTopR = cx + Rpx + nx * tMuroPx;
+  const coneOutTopY = yAnilloSup + ny * tMuroPx;
+  const coneOutBotR = cx + rDomePx + nx * tMuroPx;
+  const coneOutBotY = yAnilloInf + ny * tMuroPx;
+
+  const concPath = [
+    `M ${roofOut.xL.toFixed(2)} ${roofOut.yRing.toFixed(2)}`,
+    roofOut.aFromLeft,
+    `L ${coneOutTopR.toFixed(2)} ${coneOutTopY.toFixed(2)}`,
+    `L ${coneOutBotR.toFixed(2)} ${coneOutBotY.toFixed(2)}`,
+    `A ${bowlOut.Rs.toFixed(2)} ${bowlOut.Rs.toFixed(2)} 0 0 1 ${(cx - (coneOutBotR - cx)).toFixed(2)} ${coneOutBotY.toFixed(2)}`,
+    `L ${(cx - (coneOutTopR - cx)).toFixed(2)} ${coneOutTopY.toFixed(2)}`,
+    "Z",
+  ].join(" ");
+
+  const cavityPath = [
+    `M ${roofIn.xL.toFixed(2)} ${yTechoBase.toFixed(2)}`,
+    roofIn.aFromLeft,
     `L ${cx + Rpx} ${yAnilloSup}`,
     `L ${cx + rDomePx} ${yAnilloInf}`,
-    bowl.aFromRight,
+    bowlIn.aFromRight,
     `L ${cx - Rpx} ${yAnilloSup}`,
     "Z",
   ].join(" ");
 
   const aguaTop = yAnilloSup - h1px * 0.92;
-  const wall = 2;
   const aguaPath = [
-    `M ${(cx - Rpx + wall).toFixed(2)} ${aguaTop.toFixed(2)}`,
-    `L ${(cx - Rpx + wall).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
+    `M ${(cx - Rpx).toFixed(2)} ${aguaTop.toFixed(2)}`,
+    `L ${(cx - Rpx).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
     `L ${(cx - rDomePx).toFixed(2)} ${yAnilloInf.toFixed(2)}`,
-    bowl.aFromLeft,
-    `L ${(cx + Rpx - wall).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
-    `L ${(cx + Rpx - wall).toFixed(2)} ${aguaTop.toFixed(2)}`,
+    bowlIn.aFromLeft,
+    `L ${(cx + Rpx).toFixed(2)} ${yAnilloSup.toFixed(2)}`,
+    `L ${(cx + Rpx).toFixed(2)} ${aguaTop.toFixed(2)}`,
     "Z",
   ].join(" ");
-  const roofPath = `M ${roof.xL.toFixed(2)} ${yTechoBase.toFixed(2)} ${roof.aFromLeft}`;
-  const bowlPath = `M ${bowl.xL.toFixed(2)} ${yAnilloInf.toFixed(2)} ${bowl.aFromLeft}`;
+  const roofPath = [
+    `M ${roofIn.xL.toFixed(2)} ${yTechoBase.toFixed(2)}`,
+    roofIn.aFromLeft,
+    `L ${roofOut.xR.toFixed(2)} ${roofOut.yRing.toFixed(2)}`,
+    roofOut.aFromRight,
+    "Z",
+  ].join(" ");
+  const bowlPath = [
+    `M ${bowlIn.xL.toFixed(2)} ${yAnilloInf.toFixed(2)}`,
+    bowlIn.aFromLeft,
+    `L ${bowlOut.xR.toFixed(2)} ${bowlOut.yRing.toFixed(2)}`,
+    bowlOut.aFromRight,
+    "Z",
+  ].join(" ");
+  const wallL = { x: cx - wallOutR, y: yTechoBase, w: tMuroPx, h: yAnilloSup - yTechoBase };
+  const wallR = { x: cx + Rpx, y: yTechoBase, w: tMuroPx, h: yAnilloSup - yTechoBase };
+  const coneL = [
+    `${cx - Rpx},${yAnilloSup}`,
+    `${cx - rDomePx},${yAnilloInf}`,
+    `${(cx - (coneOutBotR - cx)).toFixed(1)},${coneOutBotY.toFixed(1)}`,
+    `${(cx - (coneOutTopR - cx)).toFixed(1)},${coneOutTopY.toFixed(1)}`,
+  ].join(" ");
+  const coneR = [
+    `${cx + Rpx},${yAnilloSup}`,
+    `${cx + rDomePx},${yAnilloInf}`,
+    `${coneOutBotR.toFixed(1)},${coneOutBotY.toFixed(1)}`,
+    `${coneOutTopR.toFixed(1)},${coneOutTopY.toFixed(1)}`,
+  ].join(" ");
 
   return {
-    Rpx, rCamaraPx, rDomePx, rApoyo, h1px, hConoPx, fInfPx, fSupPx, hCamaraPx, ringH,
-    yAnilloInf, yAnilloSup, yTechoBase, yCamaraBot, yDomoFondo, ySoffit, path, aguaTop, aguaPath, roofPath, bowlPath,
+    Rpx, rCamaraPx, rDomePx, rApoyo, h1px, hConoPx, fInfPx, fSupPx, hCamaraPx, ringH, tMuroPx,
+    yAnilloInf, yAnilloSup, yTechoBase, yCamaraBot, yDomoFondo, ySoffit,
+    path: concPath, cavityPath, aguaTop, aguaPath, roofPath, bowlPath, wallL, wallR, coneL, coneR,
     D, rp, h1, hCono, fInf, fSup,
   };
 }
@@ -348,16 +434,19 @@ function CubaIntzeElevacion({
   const ringH = g.ringH;
   return (
     <g>
-      <path d={g.path} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.6" />
-      <path d={g.aguaPath} fill="url(#tq-water)" opacity="0.82" />
-      <path d={g.roofPath} fill="none" stroke={NAVY} strokeWidth="1.35" />
-      <path d={g.bowlPath} fill="none" stroke={NAVY} strokeWidth="1.35" />
+      <path d={g.aguaPath} fill="url(#tq-water)" opacity="0.88" />
+      <path d={g.roofPath} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.25" />
+      <path d={g.bowlPath} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.25" />
+      <polygon points={g.coneL} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.15" />
+      <polygon points={g.coneR} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.15" />
+      <rect x={g.wallL.x} y={g.wallL.y} width={g.wallL.w} height={Math.max(1, g.wallL.h)} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.15" />
+      <rect x={g.wallR.x} y={g.wallR.y} width={g.wallR.w} height={Math.max(1, g.wallR.h)} fill="url(#tq-conc)" stroke={NAVY} strokeWidth="1.15" />
       <rect x={cx - g.rApoyo - 6} y={g.yAnilloInf - ringH / 2} width={g.rApoyo * 2 + 12} height={ringH} fill={NAVY} opacity="0.92" />
-      <rect x={cx - g.Rpx - 6} y={g.yAnilloSup - 2} width={g.Rpx * 2 + 12} height="4" fill={NAVY} opacity="0.85" />
+      <rect x={cx - g.Rpx - g.tMuroPx - 4} y={g.yAnilloSup - 3} width={(g.Rpx + g.tMuroPx) * 2 + 8} height="6" fill={NAVY} opacity="0.88" />
       <rect x={cx - g.rCamaraPx} y={g.yAnilloInf} width={g.rCamaraPx * 2} height={g.hCamaraPx} fill="#fbf8f1" stroke={NAVY} strokeWidth="1.2" />
       {labels ? (
         <>
-          <text x={cx - g.Rpx - 8} y={g.yAnilloSup - 6} fontSize="7.5" fill={INK} textAnchor="end">
+          <text x={cx - g.Rpx - g.tMuroPx - 8} y={g.yAnilloSup - 6} fontSize="7.5" fill={INK} textAnchor="end">
             Anillo superior
           </text>
           <text x={cx - g.rApoyo - 8} y={g.yAnilloInf - ringH - 3} fontSize="7.5" fill={INK} textAnchor="end">
@@ -366,10 +455,10 @@ function CubaIntzeElevacion({
           <text x={cx + 4} y={g.yAnilloInf + g.hCamaraPx * 0.62} fontSize="7" fill={NAVY}>
             Cámara de inspección
           </text>
-          <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yAnilloInf) / 2} fontSize="7.5" fill={INK} textAnchor="end">
+          <text x={cx - g.Rpx - g.tMuroPx - 8} y={(g.yAnilloSup + g.yAnilloInf) / 2} fontSize="7.5" fill={INK} textAnchor="end">
             Fondo cónico
           </text>
-          <text x={cx - g.Rpx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="7.5" fill={INK} textAnchor="end">
+          <text x={cx - g.Rpx - g.tMuroPx - 8} y={(g.yAnilloSup + g.yTechoBase) / 2} fontSize="7.5" fill={INK} textAnchor="end">
             Pared cilíndrica
           </text>
           <Cota x1={cx - g.Rpx} y1={g.yTechoBase - g.fSupPx - 20} x2={cx + g.Rpx} y2={g.yTechoBase - g.fSupPx - 20} text={`D=${g.D.toFixed(2)} m`} side={14} />

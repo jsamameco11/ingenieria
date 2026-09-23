@@ -812,6 +812,33 @@ function tastesOf(identity) {
   }));
 }
 
+function declaredTastesFromOnboarding(rows = []) {
+  const out = [];
+  for (const row of rows) {
+    const answers = row?.answers && typeof row.answers === "object" ? row.answers : {};
+    for (const [key, value] of Object.entries(answers)) {
+      if (key === "email_keywords") continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const text = String(item || "").trim();
+          if (text) out.push({ id: `${row.platform_code}:${text}`, label: `${row.platform_code} · ${text}`, family: row.platform_code, score: 8 });
+        }
+      } else if (value && typeof value === "object") {
+        const loc = [value.country, value.state, value.province, value.district].filter(Boolean).join(", ");
+        if (loc) out.push({ id: `${row.platform_code}:loc`, label: loc, family: row.platform_code, score: 4 });
+      } else if (value != null && value !== "") {
+        out.push({
+          id: `${row.platform_code}:${key}`,
+          label: `${row.platform_code} · ${key} ${value}`,
+          family: row.platform_code,
+          score: 6,
+        });
+      }
+    }
+  }
+  return out.slice(0, 24);
+}
+
 function platformOfApp(app, os) {
   return idFromApp(app, os) || "folio";
 }
@@ -853,6 +880,7 @@ function mergeCensus({
   userPlatforms,
   sessions,
   platformCatalog,
+  siteOnboarding,
 }) {
   const ids = new Set();
   for (const row of profilesMc) if (row.user_id) ids.add(String(row.user_id));
@@ -865,6 +893,7 @@ function mergeCensus({
   for (const row of authUsers) if (row.id) ids.add(String(row.id));
   for (const row of userPlatforms || []) if (row.user_id) ids.add(String(row.user_id));
   for (const row of sessions || []) if (row.user_id) ids.add(String(row.user_id));
+  for (const row of siteOnboarding || []) if (row.user_id) ids.add(String(row.user_id));
   const mc = byKey(profilesMc, "user_id");
   const pl = byKey(plans, "user_id");
   const lkGroups = groupByKey(locks, "user_id");
@@ -919,6 +948,7 @@ function mergeCensus({
     const plat = byPlatId.get(row.platform_id) || {};
     return idFromPlatformCode(plat.platform_code || row.platform_code || "");
   }
+  const onboardingByUser = groupByKey(siteOnboarding || [], "user_id");
   const activity = new Map();
   for (const row of events || []) {
     const id = String(row.user_id || "");
@@ -963,7 +993,10 @@ function mergeCensus({
     const live = status !== "revoked" && wantsPro && (!until || new Date(until).getTime() > Date.now());
     const sku = String(plan.last_voucher || folio.plan_id || (live ? "mc-monthly" : "free"));
     const rubros = rubrosOf(p, insight);
-    const tastes = tastesOf(identity);
+    const tastes = [
+      ...tastesOf(identity),
+      ...declaredTastesFromOnboarding(onboardingByUser.get(user_id) || []),
+    ];
     const occupation = p.profession_label || p.inferred_role || insight.role_guess || identity.occupation || "";
     const buckets = emptyBreakdown();
     const userInstalls = byUserInstalls.get(user_id) || [];
@@ -1005,6 +1038,14 @@ function mergeCensus({
       markSite(buckets, key, {
         lastSeen: row.last_activity_at || row.started_at || "",
         source: "session",
+      });
+    }
+    for (const row of onboardingByUser.get(user_id) || []) {
+      const key = idFromPlatformCode(row.platform_code);
+      if (!key) continue;
+      markSite(buckets, key, {
+        lastSeen: row.updated_at || row.completed_at || "",
+        source: "onboarding",
       });
     }
     const sitePresence = sitePresenceFromBreakdown(buckets);
@@ -1232,6 +1273,7 @@ async function controlSnapshot() {
     userPlatforms,
     sessions,
     platformCatalog,
+    siteOnboarding,
   ] = await Promise.all([
     tableRows("/rest/v1/memorcalc_profiles?select=*&limit=3000"),
     tableRows("/rest/v1/memorcalc_plans?select=*&limit=3000"),
@@ -1253,6 +1295,7 @@ async function controlSnapshot() {
     tableRows("/rest/v1/user_platforms?select=user_id,is_active,acquisition_source,last_login_at,last_activity_at,first_login_at,platform_id&limit=8000"),
     tableRows("/rest/v1/user_sessions?select=user_id,platform_id,last_activity_at,started_at,session_status&order=last_activity_at.desc&limit=8000"),
     tableRows("/rest/v1/platforms?select=id,platform_code,name,slug,status&limit=400"),
+    tableRows("/rest/v1/site_onboarding?select=user_id,platform_code,answers,completed_at,updated_at&limit=8000"),
   ]);
   const users = mergeCensus({
     profilesMc,
@@ -1273,6 +1316,7 @@ async function controlSnapshot() {
     userPlatforms,
     sessions,
     platformCatalog,
+    siteOnboarding,
   });
   const countries = {};
   for (const u of users) {

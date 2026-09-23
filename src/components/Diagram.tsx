@@ -346,6 +346,8 @@ export function Diagram({
       return <Espectro values={values} />;
     case "mezcla":
       return <MezclaBatch values={values} />;
+    case "maquina":
+      return <MaquinaCosto values={values} />;
     default:
       return (
         <SvgFrame caption="Esquema del procedimiento">
@@ -5819,6 +5821,66 @@ function MezclaBatch({ values }: { values: Record<string, string> }) {
       })}
       <text x="260" y="282" textAnchor="middle" fontSize="11" fill="#6b6458">
         {esHorm ? "Pedido de obra (hormigón de cimientos o ciclópeo)" : "Pesos de obra por metro cúbico (húmedos)"}
+      </text>
+    </SvgFrame>
+  );
+}
+
+function MaquinaCosto({ values }: { values: Record<string, string> }) {
+  const Vt = n(values, "Vt", 220012);
+  const nY = n(values, "n", 5);
+  const Ha = n(values, "Ha", 2000);
+  const i = n(values, "i", 0.04);
+  const s = n(values, "s", 0.02);
+  const Vr = n(values, "Vr", 0);
+  const comb = n(values, "comb", 15);
+  const pc = n(values, "pc", 18.5);
+  const fm = n(values, "fm", 0.3);
+  const Vu = Math.max(nY * Ha, 1);
+  const Va = Vt * (1 - Vr);
+  const Dep = Va / Vu;
+  const Inv = (Va * i) / Vu;
+  const Seg = (Va * s) / Vu;
+  const fijos = Dep + Inv + Seg;
+  const mant = fm * Dep;
+  const combustible = comb * pc;
+  const CH = fijos + mant + combustible;
+  const items = [
+    { label: "Fijos", v: fijos, fill: "#1a4473" },
+    { label: "Mant.", v: mant, fill: "#7a6a58" },
+    { label: "Comb.", v: combustible, fill: "#8b1e1e" },
+  ];
+  const max = Math.max(...items.map((it) => it.v), 1);
+  return (
+    <SvgFrame heading="Costo horario" caption={`CH = ${CH.toFixed(2)} $/h    ·    Vu = ${Vu.toFixed(0)} h    ·    Va = ${Va.toFixed(0)}`}>
+      <rect x="40" y="48" width="210" height="150" rx="4" fill="#d9d3c6" stroke="#1a4473" strokeWidth="1.6" />
+      <rect x="58" y="68" width="174" height="56" fill="#c5bba8" stroke="#1a4473" />
+      <circle cx="88" cy="198" r="18" fill="#4a4034" stroke="#1a4473" />
+      <circle cx="202" cy="198" r="18" fill="#4a4034" stroke="#1a4473" />
+      <text x="145" y="100" textAnchor="middle" fontSize="12" fill="#1a4473">
+        Equipo
+      </text>
+      <text x="145" y="118" textAnchor="middle" fontSize="11" fill="#5a4a28">
+        {nY.toFixed(0)} años · {Ha.toFixed(0)} h/año
+      </text>
+      {items.map((it, k) => {
+        const x = 280 + k * 72;
+        const hBar = 16 + (it.v / max) * 120;
+        const y = 210 - hBar;
+        return (
+          <g key={it.label}>
+            <rect x={x} y={y} width="58" height={hBar} fill={it.fill} stroke="#1a4473" />
+            <text x={x + 29} y={y - 8} textAnchor="middle" fontSize="11" fill="#1a4473">
+              {it.v.toFixed(1)}
+            </text>
+            <text x={x + 29} y="232" textAnchor="middle" fontSize="11" fill="#1a4473">
+              {it.label}
+            </text>
+          </g>
+        );
+      })}
+      <text x="260" y="268" textAnchor="middle" fontSize="11" fill="#6b6458">
+        Cargos fijos + mantenimiento + combustible  ($/h)
       </text>
     </SvgFrame>
   );

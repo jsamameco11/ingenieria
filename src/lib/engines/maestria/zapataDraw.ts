@@ -12,6 +12,7 @@ import {
 import { parseCorrida } from "../../layoutGrid";
 import { cellOn, collectGradeBeams, colXY, defaultModel, ensureGradeBeams, nxOf, nyOf, parseMae, plantReady, type MaeModel } from "./types";
 import { ldTension, losaNegBarM, seatColumnOnPainted } from "./steel";
+import { clipHOnRects, orthoUnionOutline } from "./drawCommon";
 
 function nv(v: Record<string, string>, k: string, fb = 0) {
   const s = String(v[k] ?? "").trim().replace(",", ".");
@@ -220,6 +221,7 @@ export function buildZapataCorridaPlanSpec(values: Record<string, string>): Stee
     y: padT + (plant.y1 - y) * sc,
   });
   const recM = rec / 100;
+  const cells = plant.cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }));
   const fy = nv(values, "fy", 4200);
   const fc = nv(values, "fc", 210);
   const dCm = Math.max(hf * 100 - rec, 12);
@@ -261,9 +263,9 @@ export function buildZapataCorridaPlanSpec(values: Record<string, string>): Stee
   for (let i = 0; i < nLongShow; i++) {
     const t = nLongShow === 1 ? 0.5 : i / (nLongShow - 1);
     const y = plant.y0 + recM + t * spanY;
-    const a = xy(xA, y);
-    const b = xy(xB, y);
-    longPaths.push(pathBothHooks90(a, b, "up", "up", rLong, hookLong));
+    for (const seg of clipHOnRects(y, xA, xB, cells, recM)) {
+      longPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "up", "up", rLong, hookLong));
+    }
   }
 
   const colsX = [...plant.cols].sort((a, b) => a.x - b.x);
@@ -295,9 +297,10 @@ export function buildZapataCorridaPlanSpec(values: Record<string, string>): Stee
     for (let i = 0; i < nSupLShow; i++) {
       const t = nSupLShow === 1 ? 0.5 : i / (nSupLShow - 1);
       const y = plant.y0 + recM + yOff + t * Math.max(spanY - 2 * yOff, 0.08);
-      const a = xy(band.x0, y);
-      const b = xy(band.x1, y);
-      longSupPaths.push(pathBothHooks90(a, b, "down", "down", rSupL, hookSupL));
+      for (const seg of clipHOnRects(y, band.x0, band.x1, cells, recM)) {
+        if (seg.x1 - seg.x0 < 0.25) continue;
+        longSupPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "down", "down", rSupL, hookSupL));
+      }
     }
   }
 
@@ -376,7 +379,16 @@ export function buildZapataCorridaPlanSpec(values: Record<string, string>): Stee
     sheet: "a1",
     mode: "plan",
     pxPerM: sc,
-    outline: ptsStr([xy(plant.x0, plant.y0), xy(plant.x1, plant.y0), xy(plant.x1, plant.y1), xy(plant.x0, plant.y1)]),
+    outline: ptsStr((() => {
+      const poly = orthoUnionOutline(cells);
+      const use = poly.length >= 3 ? poly : [
+        { x: plant.x0, y: plant.y0 },
+        { x: plant.x1, y: plant.y0 },
+        { x: plant.x1, y: plant.y1 },
+        { x: plant.x0, y: plant.y1 },
+      ];
+      return use.map((p) => xy(p.x, p.y));
+    })()),
     regions,
     guides,
     dims: [

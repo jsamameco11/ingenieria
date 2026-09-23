@@ -271,24 +271,24 @@ export function calcularDespiece(inp: DespieceInput): Despiece {
   });
 
   /* ── ⑤ Malla inferior de la zapata ──
-   * Es la que resiste el momento de la puntera. La sección crítica está en la
-   * cara del fuste y la barra tiene que desarrollar ℓd desde allí hacia la
-   * punta; si no le alcanza, termina en gancho de 90°.
+   * Resiste el momento de la puntera. Corre de punta a punta (B − 2·rec) y
+   * cierra con gancho de 90° hacia arriba en ambos extremos libres, de modo
+   * que el cajón de la zapata queda amarrado y el doblez se ve hasta el borde.
    */
   const yInf = recZap + aZ.db / 2;
+  const ySup = geom.hf - recZap - aT.db / 2;
   const dispPuntera = geom.Ltoe - recZap;
-  const necesitaGanchoP = dispPuntera + 1e-6 < aZ.ld;
-  const patoP = necesitaGanchoP ? Math.max(aZ.ext90, aZ.ldh - dispPuntera - aZ.arco90) : 0;
-  const patoTal = Math.max(aZ.ext90, 0); // el extremo del talón siempre se cierra
+  const patoP = Math.min(aZ.ext90, Math.max(0.05, geom.hf - recZap - yInf));
+  const patoTal = Math.min(aZ.ext90, Math.max(0.05, geom.hf - recZap - yInf));
   const infPts: [number, number][] = [
-    ...(patoP > 0 ? ([[r3(recZap), r3(yInf + patoP)]] as [number, number][]) : []),
+    [r3(recZap), r3(yInf + patoP)],
     [r3(recZap), r3(yInf)],
     [r3(B - recZap), r3(yInf)],
     [r3(B - recZap), r3(yInf + patoTal)],
   ];
-  if (necesitaGanchoP) {
+  if (dispPuntera + 1e-6 < aZ.ld) {
     avisos.push(
-      `La puntera solo ofrece ${dispPuntera.toFixed(2)} m desde la cara del fuste y ℓd = ${aZ.ld.toFixed(2)} m: la malla inferior se remata con gancho de 90° de ${patoP.toFixed(2)} m [E.060 12.5].`,
+      `La puntera solo ofrece ${dispPuntera.toFixed(2)} m desde la cara del fuste y ℓd = ${aZ.ld.toFixed(2)} m: el gancho de 90° de ${patoP.toFixed(2)} m en la punta completa el anclaje [E.060 12.5].`,
     );
   }
   piezas.push({
@@ -297,9 +297,9 @@ export function calcularDespiece(inp: DespieceInput): Despiece {
     descripcion: "Malla inferior transversal — momento de la puntera",
     bar: inp.puntera.bar,
     s: inp.puntera.s,
-    forma: patoP > 0 ? "U" : "L",
+    forma: "U",
     tramos: [
-      ...(patoP > 0 ? [{ etiqueta: "Gancho de 90° en la punta", L: r3(patoP) }] : []),
+      { etiqueta: "Gancho de 90° en la punta", L: r3(patoP) },
       { etiqueta: "Tramo recto B − 2·rec", L: r3(B - 2 * recZap) },
       { etiqueta: "Gancho de 90° en el talón", L: r3(patoTal) },
     ],
@@ -309,31 +309,35 @@ export function calcularDespiece(inp: DespieceInput): Despiece {
     puntos: infPts,
     justificacion: [
       `Sección crítica en la cara del fuste, x = ${geom.Ltoe.toFixed(2)} m [E.060 15.4.2(a)].`,
-      `Disponible hacia la punta ${dispPuntera.toFixed(3)} m frente a ℓd = ${(aZ.ld).toFixed(3)} m ${necesitaGanchoP ? "→ hace falta gancho" : "→ la barra recta desarrolla sin gancho"}.`,
-      `La barra es continua en todo el ancho: no se corta bajo el fuste, donde la malla inferior también hace de tirante del nudo.`,
+      `Barra continua en todo el ancho B − 2·rec = ${(B - 2 * recZap).toFixed(3)} m: no se corta bajo el fuste, donde también hace de tirante del nudo.`,
+      `Gancho estándar de 90° (pata 12db = ${aZ.ext90.toFixed(3)} m) hacia arriba en la puntera y en el talón, que son extremos libres [E.060 7.1.1 y 12.5]. Disponible hacia la punta ${dispPuntera.toFixed(3)} m frente a ℓd = ${aZ.ld.toFixed(3)} m.`,
     ],
   });
 
-  /* ── ⑥ Malla superior de la zapata ── */
-  const ySup = geom.hf - recZap - aT.db / 2;
+  /* ── ⑥ Malla superior de la zapata ──
+   * El momento del talón pide acero arriba, pero la barra no se corta en la
+   * puntera: llega hasta el borde y dobla 90° hacia abajo en los dos extremos.
+   * Así el cajón queda cerrado y el plano no deja un tramo de zapata sin malla.
+   */
   const xCaraTalon = geom.Ltoe + geom.tbase;
-  const xInicioSup = Math.max(recZap, xCaraTalon - Math.max(aT.ld, 12 * aT.db));
+  const patoSup = Math.min(aT.ext90, Math.max(0.05, ySup - recZap));
   const supPts: [number, number][] = [
-    [r3(xInicioSup), r3(ySup)],
+    [r3(recZap), r3(ySup - patoSup)],
+    [r3(recZap), r3(ySup)],
     [r3(B - recZap), r3(ySup)],
-    [r3(B - recZap), r3(ySup - Math.max(aT.ext90, 0))],
+    [r3(B - recZap), r3(ySup - patoSup)],
   ];
   piezas.push({
     pos: "⑥",
     elemento: "Zapata",
-    descripcion: "Malla superior transversal — momento del talón",
+    descripcion: "Malla superior transversal — momento del talón, continua en B",
     bar: inp.talon.bar,
     s: inp.talon.s,
-    forma: "L",
+    forma: "U",
     tramos: [
-      { etiqueta: "Prolongación más allá de la cara del fuste", L: r3(xCaraTalon - xInicioSup) },
-      { etiqueta: "Tramo sobre el talón", L: r3(B - recZap - xCaraTalon) },
-      { etiqueta: "Gancho de 90° en el extremo del talón", L: r3(Math.max(aT.ext90, 0)) },
+      { etiqueta: "Gancho de 90° en la puntera", L: r3(patoSup) },
+      { etiqueta: "Tramo recto B − 2·rec", L: r3(B - 2 * recZap) },
+      { etiqueta: "Gancho de 90° en el talón", L: r3(patoSup) },
     ],
     Ltotal: r3(largo(supPts)),
     LporMetro: r3((100 / inp.talon.s) * largo(supPts)),
@@ -341,8 +345,8 @@ export function calcularDespiece(inp: DespieceInput): Despiece {
     puntos: supPts,
     justificacion: [
       `Sección crítica en la cara posterior del fuste, x = ${xCaraTalon.toFixed(2)} m: allí el talón cuelga y la tracción está arriba.`,
-      `Se prolonga ${(xCaraTalon - xInicioSup).toFixed(3)} m hacia la puntera = máx(ℓd ; 12db) = máx(${aT.ld.toFixed(3)} ; ${(12 * aT.db).toFixed(3)}) [E.060 12.10.3 y 12.12.3].`,
-      `Gancho de 90° hacia abajo en el borde del talón, que es un extremo libre.`,
+      `La barra recorre todo el ancho hasta el recubrimiento de la puntera y del talón. E.060 12.10.3 permitiría cortarla a máx(ℓd ; 12db) = máx(${aT.ld.toFixed(3)} ; ${(12 * aT.db).toFixed(3)}) m más allá de la cara, pero se deja continua para cerrar el cajón y armar la cara superior de la puntera.`,
+      `Gancho de 90° hacia abajo (pata 12db = ${aT.ext90.toFixed(3)} m) en ambos extremos libres [E.060 7.1.1].`,
     ],
   });
 

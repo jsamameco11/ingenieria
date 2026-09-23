@@ -180,6 +180,16 @@ console.log("\n── Despiece respaldado por la E.060 ──");
   const svg = renderToStaticMarkup(createElement(MuroSostenimientoFig, { values: { ...base, ...r.dims }, part: "despiece" }));
   assert(/Cuadro de despiece/.test(svg), "la figura lleva el cuadro de despiece");
   assert((ac.piezas as { pos: string }[]).every((p) => svg.includes(p.pos)), "cada posición del cuadro se dibuja");
+  const p5 = (ac.piezas as { pos: string; forma: string; pts: [number, number][] }[]).find((p) => p.pos === "⑤");
+  const p6 = (ac.piezas as { pos: string; forma: string; pts: [number, number][] }[]).find((p) => p.pos === "⑥");
+  const xmin = (p: { pts: [number, number][] }) => Math.min(...p.pts.map((q) => q[0]));
+  const xmax = (p: { pts: [number, number][] }) => Math.max(...p.pts.map((q) => q[0]));
+  assert(!!p5 && p5.forma === "U" && xmin(p5) <= ac.recZap + 0.02 && xmax(p5) >= ac.B - ac.recZap - 0.02,
+    "⑤ recorre B y cierra con gancho en puntera y talón",
+    p5 ? `${xmin(p5).toFixed(2)}…${xmax(p5).toFixed(2)}` : "falta");
+  assert(!!p6 && p6.forma === "U" && xmin(p6) <= ac.recZap + 0.02 && xmax(p6) >= ac.B - ac.recZap - 0.02,
+    "⑥ recorre B hasta la puntera y cierra con gancho en ambos extremos",
+    p6 ? `${xmin(p6).toFixed(2)}…${xmax(p6).toFixed(2)}` : "falta");
 }
 
 console.log("\n── Sensibilidad física ──");

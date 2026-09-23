@@ -27,27 +27,27 @@ La memoria es expediente: identificación de cada paño (ℓx, ℓy, bordes, cas
 
 1. Geometría: A = Σ bi ℓi, baricentro, Ixx e Iyy.
 2. Cargas por columna P1–P3 y M1–M3, combinación Pu ≈ 1,5 P3 y momentos trasladados al suelo.
-3. Esfuerzo neto E.050 y q = P/A ± Mc/I en vértices.
-4. **Peralte h** (espesor): iteración de 5 en 5 cm con d = 100h − rec, h ≥ máx(35 cm, ℓv/2), Vu = qu(ℓv−d) ≤ φVc y punzonamiento 11.12.
+3. Esfuerzo neto E.050 y q = ΣP/A ± Mc/I en vértices (columnas; no duplicar peso propio contra σn).
+4. **Peralte h** (espesor): iteración de 5 en 5 cm con d = 100h − rec, h ≥ máx(35 cm, ℓv/2), Vu = qu(ℓv−d) ≤ φVc y punzonamiento 11.12 de **todas** las columnas (αs 40/30/20; α momento 1.00/1.15/1.25).
 5. Flexión de vuelo **por paño** y As transversal (lecho inferior, ⊥ al eje).
 6. Corte en una dirección: diagrama V(x) = qu x; sección crítica a d de la cara.
-7. Punzonamiento Vu y φVn de **cada** columna (perímetro recortado a d/2).
-8. **Vigas de cimentación**: cada tramo continuo (VC) se analiza como viga invertida rígida (q lineal de equilibrio, M, V, As). En el croquis, **Viga cim.** borra o coloca **un vano a la vez** (gruesa = hay viga; discontinua = sin viga). Clic en la etiqueta VC borra ese tramo continuo. El vacío no es estructura.
+7. Punzonamiento Vu y φVn de **cada** columna (perímetro recortado a d/2 sobre el concreto pintado).
+8. **Vigas de cimentación**: cada tramo continuo (VC) se analiza como viga invertida rígida (q lineal de equilibrio, M, V). Acero **n Ø** (no malla Ø @ s) y estribos φ(Vc+Vs). En el croquis, **Viga cim.** borra o coloca **un vano a la vez**. El vacío no es estructura.
 9. Desarrollo y anclaje ℓd (E.060 12.2).
 
-El despiece A1 es **en planta** (no hay corte perpendicular al eje ni acero a media altura). **Lecho inferior** longitudinal **continuo** de extremo a extremo. **Lecho superior** con **cortes**: L_barra = L_teo (≈ 0,30 ℓn) + ℓd, y extensión ≥ máx(d, 12 db, ℓn/16), gancho 90° en borde libre. En la ficha de columna, **esquinera** / **borde** mete el pedestal entero sobre el concreto (punzonamiento αs = 20 / 30). La viga invertida es de extremos libres: q(x) se calibra a las columnas para que M(0)=M(L)=0; un VC sin columnas no gobierna el diagrama.
+El despiece A1 es **en planta** (no hay corte perpendicular al eje ni acero a media altura). Las barras se **recortan al concreto pintado** (no cruzan el hueco de una L). **Lecho inferior** longitudinal **continuo** de extremo a extremo de cada franja. **Lecho superior** con **cortes**: L_barra = L_teo (≈ 0,30 ℓn) + ℓd, y extensión ≥ máx(d, 12 db, ℓn/16), gancho 90° en borde libre. En la ficha de columna, **esquinera** / **borde** mete el pedestal entero sobre el concreto (punzonamiento αs = 20 / 30). La viga invertida es de extremos libres: q(x) se calibra a las columnas para que M(0)=M(L)=0; un VC sin columnas no gobierna el diagrama.
 
 ## Platea — pasos del expediente
 
 1. Geometría y columnas 6 GDL.
 2. Metrado (columnas + platea + relleno + s/c).
-3. Presión media y esfuerzo neto E.050.
+3. Presión media y esfuerzo neto E.050: σn = σadm − γt Df − γc t − s/c. q en planta = ΣP/A ± Mc/I de **columnas** (no duplicar peso propio).
 4. Westergaard: rígida (Lc/l < 1,75) o flexible (×1,20).
-5. Iteración del espesor t.
+5. Iteración del espesor t por **punzonamiento y corte** (subir t no arregla σn).
 6–8. Método de fajas: franjas interior/borde en X e Y, momentos por cara.
-9. Mallas inf./sup.
-10. Punzonamiento Vu–φVn de cada columna. **Esquinera / borde** en la ficha asienta el pedestal entero (αs = 20 / 30).
-11. Corte en una dirección.
+9. Mallas inf./sup. recortadas al concreto pintado (no cruzan huecos).
+10. Punzonamiento Vu–φVn de cada columna, con α de momento 1.00/1.15/1.25. **Esquinera / borde** asienta el pedestal entero (αs = 20 / 30).
+11. Corte en una dirección y VC gobernante (n Ø + estribos).
 12. Desarrollo y anclaje.
 
 ## Pesos de losa

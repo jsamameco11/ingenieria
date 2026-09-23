@@ -693,9 +693,11 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
             : mod.slug === "platea"
               ? "Esta memoria desarrolla la platea de cimentación como expediente técnico: espesor, radio de Westergaard (rígida o flexible), método de fajas con momentos por franja, punzonamiento con perímetro crítico Vu y φVn, mallas de acero y anclaje, según E.060 / ACI 318 y E.050. Incluye despiece A1 en planta fiel a los paños/columnas/VC dibujados y despiece A1 en elevación de la viga de cimentación gobernante (motor de cálculo VC: V/M, As, estribos y ℓd)."
             : mod.engine === "reservorioApoyado"
-              ? "Esta memoria desarrolla el reservorio circular apoyado en el terreno: predimensionamiento por volumen, presión hidrostática, análisis de la pared como lámina cilíndrica empotrada en la base (motor propio, equivalente a las tablas PCA), sismo por el modelo de masas de Housner (componentes impulsiva y convectiva, ACI 350.3-06) y diseño estructural de la pared, la losa de fondo, la cúpula y la viga collarín."
+              ? "Esta memoria desarrolla el reservorio circular apoyado en el terreno: predimensionamiento por volumen, presión hidrostática, análisis de la pared con un motor FEM propio de lámina cilíndrica axisimétrica (viga de Hermite + resorte de anillo de Winkler, base empotrada), sismo por el modelo de masas de Housner (componentes impulsiva y convectiva, ACI 350.3-06) y diseño estructural de la pared, la losa de fondo, la cúpula y la viga collarín."
+            : mod.engine === "reservorioCuadrado"
+              ? "Esta memoria desarrolla el reservorio rectangular apoyado: predimensionamiento por volumen, presión hidrostática, análisis sísmico de Housner por dirección (ACI 350.3-06) y un motor FEM propio de cada muro como placa MITC4 (base empotrada, esquinas continuas, corona apoyada en el techo). El acero vertical y horizontal se diseña con la envolvente hidrostática + sismo SRSS."
             : mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste"
-              ? `Esta memoria desarrolla el tanque elevado tipo INTZE (cúpula de fondo, tronco de cono, pared cilíndrica, cúpula de techo y anillos circulares) sobre ${mod.engine === "tanqueElevadoColumnas" ? "una torre de columnas y vigas de arriostre" : "un fuste cilíndrico continuo de concreto"}: presión hidrostática e hidrodinámica (Housner / ACI 350.3-06), análisis de la pared como lámina cilíndrica (motor propio), diseño de cada elemento de la cuba y de la estructura de soporte, y verificación de la deriva sísmica según E.030 y ACI 371R.`
+              ? `Esta memoria desarrolla el tanque elevado tipo INTZE (cúpula de fondo, tronco de cono, pared cilíndrica, cúpula de techo y anillos circulares) sobre ${mod.engine === "tanqueElevadoColumnas" ? "una torre de columnas: motor FEM de pórtico espacial 12 GDL (columnas, vigas de anillo y diagonales en X)" : "un fuste cilíndrico continuo: motor FEM de tubo anular en voladizo (12 GDL) que entrega periodo, rigidez, M(z) y V(z)"}: presión hidrostática e hidrodinámica (Housner / ACI 350.3-06), FEM de la pared como lámina cilíndrica, diseño de cada elemento de la cuba y de la estructura de soporte, y verificación de la deriva sísmica según E.030 y ACI 371R.`
               : `Esta memoria desarrolla el procedimiento de ${nombreProcedimiento(mod.title)} según ${mod.norma}. Se enuncia cada fórmula, se sustituyen los datos del proyecto y se interpreta el resultado antes de verificar contra los límites de norma.`,
       },
       {
@@ -766,10 +768,23 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   : []),
                 ...(mod.engine === "reservorioApoyado" || mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste"
                   ? [
-                      "La pared se analiza como una lámina cilíndrica sobre fundación elástica (empotrada en la base, libre en la corona): se resuelve numéricamente la ecuación diferencial que gobierna la tensión de anillo N_θ y el momento vertical M_y, equivalente a las tablas de coeficientes PCA.",
+                      "La pared se analiza con un motor FEM de lámina cilíndrica axisimétrica (elementos de Hermite + Winkler de anillo, base empotrada, corona libre): N_θ=Ec e w/R y M_y de las fuerzas del elemento, equivalente a las tablas PCA.",
                       "El sismo se modela con las masas impulsiva y convectiva de Housner (ACI 350.3-06): se obtienen los pesos Wi/Wc, las alturas hi/hc, los periodos Ti/Tc y la presión hidrodinámica sobre la pared, que se combina con la hidrostática (SRSS) para la envolvente de diseño.",
                       "Los diagramas de N_θ(y) y M_y(y) se grafican en toda la altura de la pared, junto con el acero horizontal (anillo, método de tensión directa) y vertical (flexión) que los cubre.",
                     ]
+                  : []),
+                ...(mod.engine === "reservorioCuadrado"
+                  ? [
+                      "Cada muro se resuelve con un motor FEM de placa MITC4 (Bathe–Dvorkin): base empotrada, esquinas continuas con el muro perpendicular y corona apoyada en la losa de techo.",
+                      "Hidrostática, impulsiva y convectiva se resuelven por separado sobre la misma malla y se combinan por SRSS. De la placa se extraen la franja vertical (myy) y la franja horizontal (mxx).",
+                      "Los diagramas M(y) y V(y) de cada muro se grafican con el acero vertical y horizontal que los cubre.",
+                    ]
+                  : []),
+                ...(mod.engine === "tanqueElevadoColumnas"
+                  ? ["La torre se resuelve con un motor FEM de pórtico espacial 12 GDL: columnas, vigas de anillo y diagonales en X. El periodo impulsivo sale de k=1/δ del nudo maestro."]
+                  : []),
+                ...(mod.engine === "tanqueElevadoFuste"
+                  ? ["El fuste se resuelve con un motor FEM de tubo anular en voladizo (12 GDL): la cuba es un nudo maestro en hi/hc unido a la corona por enlace rígido; periodo por k=1/δ en ese nudo; perfiles M(z) y V(z) por SRSS."]
                   : []),
               ],
       },
@@ -815,6 +830,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.engine === "reservorioApoyado") {
         if (s.n === "05") blocks.push({ type: "h2", text: "3.b Cargas hidrostáticas" });
+        if (s.n === "06") blocks.push({ type: "h2", text: "3.b.1 Motor FEM de la pared — lámina cilíndrica" });
         if (s.n === "07") blocks.push({ type: "h2", text: "3.c Análisis sísmico — Housner y ACI 350.3-06" });
         if (s.n === "13") blocks.push({ type: "h2", text: "3.d Diseño de acero de la pared" });
         if (s.n === "15") blocks.push({ type: "h2", text: "3.e Losa de fondo, cúpula y viga collarín" });
@@ -823,9 +839,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.engine === "reservorioCuadrado") {
         if (s.n === "05") blocks.push({ type: "h2", text: "3.b Cargas hidrostáticas" });
         if (s.n === "06") blocks.push({ type: "h2", text: "3.c Análisis sísmico por dirección — Housner y ACI 350.3-06" });
-        if (s.n === "12") blocks.push({ type: "h2", text: "3.d Diseño de acero de los muros" });
-        if (s.n === "14") blocks.push({ type: "h2", text: "3.e Losas de techo y de fondo" });
-        if (s.n === "16") blocks.push({ type: "h2", text: "3.f Estabilidad global y cimentación" });
+        if (s.n === "10") blocks.push({ type: "h2", text: "3.d Motor FEM de los muros — placa MITC4" });
+        if (s.n === "12") blocks.push({ type: "h2", text: "3.e Diseño de acero de los muros" });
+        if (s.n === "14") blocks.push({ type: "h2", text: "3.f Losas de techo y de fondo" });
+        if (s.n === "16") blocks.push({ type: "h2", text: "3.g Estabilidad global y cimentación" });
       }
       if (mod.engine === "tanqueElevadoColumnas" || mod.engine === "tanqueElevadoFuste") {
         if (s.n === "04") blocks.push({ type: "h2", text: "3.b Análisis sísmico de la cuba — Housner y ACI 350.3-06" });
@@ -933,15 +950,25 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "platea") {
         if (s.n === "01") blocks.push({ type: "figure", part: "mPlant" });
-        if (s.n === "06") blocks.push({ type: "figure", part: "mIntX" });
-        if (s.n === "07") blocks.push({ type: "figure", part: "mEdgX" });
+        if (s.n === "06") {
+          blocks.push({ type: "figure", part: "mIntX" });
+          blocks.push({ type: "figure", part: "vIntX" });
+        }
+        if (s.n === "07") {
+          blocks.push({ type: "figure", part: "mEdgX" });
+          blocks.push({ type: "figure", part: "vEdgX" });
+        }
         if (s.n === "08") {
           blocks.push({ type: "figure", part: "mIntY" });
           blocks.push({ type: "figure", part: "mEdgY" });
+          blocks.push({ type: "figure", part: "vIntY" });
+          blocks.push({ type: "figure", part: "vEdgY" });
         }
         if (s.n === "10") blocks.push({ type: "figure", part: "mPunch" });
-        if (s.n === "09") {
-          blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "09") blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "13") {
+          blocks.push({ type: "figure", part: "mBeamM" });
+          blocks.push({ type: "figure", part: "mBeamV" });
           blocks.push({ type: "figure", part: "mVC" });
         }
       }
@@ -978,7 +1005,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       ) {
         blocks.push({ type: "figure", part: "mDCL" });
       }
-      if (mod.diagram === "reservorioApoyado" && s.n === "12") {
+      if (mod.diagram === "reservorioApoyado" && (s.n === "06" || s.n === "12")) {
         blocks.push({ type: "figure", part: "mMuro" });
       }
       if (mod.diagram === "reservorioApoyado" && s.n === "13") {
@@ -1011,7 +1038,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
         blocks.push({ type: "figure", part: "mSecDomo" });
         blocks.push({ type: "figure", part: "mSecAnillo" });
       }
-      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "08") {
+      if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && (s.n === "04" || s.n === "08")) {
         blocks.push({ type: "figure", part: "mMuro" });
       }
       if ((mod.diagram === "tanqueElevadoColumnas" || mod.diagram === "tanqueElevadoFuste") && s.n === "09") {
@@ -1047,7 +1074,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "17") {
         blocks.push({ type: "figure", part: "mViga" });
       }
-      if (mod.diagram === "tanqueElevadoFuste" && s.n === "15") {
+      if (mod.diagram === "tanqueElevadoFuste" && (s.n === "14" || s.n === "14d" || s.n === "15")) {
         blocks.push({ type: "figure", part: "mSecFuste" });
       }
       if (mod.diagram === "tanqueElevadoFuste" && s.n === "16") {

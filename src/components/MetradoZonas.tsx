@@ -211,16 +211,26 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
               strokeDasharray="5 4"
             />
           ) : null}
-          <line x1={groundX1} y1={groundY} x2={groundX2} y2={groundY} stroke="#8a7a55" strokeWidth="2.2" />
-          {Array.from({ length: 14 }, (_, i) => {
-            const x = groundX1 + i * ((groundX2 - groundX1) / 13);
-            return <line key={i} x1={x} y1={groundY} x2={x - 7} y2={groundY + 8} stroke="#8a7a55" strokeWidth="1.1" />;
-          })}
-          <text x={groundX1} y={groundY + 20} fontSize="9" fill="#6e5a32" fontFamily="ui-sans-serif, system-ui, sans-serif">
+          {spec.ground !== false ? (
+            <>
+              <line x1={groundX1} y1={groundY} x2={groundX2} y2={groundY} stroke="#8a7a55" strokeWidth="2.2" />
+              {Array.from({ length: 14 }, (_, i) => {
+                const x = groundX1 + i * ((groundX2 - groundX1) / 13);
+                return <line key={i} x1={x} y1={groundY} x2={x - 7} y2={groundY + 8} stroke="#8a7a55" strokeWidth="1.1" />;
+              })}
+            </>
+          ) : null}
+          <text x={groundX1} y={spec.ground === false ? xy([0, minY])[1] + 16 : groundY + 20} fontSize="9" fill="#6e5a32" fontFamily="ui-sans-serif, system-ui, sans-serif">
             {spec.origin}
           </text>
 
-          {spec.zones.map((z) => {
+          {[...spec.zones]
+            .map((z, i) => ({ z, i }))
+            .sort((a, b) => {
+              const order = (m: string) => (m === "agua" ? 0 : m === "tierra" ? 1 : 2);
+              return order(a.z.material) - order(b.z.material);
+            })
+            .map(({ z, i }) => {
             if (z.pts.length < 3) return null;
             const meta = MATERIAL_META[z.material];
             const curved = Boolean(z.smooth);
@@ -233,9 +243,9 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
               opacity: 0.95,
             };
             return curved ? (
-              <path key={`z-${z.n}`} d={smoothClosedD(z.pts, xy)} {...common} />
+              <path key={`z-${i}-${z.n}`} d={smoothClosedD(z.pts, xy)} {...common} />
             ) : (
-              <polygon key={`z-${z.n}`} points={pointsAttr(z.pts, xy)} {...common} />
+              <polygon key={`z-${i}-${z.n}`} points={pointsAttr(z.pts, xy)} {...common} />
             );
           })}
 
@@ -274,15 +284,14 @@ export function MetradoZonasFig({ spec }: { spec: MetradoLayout }) {
           {spec.zones.map((z, zi) => {
             const c = z.badge ?? (z.pts.length ? centroid(z.pts) : [0, 0]);
             const area = z.pts.length ? polyArea(z.pts) : 0;
-            const small = area > 0 && area < bboxArea * 0.022;
+            const small = !z.badge && area > 0 && area < bboxArea * 0.022;
             const [cx, cy] = xy(c);
             let bx = cx;
             let by = cy;
             let leader: Pt | null = null;
             if (small) {
-              const ang = -0.55 - zi * 0.72;
-              bx = cx + Math.cos(ang) * 28;
-              by = cy + Math.sin(ang) * 24;
+              bx = cx + 30;
+              by = cy;
               leader = [cx, cy];
             }
             const color = MATERIAL_META[z.material].stroke;

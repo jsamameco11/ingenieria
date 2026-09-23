@@ -28,7 +28,7 @@ El motor identifica paños, franjas y **tramos de acero** antes de analizar: un 
 
 ## Zapata corrida
 
-Planta pintada (recta, L o irregular). **Viga cim.** coloca o borra **un tramo a la vez** (gruesa = hay viga; discontinua = borde sin viga; el vacío no es estructura). Cada columna se coloca con clic en el entrecruce: P1=FX, P2=FY, P3=FZ, M1=T, M2, M3. Espesor h iterado (corte 1 dir., punzonamiento, flexión). Cada VC se analiza como viga invertida rígida (q lineal, M, V, As). **Despiece A1 en planta** (sin corte transversal): solo lechos **inferior y superior**, no hay acero intermedio. Transversal inf. por paño (⊥ al eje, ganchos 90° en B); longitudinal inf. continuo de extremo a extremo; longitudinal sup. en vuelos (M+); transversal sup. de cara. Punzonamiento 11.12 con pedestal **asentado** en esquina (b0 en L, no a caballo del vértice). Se publican diagramas M, V y Vu/φVn.
+- **Zapata corrida** — **Despiece A1 en planta**: acero **solo en paños pintados**. **Un transversal por paño** (lecho inf., ganchos 90° en B, Ø del Mu de ese paño). **Un longitudinal inf. por franja**, continuo de extremo a extremo (no se corta). **Un longitudinal sup. por franja**, cortado en cada apoyo con L_teo (0,30 ℓn) + ℓd, proporcional al vano. Varilla fina. Punzonamiento 11.12 con pedestal asentado.
 
 ## Platea
 

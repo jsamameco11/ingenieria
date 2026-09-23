@@ -136,7 +136,7 @@ function GoogleModal() {
 const STEPS = ["Oficio", "Persona", "Ejercicio", "Territorio", "Intereses", "Plaza"];
 
 function ProfileModal() {
-  const { profile, user, saveProfile, busy, error, signOut, insight } = useAuth();
+  const { profile, user, saveProfile, skipProfile, busy, error, signOut, insight } = useAuth();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<UserProfile>(() => ({
     ...emptyProfile(),
@@ -554,6 +554,9 @@ function ProfileModal() {
         <div className="auth-modal-actions">
           <button type="button" className="btn secondary" disabled={busy} onClick={() => void signOut()}>
             Usar otra cuenta
+          </button>
+          <button type="button" className="btn secondary" disabled={busy} onClick={() => void skipProfile()}>
+            Omitir por ahora
           </button>
           {step > 0 ? (
             <button type="button" className="btn secondary" disabled={busy} onClick={() => { setMsg(""); setStep((s) => s - 1); }}>

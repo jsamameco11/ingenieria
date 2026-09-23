@@ -65,6 +65,11 @@ assert(mac.dims?.losaSteelJson, "losaSteelJson");
 const pack = parseLosaSteelPack(mac.dims!.losaSteelJson!);
 assert(pack && pack.steels.length === 5, "5 aceros de paño");
 assert(pack && pack.voids.length === 1, "hueco en el pack");
+const p11 = pack!.steels.find((s) => s.id === "1.1");
+assert(p11?.neg, "1.1 con As−");
+assert(p11!.neg!.xL < 0.55 && p11!.neg!.xR < 0.55, `1.1 bordes simples X: anclaje, hay ${p11!.neg!.xL.toFixed(2)} / ${p11!.neg!.xR.toFixed(2)} m`);
+assert(p11!.neg!.yB < 0.55, `1.1 borde inferior simple: anclaje, hay ${p11!.neg!.yB.toFixed(2)} m`);
+assert(p11!.neg!.yT < 0.55, `1.1 interior Y: apoyo simple, hay ${p11!.neg!.yT.toFixed(2)} m`);
 const spec = buildLosaDraftSpec(ex, pack!);
 assert(spec.regions && spec.regions.length >= 6, "regiones techo+hueco");
 assert(spec.annos?.some((a) => a.text === "HUECO"), "etiqueta HUECO");
@@ -184,8 +189,12 @@ assert(Math.abs(ver.dCm - 12) < 0.02, `d = 12 cm, hay ${ver.dCm}`);
 assert(Math.abs(ver.ln16 - 18.75) < 0.02, `ℓn/16 = 18.75 cm, hay ${ver.ln16}`);
 assert(Math.abs(ver.LextCm - 18.75) < 0.02, `L_ext gobierna ℓn/16 = 18.75 cm, hay ${ver.LextCm}`);
 assert(ver.gov === "ℓn/16", `gobierna ℓn/16, hay ${ver.gov}`);
-const verBar = losaNegBarM({ LteoM: 0.3 * 3, dbCm: 1.27, dCm: dEff, lnM: 3, recCm: 2.5 });
-assert(Math.abs(verBar.LbarM - (0.9 + 0.1875)) < 0.01, `L_barra = 1.0875 m, hay ${verBar.LbarM}`);
+const verCompat = losaNegBarM({ LteoM: 0.3 * 3, dbCm: 1.27, dCm: dEff, lnM: 3, recCm: 2.5 });
+assert(Math.abs(verCompat.LbarM - (0.9 + 0.1875)) < 0.01, `compat L_teo+L_ext = 1.0875 m, hay ${verCompat.LbarM}`);
+const verAncl = losaNegBarM({ LteoM: 0, dbCm: 1.27, dCm: dEff, lnM: 3, recCm: 2.5, edge: true, src: "anclaje", capRatio: 0.3 });
+assert(Math.abs(verAncl.LbarM - 0.1875) < 0.01, `apoyo simple L_barra = L_ext = 0.1875 m, hay ${verAncl.LbarM}`);
+const verPort = losaNegBarM({ LteoM: 0.21 * 3, dbCm: 1.27, dCm: dEff, lnM: 3, recCm: 2.5, src: "pórtico", capRatio: 0.3 });
+assert(Math.abs(verPort.LbarM - (0.63 + 0.1875)) < 0.01, `pórtico L_barra = 0.8175 m, hay ${verPort.LbarM}`);
 const evenIfD15 = losaNegLextCm(1.27, 15, 3);
 assert(Math.abs(evenIfD15.LextCm - 18.75) < 0.02, "si d=15 cm sigue gobernando ℓn/16");
 
@@ -202,9 +211,51 @@ const negLayers = spec.layers.filter((l) => /negativo/.test(l.face));
 assert(negLayers.length >= 1, "capas de As−");
 assert(negLayers.some((l) => /L=/.test(l.name)), "etiqueta con L emplazada");
 assert(
+  spec.dims.filter((d) => d.tiny).length === negLayers.length,
+  `cota fina de As−: ${spec.dims.filter((d) => d.tiny).length} vs ${negLayers.length} barras`,
+);
+assert(
+  spec.dims.some((d) => d.tiny && /m$/.test(d.label)),
+  "cota de As− en metros, trazo fino",
+);
+assert(
   negLayers.some((l) => l.barPath && l.barPath.length === 2),
   "As− interior recto (no U de dos ganchos)",
 );
+
+for (const l of negLayers) {
+  const mm = /L=([\d.]+)/.exec(l.name);
+  assert(mm, `As− con L en el nombre: ${l.name}`);
+  assert(Number(mm![1]) < 0.72, `As− apoyo simple demasiado largo: ${l.name}`);
+}
+for (const d of spec.dims.filter((dim) => dim.tiny)) {
+  const v = parseFloat(d.label.replace(",", ".").replace(/\s*m$/, ""));
+  assert(v > 0.04 && v < 0.72, `cota As− fuera de L_ext: ${d.label}`);
+}
+const px = spec.pxPerM ?? 68;
+for (const l of spec.layers) {
+  const path = l.barPath;
+  if (!path || path.length < 3) continue;
+  const xs = path.map((p) => p.x);
+  const ys = path.map((p) => p.y);
+  const minor = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / px;
+  assert(minor < 0.20, `gancho 90° exagerado (${minor.toFixed(2)} m) en ${l.name}`);
+}
+
+const stale = structuredClone(pack!) as NonNullable<typeof pack>;
+for (const s of stale.steels) {
+  if (!s.neg) continue;
+  s.neg.xL = 1.6;
+  s.neg.xR = 1.6;
+  s.neg.yB = 1.6;
+  s.neg.yT = 1.6;
+}
+const specStale = buildLosaDraftSpec(ex, stale);
+const staleNeg = specStale.layers.filter((l) => /negativo/.test(l.face));
+for (const l of staleNeg) {
+  const mm = /L=([\d.]+)/.exec(l.name);
+  assert(mm && Number(mm[1]) < 0.72, `pack viejo 0,30 ℓn no debe dibujarse: ${l.name}`);
+}
 
 const sq = createLosaAxes(defaultModel("losa"), 1, 1, true);
 sq.axesX = [0, 3];
@@ -217,9 +268,13 @@ const n3 = pack3!.steels[0].neg!;
 const db3 = pack3!.steels[0].supX.includes("1/2") ? 1.27 : 0.95;
 const ext3 = losaNegLextCm(db3, dEff, 3);
 assert(Math.abs(n3.LextX! * 100 - ext3.LextCm) < 0.6, `L_ext paño 3 m ≈ ${ext3.LextCm} cm, hay ${((n3.LextX ?? 0) * 100).toFixed(1)}`);
-assert(n3.xL > 0.7 && n3.xL < 1.4, `L_barra ~1.09 m en ℓn=3 m, hay ${n3.xL}`);
+assert(n3.xL > 0.12 && n3.xL < 0.45, `L_barra de apoyo simple ~0.19 m en ℓn=3 m, hay ${n3.xL}`);
 
 console.log("OK losa2d", mac.headline);
 console.log("  franjas", found.strips.map((s) => s.id).join(", "));
 console.log("  pp maciza 15 cm", ppM.pp, "  pp aligerada 20 cm", Math.round(ppA.pp));
 console.log("  despiece layers", spec.layers.length, "regiones", spec.regions?.length);
+console.log(
+  "  As− L (m)",
+  negLayers.map((l) => /L=([\d.]+)/.exec(l.name)?.[1] ?? "?").join(", "),
+);

@@ -137,15 +137,16 @@ function dirToward(v: { x: number; y: number }): "right" | "left" | "up" | "down
   return v.y >= 0 ? "down" : "up";
 }
 
+/** Gancho 90° simbólico a escala: radio ~3 db, ramal ~9–10 db. Tope de pantalla para que no se vea un tubo. */
 function hookGeom(dbCm: number, sc: number) {
   const dbM = Math.max(dbCm, 0.95) / 100;
   return {
-    r: Math.max(8, 6 * dbM * sc * 2.4),
-    hook: Math.max(18, 12 * dbM * sc * 2.4),
+    r: Math.min(3.0, Math.max(1.6, 3.2 * dbM * sc)),
+    hook: Math.min(7.2, Math.max(4.5, 9 * dbM * sc)),
   };
 }
 
-/** Gancho 90° hacia el interior del paño. Mismo lado en ambos extremos (C), nunca U enfrentada. */
+/** Gancho 90° hacia el interior del paño. El ramal no puede comerse el fuste (tope ~1/3 de L). */
 function barPoly(
   a: SteelBarPt,
   b: SteelBarPt,
@@ -155,7 +156,10 @@ function barPoly(
   hookA: boolean,
   hookB: boolean,
 ) {
-  const { r, hook } = hookGeom(dbCm, sc);
+  const g = hookGeom(dbCm, sc);
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const hook = Math.min(g.hook, Math.max(3.4, len * 0.32));
+  const r = Math.min(g.r, hook * 0.38, Math.max(1.4, len * 0.14));
   const t = dirToward(inward);
   if (hookA && hookB) return pathBothHooks90(a, b, t, t, r, hook);
   if (!hookA && !hookB) return [a, b];
@@ -195,19 +199,27 @@ function isFreeEdge(kind?: EdgeKind) {
 function paneNegBarM(pack: LosaSteelPack, pan: LosaSteelPane | undefined, dir: "x" | "y", side: "L" | "R" | "B" | "T") {
   if (!pan) return 0;
   const st = steelOf(pack, pan.id);
-  const stored = st?.neg;
-  if (stored) {
-    if (dir === "x") return side === "L" ? stored.xL : stored.xR;
-    return side === "B" ? stored.yB : stored.yT;
-  }
-  const ln = dir === "x" ? pan.lx : pan.ly;
   const parsed = parseBar(dir === "x" ? st?.supX ?? "" : st?.supY ?? "");
   if (parsed.empty) return 0;
+  const ln = Math.max(dir === "x" ? pan.lx : pan.ly, 0.3);
   const recCm = pack.rec ?? 2.5;
   const dCm = Math.max((pack.h ?? 15) - recCm - 0.5, 6);
   const edge =
     side === "L" ? isFreeEdge(pan.edges?.L) : side === "R" ? isFreeEdge(pan.edges?.R) : side === "B" ? isFreeEdge(pan.edges?.B) : isFreeEdge(pan.edges?.T);
-  return losaNegBarM({ LteoM: 0.3 * ln, dbCm: parsed.db, dCm, lnM: ln, recCm, edge }).LbarM;
+  const cut = losaNegBarM({
+    LteoM: 0,
+    dbCm: parsed.db,
+    dCm,
+    lnM: ln,
+    recCm,
+    edge,
+    src: "anclaje",
+    capRatio: 0.2,
+  });
+  const stored = st?.neg;
+  const packed = stored ? (dir === "x" ? (side === "L" ? stored.xL : stored.xR) : side === "B" ? stored.yB : stored.yT) : 0;
+  const raw = packed > 1e-9 && packed <= cut.LbarM * 1.15 + 0.03 ? packed : cut.LbarM;
+  return Math.min(raw, cut.LextM + 0.02, 0.2 * ln + 0.04);
 }
 
 function nearEdge(coord: number, edge: number, recM: number) {
@@ -225,9 +237,100 @@ type DrawnBar = {
   side: SteelLayer["side"];
   asReq?: number;
   Lbar?: number;
+  dim?: { x1: number; y1: number; x2: number; y2: number; label: string; side: SteelLayer["side"]; tiny: true };
 };
 
 type BarPick = { st: ReturnType<typeof parseBar>; as: number; pan?: LosaSteelPane };
+
+type NegSeg = {
+  dir: "x" | "y";
+  line: number;
+  beam: number;
+  t0: number;
+  t1: number;
+  perp: number;
+  hook0: boolean;
+  hook1: boolean;
+  picks: BarPick[];
+  cx: number;
+  cy: number;
+};
+
+/** Solo se funden recortes del mismo apoyo (solape numérico). No se unen vanos ni 0,30 ℓn. */
+const JOIN_GAP_M = 0.04;
+
+function gapHitsVoid(dir: "x" | "y", tA: number, tB: number, perp: number, voids: LosaSteelPack["voids"]) {
+  const lo = Math.min(tA, tB);
+  const hi = Math.max(tA, tB);
+  if (hi - lo < 1e-4) return false;
+  const mid = (lo + hi) / 2;
+  const x = dir === "x" ? mid : perp;
+  const y = dir === "x" ? perp : mid;
+  return voids.some((v) => x > v.x0 + 0.02 && x < v.x1 - 0.02 && y > v.y0 + 0.02 && y < v.y1 - 0.02);
+}
+
+function mergeNegSegs(segs: NegSeg[], voids: LosaSteelPack["voids"]): NegSeg[] {
+  const groups = new Map<string, NegSeg[]>();
+  for (const s of segs) {
+    const k = `${s.dir}:${s.line}:${s.beam.toFixed(3)}`;
+    const arr = groups.get(k) ?? [];
+    arr.push(s);
+    groups.set(k, arr);
+  }
+  const out: NegSeg[] = [];
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => a.t0 - b.t0 || a.t1 - b.t1);
+    const acc: NegSeg[] = [];
+    for (const s of arr) {
+      const last = acc[acc.length - 1];
+      const gap = last ? s.t0 - last.t1 : 99;
+      const aligned = last ? Math.abs(s.perp - last.perp) <= 0.08 : false;
+      if (
+        last &&
+        aligned &&
+        gap <= JOIN_GAP_M + 1e-9 &&
+        !gapHitsVoid(s.dir, last.t1, s.t0, (last.perp + s.perp) / 2, voids)
+      ) {
+        last.t0 = Math.min(last.t0, s.t0);
+        last.t1 = Math.max(last.t1, s.t1);
+        last.hook1 = s.hook1;
+        last.picks.push(...s.picks);
+        last.cx = (last.cx + s.cx) / 2;
+        last.cy = (last.cy + s.cy) / 2;
+        last.perp = (last.perp + s.perp) / 2;
+      } else {
+        acc.push({ ...s, picks: [...s.picks] });
+      }
+    }
+    out.push(...acc);
+  }
+  return out;
+}
+
+function tinyBarDim(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  Lm: number,
+  side: SteelLayer["side"],
+  offset = 6.2,
+): DrawnBar["dim"] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const L = Math.hypot(dx, dy) || 1;
+  let nx = -dy / L;
+  let ny = dx / L;
+  const wantUp = side === "top" || side === "left";
+  if ((wantUp && ny > 0) || (!wantUp && ny < 0)) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const x1 = a.x + nx * offset;
+  const y1 = a.y + ny * offset;
+  const x2 = b.x + nx * offset;
+  const y2 = b.y + ny * offset;
+  const txt = `${Lm.toFixed(2).replace(".", ",")} m`;
+  return { x1, y1, x2, y2, label: txt, side, tiny: true };
+}
 
 function govOf(items: BarPick[]): BarPick | null {
   const live = items.filter((c) => !c.st.empty);
@@ -331,6 +434,7 @@ function collectDrawnBars(
     }
   }
 
+  const negSegs: NegSeg[] = [];
   for (const cut of runs.negCuts) {
     if (cut.dir === "x") {
       const ax = cut.i0;
@@ -344,32 +448,27 @@ function collectDrawnBars(
       const stR = steelOf(pack, panR?.id);
       const pickL: BarPick = { pan: panL, st: parseBar(stL?.supX ?? ""), as: stL?.asNegX ?? 0 };
       const pickR: BarPick = { pan: panR, st: parseBar(stR?.supX ?? ""), as: stR?.asNegX ?? 0 };
-      const gov = govOf([pickL, pickR]);
-      if (!gov) continue;
+      if (!govOf([pickL, pickR])) continue;
       const LbarL = left ? paneNegBarM(pack, panL, "x", "R") : 0;
       const LbarR = right ? paneNegBarM(pack, panR, "x", "L") : 0;
-      const xLeft = left && panL ? Math.max(m.axesX[ax] - LbarL, panL.x0 + inset) : m.axesX[ax] + inset;
-      const xRight = right && panR ? Math.min(m.axesX[ax] + LbarR, panR.x1 - inset) : m.axesX[ax] - inset;
-      if (xRight - xLeft < 0.08) continue;
-      const y = m.axesY[iy] + (m.axesY[iy + 1] - m.axesY[iy]) * 0.62;
-      const cy = (m.axesY[iy] + m.axesY[iy + 1]) / 2;
-      const a = xy(xLeft, y);
-      const b = xy(xRight, y);
-      const inward = perpInward(a, b, xy((xLeft + xRight) / 2, cy));
-      const hookA = left && panL ? nearEdge(xLeft, panL.x0, recM) && isFreeEdge(panL.edges?.L) : isFreeEdge(panR?.edges?.L);
-      const hookB = right && panR ? nearEdge(xRight, panR.x1, recM) && isFreeEdge(panR.edges?.R) : isFreeEdge(panL?.edges?.R);
-      const Lbar = (left ? LbarL : 0) + (right ? LbarR : 0);
-      out.push({
-        path: barPoly(a, b, inward, gov.st.db, sc, Boolean(hookA), Boolean(hookB)),
-        db: gov.st.db,
-        s: gov.st.s,
-        bar: gov.st.bar,
-        color: STEEL_TEMP,
-        name: `As− X · ${paneIdsOf([pickL, pickR])} · L=${Lbar.toFixed(2)} m`,
-        face: "negativo apoyo · X",
-        side: "top",
-        asReq: gov.as || undefined,
-        Lbar,
+      const t0 = left && panL ? Math.max(m.axesX[ax] - LbarL, panL.x0 + inset) : m.axesX[ax] + recM;
+      const t1 = right && panR ? Math.min(m.axesX[ax] + LbarR, panR.x1 - inset) : m.axesX[ax] - recM;
+      if (t1 - t0 < 0.04) continue;
+      const perp = m.axesY[iy] + (m.axesY[iy + 1] - m.axesY[iy]) * 0.62;
+      const hook0 = left && panL ? nearEdge(t0, panL.x0, recM) && isFreeEdge(panL.edges?.L) : isFreeEdge(panR?.edges?.L);
+      const hook1 = right && panR ? nearEdge(t1, panR.x1, recM) && isFreeEdge(panR.edges?.R) : isFreeEdge(panL?.edges?.R);
+      negSegs.push({
+        dir: "x",
+        line: iy,
+        beam: m.axesX[ax],
+        t0,
+        t1,
+        perp,
+        hook0: Boolean(hook0),
+        hook1: Boolean(hook1),
+        picks: [pickL, pickR],
+        cx: (t0 + t1) / 2,
+        cy: (m.axesY[iy] + m.axesY[iy + 1]) / 2,
       });
     } else {
       const ay = cut.i0;
@@ -383,32 +482,68 @@ function collectDrawnBars(
       const stT = steelOf(pack, panT?.id);
       const pickB: BarPick = { pan: panB, st: parseBar(stB?.supY ?? ""), as: stB?.asNegY ?? 0 };
       const pickT: BarPick = { pan: panT, st: parseBar(stT?.supY ?? ""), as: stT?.asNegY ?? 0 };
-      const gov = govOf([pickB, pickT]);
-      if (!gov) continue;
+      if (!govOf([pickB, pickT])) continue;
       const LbarB = bot ? paneNegBarM(pack, panB, "y", "T") : 0;
       const LbarT = top ? paneNegBarM(pack, panT, "y", "B") : 0;
-      const yBot = bot && panB ? Math.max(m.axesY[ay] - LbarB, panB.y0 + inset) : m.axesY[ay] + inset;
-      const yTop = top && panT ? Math.min(m.axesY[ay] + LbarT, panT.y1 - inset) : m.axesY[ay] - inset;
-      if (yTop - yBot < 0.08) continue;
-      const x = m.axesX[ix] + (m.axesX[ix + 1] - m.axesX[ix]) * 0.62;
-      const cx = (m.axesX[ix] + m.axesX[ix + 1]) / 2;
-      const a = xy(x, yBot);
-      const b = xy(x, yTop);
-      const inward = perpInward(a, b, xy(cx, (yBot + yTop) / 2));
-      const hookA = bot && panB ? nearEdge(yBot, panB.y0, recM) && isFreeEdge(panB.edges?.B) : isFreeEdge(panT?.edges?.B);
-      const hookB = top && panT ? nearEdge(yTop, panT.y1, recM) && isFreeEdge(panT.edges?.T) : isFreeEdge(panB?.edges?.T);
-      const Lbar = (bot ? LbarB : 0) + (top ? LbarT : 0);
+      const t0 = bot && panB ? Math.max(m.axesY[ay] - LbarB, panB.y0 + inset) : m.axesY[ay] + recM;
+      const t1 = top && panT ? Math.min(m.axesY[ay] + LbarT, panT.y1 - inset) : m.axesY[ay] - recM;
+      if (t1 - t0 < 0.04) continue;
+      const perp = m.axesX[ix] + (m.axesX[ix + 1] - m.axesX[ix]) * 0.62;
+      const hook0 = bot && panB ? nearEdge(t0, panB.y0, recM) && isFreeEdge(panB.edges?.B) : isFreeEdge(panT?.edges?.B);
+      const hook1 = top && panT ? nearEdge(t1, panT.y1, recM) && isFreeEdge(panT.edges?.T) : isFreeEdge(panB?.edges?.T);
+      negSegs.push({
+        dir: "y",
+        line: ix,
+        beam: m.axesY[ay],
+        t0,
+        t1,
+        perp,
+        hook0: Boolean(hook0),
+        hook1: Boolean(hook1),
+        picks: [pickB, pickT],
+        cx: (m.axesX[ix] + m.axesX[ix + 1]) / 2,
+        cy: (t0 + t1) / 2,
+      });
+    }
+  }
+
+  for (const seg of mergeNegSegs(negSegs, pack.voids)) {
+    const gov = govOf(seg.picks);
+    if (!gov) continue;
+    const Lbar = seg.t1 - seg.t0;
+    if (seg.dir === "x") {
+      const a = xy(seg.t0, seg.perp);
+      const b = xy(seg.t1, seg.perp);
+      const inward = perpInward(a, b, xy(seg.cx, seg.cy));
       out.push({
-        path: barPoly(a, b, inward, gov.st.db, sc, Boolean(hookA), Boolean(hookB)),
+        path: barPoly(a, b, inward, gov.st.db, sc, seg.hook0, seg.hook1),
         db: gov.st.db,
         s: gov.st.s,
         bar: gov.st.bar,
         color: STEEL_TEMP,
-        name: `As− Y · ${paneIdsOf([pickB, pickT])} · L=${Lbar.toFixed(2)} m`,
+        name: `As− X · ${paneIdsOf(seg.picks)} · L=${Lbar.toFixed(2)} m`,
+        face: "negativo apoyo · X",
+        side: "top",
+        asReq: gov.as || undefined,
+        Lbar,
+        dim: tinyBarDim(a, b, Lbar, "top"),
+      });
+    } else {
+      const a = xy(seg.perp, seg.t0);
+      const b = xy(seg.perp, seg.t1);
+      const inward = perpInward(a, b, xy(seg.cx, seg.cy));
+      out.push({
+        path: barPoly(a, b, inward, gov.st.db, sc, seg.hook0, seg.hook1),
+        db: gov.st.db,
+        s: gov.st.s,
+        bar: gov.st.bar,
+        color: STEEL_TEMP,
+        name: `As− Y · ${paneIdsOf(seg.picks)} · L=${Lbar.toFixed(2)} m`,
         face: "negativo apoyo · Y",
         side: "right",
         asReq: gov.as || undefined,
         Lbar,
+        dim: tinyBarDim(a, b, Lbar, "right"),
       });
     }
   }
@@ -592,14 +727,15 @@ export function buildLosaDraftSpec(m: MaeModel, pack: LosaSteelPack, title?: str
   ];
   return {
     title: title ?? `PLANTA — DESPIECE DE LOSA ${tipo} (2 DIRECCIONES)`,
-    subtitle: "As+ continuo · gancho 90° en extremos  ·  As− sin doblez interior · gancho 90° solo en extremo de análisis  ·  Ø en pulgadas",
+    subtitle: "As+ continuo · gancho 90° = 12 db  ·  As− = L_ext (apoyo simple, no 0,30 ℓn)  ·  Ø en pulgadas",
     caption: layers.map((l) => `${l.mark} Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("  ·  "),
-    note: `h = ${(pack.h ?? 15).toFixed(0)} cm. Despiece en planta (no corte de vigueta): una pieza por tramo, no por paño. As+ inferior continuo hasta hueco o borde, gancho 90° hacia el interior en ambos extremos. As− superior = L_teo + máx(12 db, d, ℓn/16) en un solo acero sobre el apoyo, recto en interiores; gancho 90° de un lado solo si el extremo es borde libre o hueco. Grosor proporcional al Ø.`,
+    note: `h = ${(pack.h ?? 15).toFixed(0)} cm. As+ inferior continuo hasta hueco o borde, gancho 90° de 12 db hacia el interior (radio 4 db). As− superior: vigas = apoyos simples (no empotradas), L_teo = 0, L_barra = L_ext = máx(12 db, d, ℓn/16) a cada lado del eje; gancho 90° solo en borde libre. No se usa 0,30 ℓn ni se unen cortes de apoyos distintos.`,
     W,
     H,
     sheet: "a1",
     mode: "plan",
     pxPerM: sc,
+    lineScale: 0.78,
     outline,
     regions,
     guides,
@@ -608,6 +744,7 @@ export function buildLosaDraftSpec(m: MaeModel, pack: LosaSteelPack, title?: str
     dims: [
       { x1: xy(extX0, extY0).x, y1: xy(extX0, extY0).y + 22, x2: xy(extX1, extY0).x, y2: xy(extX0, extY0).y + 22, label: `Lx = ${Lx.toFixed(2)} m`, side: "bottom" },
       { x1: xy(extX0, extY0).x - 18, y1: xy(extX0, extY1).y, x2: xy(extX0, extY0).x - 18, y2: xy(extX0, extY0).y, label: `Ly = ${Ly.toFixed(2)} m`, side: "left" },
+      ...drawn.filter((b) => b.dim && /negativo/.test(b.face)).map((b) => b.dim!),
     ],
     layers,
     annos,

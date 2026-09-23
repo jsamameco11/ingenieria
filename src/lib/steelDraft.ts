@@ -35,6 +35,8 @@ export type SteelLayer = {
   /** Punto de arranque de la cota-llamada (un lecho = una etiqueta). */
   attach?: SteelBarPt;
   callout?: { x: number; y: number; anchor: "start" | "middle" | "end" };
+  /** Segunda línea de la marca (p. ej. "4 Ø" o "@ 10 cm"). Si falta, se usa @s cm. */
+  qty?: string;
 };
 
 export type SteelDim = {
@@ -44,6 +46,8 @@ export type SteelDim = {
   y2: number;
   label: string;
   side: LeaderSide;
+  /** Cota de barra: trazo fino, sin placa, del orden del Ø dibujado. */
+  tiny?: boolean;
 };
 
 export type SteelAnno = {
@@ -73,6 +77,8 @@ export type SteelDraftSpec = {
   sheet?: "a1";
   /** Planta: sin terreno ni línea de suelo. */
   mode?: "section" | "plan";
+  /** Pie de figura (si falta, se infiere según haya terreno o no). */
+  footer?: string;
   dims: SteelDim[];
   layers: SteelLayer[];
   annos?: SteelAnno[];
@@ -935,7 +941,9 @@ export function specVigaRect(values: Record<string, string>): SteelDraftSpec {
       asUnit: "cm²",
       color: TEMP,
       side: "right",
+      draw: "bar",
       bars: [{ x: sx + w - recPx - destPx / 2, y: sy + recPx + destPx / 2 }],
+      barPath: closedStirrup(sx + recPx + destPx / 2, sy + recPx + destPx / 2, sx + w - recPx - destPx / 2, sy + ht - recPx - destPx / 2, Math.max(10, 6 * est.db * sc)),
     },
   ];
 
@@ -969,6 +977,12 @@ export function specFranja1m(opts: {
   infText: string;
   supText?: string;
   distText?: string;
+  infName?: string;
+  infFace?: string;
+  supName?: string;
+  supFace?: string;
+  distName?: string;
+  distFace?: string;
 }): SteelDraftSpec {
   const inf = parseSteelText(opts.infText);
   const sup = opts.supText ? parseSteelText(opts.supText) : null;
@@ -976,18 +990,20 @@ export function specFranja1m(opts: {
   const W = 640;
   const Ht = 300;
   const L = 100;
+  const hCm = Math.max(opts.hCm, 6);
+  const recCm = Math.min(opts.recCm, Math.max(1.5, hCm * 0.22));
   const scx = 360 / L;
-  const scy = Math.min(4.2, 140 / Math.max(opts.hCm, 8));
+  const scy = Math.min(4.2, 140 / Math.max(hCm, 8));
   const sx = 130;
   const sy = 56;
   const w = L * scx;
-  const ht = opts.hCm * scy;
-  const recPx = opts.recCm * scy;
+  const ht = hCm * scy;
+  const recPx = recCm * scy;
   const rInf = barRadius(barByName(inf.bar).db, Math.max(scy, 2.2));
   const infBars = layerFromBar({
     mark: 1,
-    name: "Lecho inferior",
-    face: "fondo / suelo",
+    name: opts.infName ?? "Lecho inferior",
+    face: opts.infFace ?? "cara interior",
     barName: inf.bar,
     sCm: inf.s,
     lengthCm: L,
@@ -1002,8 +1018,8 @@ export function specFranja1m(opts: {
     layers.push(
       layerFromBar({
         mark: 2,
-        name: "Lecho superior",
-        face: "cara superior",
+        name: opts.supName ?? "Lecho superior",
+        face: opts.supFace ?? "cara exterior",
         barName: sup.bar,
         sCm: sup.s,
         lengthCm: L,
@@ -1019,11 +1035,11 @@ export function specFranja1m(opts: {
     layers.push(
       layerFromBar({
         mark: layers.length + 1,
-        name: "Distribución / temp.",
-        face: "90° al principal",
+        name: opts.distName ?? "Distribución / temp.",
+        face: opts.distFace ?? "90° al principal",
         barName: dist.bar,
         sCm: dist.s,
-        lengthCm: opts.hCm,
+        lengthCm: hCm,
         color: DIST,
         side: "right",
         a: { x: sx + w / 2, y: sy + recPx + rD },
@@ -1037,16 +1053,277 @@ export function specFranja1m(opts: {
     subtitle: opts.title,
     caption: layers.map((l) => `${l.mark} Ø ${l.bar} @ ${l.sCm.toFixed(0)} cm`).join("  ·  "),
     note: "Franja de 1,00 m. Una marca por lecho. Los círculos son barras cortadas por el plano de la sección.",
+    footer: "Franja de 1,00 m · recubrimiento y Ø dibujados a escala",
     W,
     H: Ht,
     outline: `${sx},${sy} ${sx + w},${sy} ${sx + w},${sy + ht} ${sx},${sy + ht}`,
     cover: `${sx + recPx},${sy + recPx} ${sx + w - recPx},${sy + recPx} ${sx + w - recPx},${sy + ht - recPx} ${sx + recPx},${sy + ht - recPx}`,
     dims: [
       { x1: sx, y1: sy + ht + 16, x2: sx + w, y2: sy + ht + 16, label: "1,00 m", side: "bottom" },
-      { x1: sx - 18, y1: sy, x2: sx - 18, y2: sy + ht, label: `h = ${opts.hCm.toFixed(1)} cm`, side: "left" },
+      { x1: sx - 18, y1: sy, x2: sx - 18, y2: sy + ht, label: `h = ${hCm.toFixed(1)} cm`, side: "left" },
     ],
     layers,
   };
+}
+
+function closedStirrup(x0: number, y0: number, x1: number, y1: number, hook: number): SteelBarPt[] {
+  const hk = Math.min(hook, Math.abs(x1 - x0) * 0.35, Math.abs(y1 - y0) * 0.35);
+  return [
+    { x: x1 - hk, y: y1 },
+    { x: x1, y: y1 },
+    { x: x1, y: y0 },
+    { x: x0, y: y0 },
+    { x: x0, y: y1 },
+    { x: x1, y: y1 },
+    { x: x1, y: y1 - hk },
+  ];
+}
+
+function circlePoly(cx: number, cy: number, r: number, n = 48) {
+  return Array.from({ length: n }, (_, i) => {
+    const a = (2 * Math.PI * i) / n - Math.PI / 2;
+    return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
+  }).join(" ");
+}
+
+function parseNBar(text: string, fbN = 6, fbBar = '5/8"') {
+  const raw = String(text || "");
+  const nMatch = raw.match(/(\d+)\s*Ø/i) ?? raw.match(/(\d+)\s*ø/i);
+  const parsed = parseSteelText(raw.includes("Ø") || raw.includes("ø") ? raw : `Ø ${raw}`);
+  return { n: nMatch ? Math.max(4, Number(nMatch[1])) : fbN, bar: parsed.bar || fbBar };
+}
+
+/** Cáscara de 1,00 m (cúpula o cono): lechos intradós y extradós. */
+export function specCascaron1m(opts: {
+  title: string;
+  hCm: number;
+  recCm: number;
+  intraText: string;
+  extraText: string;
+  distText?: string;
+}): SteelDraftSpec {
+  const spec = specFranja1m({
+    title: opts.title,
+    hCm: opts.hCm,
+    recCm: opts.recCm,
+    infText: opts.intraText,
+    supText: opts.extraText,
+    distText: opts.distText,
+    infName: "Meridional intradós",
+    infFace: "cara del líquido",
+    supName: "Meridional extradós",
+    supFace: "cara exterior",
+    distName: "Anillo / paralelo",
+    distFace: "90° al meridiano",
+  });
+  return {
+    ...spec,
+    note: "Franja meridional de 1,00 m. Intradós (cara del líquido) e extradós. Los círculos son barras cortadas por el plano de la sección.",
+    footer: "Cáscara · intradós / extradós · recubrimiento y Ø a escala",
+  };
+}
+
+/** Viga anillo / collarín: sección rectangular con longitudinales perimetrales y estribo cerrado. */
+export function specAnilloViga(opts: {
+  title: string;
+  bCm: number;
+  hCm: number;
+  recCm: number;
+  longText: string;
+  estText?: string;
+}): SteelDraftSpec {
+  const parsed = parseNBar(opts.longText, 6, parseSteelText(opts.longText.includes("Ø") ? opts.longText : `Ø ${opts.longText}`).bar);
+  const est = parseSteelText(opts.estText ?? 'Ø 3/8" @ 15');
+  const b = Math.max(16, opts.bCm);
+  const h = Math.max(16, opts.hCm);
+  const rec = Math.min(opts.recCm, Math.max(2, Math.min(b, h) * 0.22));
+  const W = 640;
+  const Ht = 360;
+  const sc = Math.min(5.2, 220 / Math.max(h, 20), 180 / Math.max(b, 15));
+  const w = b * sc;
+  const ht = h * sc;
+  const sx = 150;
+  const sy = 48;
+  const recPx = rec * sc;
+  const dest = barByName(est.bar).db;
+  const destPx = dest * sc;
+  const bar = barByName(parsed.bar);
+  const rLong = barRadius(bar.db, sc);
+  const off = recPx + destPx + rLong;
+  const n = Math.max(4, parsed.n);
+  const nSide = n >= 8 ? 2 : n >= 6 ? 1 : 0;
+  const remain = Math.max(4, n - 2 * nSide);
+  const nBot = Math.ceil(remain / 2);
+  const nTop = remain - nBot;
+  const inf = placeLine(sx + off, sy + ht - off, sx + w - off, sy + ht - off, nBot);
+  const sup = placeLine(sx + off, sy + off, sx + w - off, sy + off, Math.max(2, nTop));
+  const left = nSide ? placeLine(sx + off, sy + off + (ht - 2 * off) * 0.28, sx + off, sy + ht - off - (ht - 2 * off) * 0.28, nSide) : [];
+  const right = nSide ? placeLine(sx + w - off, sy + off + (ht - 2 * off) * 0.28, sx + w - off, sy + ht - off - (ht - 2 * off) * 0.28, nSide) : [];
+  const longs = [...inf, ...sup, ...left, ...right];
+  const ix = sx + recPx + destPx / 2;
+  const iy = sy + recPx + destPx / 2;
+  const jx = sx + w - recPx - destPx / 2;
+  const jy = sy + ht - recPx - destPx / 2;
+  const layers: SteelLayer[] = [
+    {
+      mark: 1,
+      name: "Longitudinales",
+      face: "perímetro del anillo",
+      bar: bar.name,
+      dbCm: bar.db,
+      sCm: n > 1 ? (2 * (b + h) - 8 * rec) / n : b,
+      nReal: n,
+      asProv: n * bar.as,
+      asUnit: "cm²",
+      color: FLEX,
+      side: "bottom",
+      bars: longs,
+    },
+    {
+      mark: 2,
+      name: "Estribo cerrado",
+      face: "confinamiento",
+      bar: est.bar,
+      dbCm: dest,
+      sCm: est.s,
+      nReal: 1,
+      asProv: barByName(est.bar).as,
+      asUnit: "cm²",
+      color: TEMP,
+      side: "right",
+      draw: "bar",
+      bars: [{ x: jx, y: iy }],
+      barPath: closedStirrup(ix, iy, jx, jy, Math.max(10, 6 * dest * sc)),
+    },
+  ];
+  const outline = `${sx},${sy} ${sx + w},${sy} ${sx + w},${sy + ht} ${sx},${sy + ht}`;
+  const inner = recPx + destPx / 2;
+  const cover = `${sx + inner},${sy + inner} ${sx + w - inner},${sy + inner} ${sx + w - inner},${sy + ht - inner} ${sx + inner},${sy + ht - inner}`;
+  return {
+    title: "Corte de sección — despiece de aceros",
+    subtitle: `${opts.title} · ${b.toFixed(0)} × ${h.toFixed(0)} cm`,
+    caption: `${n} Ø ${bar.name}  ·  estribos Ø ${est.bar} @ ${est.s.toFixed(0)} cm`,
+    note: "Anillo a tracción de aro: longitudinales en el perímetro y estribo cerrado. Recubrimiento y Ø a escala.",
+    footer: "Viga anillo · estribo cerrado · recubrimiento y Ø a escala",
+    W,
+    H: Ht,
+    outline,
+    cover,
+    dims: [
+      { x1: sx, y1: sy + ht + 16, x2: sx + w, y2: sy + ht + 16, label: `b = ${b.toFixed(0)} cm`, side: "bottom" },
+      { x1: sx - 20, y1: sy, x2: sx - 20, y2: sy + ht, label: `h = ${h.toFixed(0)} cm`, side: "left" },
+      { x1: sx + w + 12, y1: sy + ht - recPx, x2: sx + w + 12, y2: sy + ht, label: `r = ${rec.toFixed(1)} cm`, side: "right" },
+    ],
+    layers,
+  };
+}
+
+/** Columna circular: longitudinales en el perímetro y estribo circular. */
+export function specColumnaCircular(opts: {
+  title: string;
+  dCm: number;
+  recCm: number;
+  nLong: number;
+  barLong: string;
+  barEst: string;
+  sEstCm: number;
+}): SteelDraftSpec {
+  const W = 560;
+  const Ht = 420;
+  const d = Math.max(20, opts.dCm);
+  const rec = opts.recCm;
+  const sc = Math.min(6.4, 220 / d);
+  const r = (d / 2) * sc;
+  const cx = 250;
+  const cy = 190;
+  const recPx = rec * sc;
+  const bar = barByName(opts.barLong);
+  const est = barByName(opts.barEst);
+  const rBar = r - recPx - barRadius(bar.db, sc) - est.db * sc * 0.4;
+  const n = Math.max(6, opts.nLong);
+  const nShow = nDraw(n, 16);
+  const longs = Array.from({ length: nShow }, (_, i) => {
+    const a = (2 * Math.PI * i) / nShow - Math.PI / 2;
+    return { x: cx + rBar * Math.cos(a), y: cy + rBar * Math.sin(a) };
+  });
+  const rEst = r - recPx - (est.db * sc) / 2;
+  const estPath = Array.from({ length: 36 }, (_, i) => {
+    const a = (2 * Math.PI * i) / 35 - Math.PI / 2;
+    return { x: cx + rEst * Math.cos(a), y: cy + rEst * Math.sin(a) };
+  });
+  const layers: SteelLayer[] = [
+    {
+      mark: 1,
+      name: "Longitudinales",
+      face: "perímetro",
+      bar: bar.name,
+      dbCm: bar.db,
+      sCm: (Math.PI * (d - 2 * rec)) / n,
+      nReal: n,
+      asProv: n * bar.as,
+      asUnit: "cm²",
+      color: FLEX,
+      side: "right",
+      bars: longs,
+    },
+    {
+      mark: 2,
+      name: "Estribo circular",
+      face: "confinamiento",
+      bar: est.name,
+      dbCm: est.db,
+      sCm: opts.sEstCm,
+      nReal: 1,
+      asProv: est.as,
+      asUnit: "cm²",
+      color: TEMP,
+      side: "left",
+      draw: "bar",
+      bars: [{ x: cx + rEst, y: cy }],
+      barPath: estPath,
+    },
+  ];
+  return {
+    title: "Corte de sección — despiece de aceros",
+    subtitle: opts.title,
+    caption: `${n} Ø ${bar.name}  ·  estribos Ø ${est.name} @ ${opts.sEstCm.toFixed(0)} cm`,
+    note: "Sección circular. Los círculos son las longitudinales cortadas por el plano; el estribo cierra el núcleo.",
+    footer: "Columna circular · estribo perimetral · recubrimiento y Ø a escala",
+    W,
+    H: Ht,
+    outline: circlePoly(cx, cy, r),
+    cover: circlePoly(cx, cy, r - recPx),
+    dims: [
+      { x1: cx - r, y1: cy + r + 22, x2: cx + r, y2: cy + r + 22, label: `Ø = ${d.toFixed(0)} cm`, side: "bottom" },
+      { x1: cx + r + 16, y1: cy - r, x2: cx + r + 16, y2: cy - r + recPx, label: `r = ${rec.toFixed(1)} cm`, side: "right" },
+    ],
+    layers,
+  };
+}
+
+/** Pared del fuste (franja 1,00 m): verticales interior/exterior y horizontales. */
+export function specFustePared(opts: {
+  title: string;
+  eCm: number;
+  recCm: number;
+  vertText: string;
+  horText: string;
+}): SteelDraftSpec {
+  const spec = specFranja1m({
+    title: opts.title,
+    hCm: opts.eCm,
+    recCm: opts.recCm,
+    infText: opts.vertText,
+    supText: opts.vertText,
+    distText: opts.horText,
+    infName: "Vertical interior",
+    infFace: "cara interior",
+    supName: "Vertical exterior",
+    supFace: "cara exterior",
+    distName: "Horizontal / anillo",
+    distFace: "circunferencia del fuste",
+  });
+  return { ...spec, footer: "Fuste · dos capas verticales · anillo horizontal a escala" };
 }
 
 export function centroid(pts: SteelBarPt[]) {

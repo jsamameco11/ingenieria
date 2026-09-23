@@ -325,16 +325,24 @@ export function MaestriaEstructurasModule() {
               ) : null}
               {tab === "zapata" ? (
                 <>
-                  <MaeMomentStrip title="Viga invertida — momentos por tramo" formula="M(x)=w x²/2 − Σ Pu(x−xi)" ptsRaw={dims.mPts} L={Number(dims.Lbeam) || 12} MuPos={Number(dims.Mtop)} MuNeg={Number(dims.Msoil)} />
+                  <MaeMomentStrip title="Zapata — viga invertida · momentos inf/sup" formula="M(x)  ·  q(x)=a+bx  ·  h=ℓn/7" ptsRaw={dims.mPts} L={Number(dims.Lbeam) || 12} MuPos={Number(dims.Mtop)} MuNeg={Number(dims.Msoil)} />
+                  <MaeMomentStrip title="Zapata — viga invertida · cortante" formula="V(x)=∫q−ΣPu" ptsRaw={dims.vPts} L={Number(dims.Lbeam) || 12} MuPos={Number(dims.VmaxVC) || 0} unidad="t" kind="V" />
                   <MaePunchFromDims values={dims} />
                   <MaeSteelPlan model={model} bars={{ infX: dims.asPrin || 'Ø 1/2" @ 20', infY: dims.asLong || 'Ø 1/2" @ 20', supX: dims.asDist || 'Ø 3/8" @ 20', supY: dims.asDist || 'Ø 3/8" @ 20' }} />
                 </>
               ) : null}
               {tab === "platea" ? (
                 <>
-                  <MaeMomentStrip title="Franja interior X" formula="M(x)=w x²/2 − Σ Pu" ptsRaw={dims.mPtsIntX} L={Number(dims.Lx) || 16} MuPos={Number(dims.mIntXMpos)} MuNeg={Number(dims.mIntXMneg)} />
-                  <MaeMomentStrip title="Franja borde X" formula="M(x)=w x²/2 − Σ Pu" ptsRaw={dims.mPtsEdgX} L={Number(dims.Lx) || 16} MuPos={Number(dims.mEdgXMpos)} MuNeg={Number(dims.mEdgXMneg)} />
-                  <MaeMomentStrip title="Franja interior Y" formula="M(y)=w y²/2 − Σ Pu" ptsRaw={dims.mPtsIntY} L={Number(dims.Ly) || 16} MuPos={Number(dims.mIntYMpos)} MuNeg={Number(dims.mIntYMneg)} />
+                  <MaeMomentStrip title="Franja interior X — momentos inf/sup" formula="Motor FEM  ·  M(x)=∫V" ptsRaw={dims.mPtsIntX} L={Number(dims.Lx) || 16} MuPos={Number(dims.mIntXMpos)} MuNeg={Number(dims.mIntXMneg)} />
+                  <MaeMomentStrip title="Franja interior X — cortante" formula="V(x)=∫q−ΣPu" ptsRaw={dims.vPtsIntX} L={Number(dims.Lx) || 16} MuPos={Number(dims.vIntXVmax)} unidad="t" kind="V" />
+                  <MaeMomentStrip title="Franja borde X — momentos inf/sup" formula="Motor FEM  ·  M(x)=∫V" ptsRaw={dims.mPtsEdgX} L={Number(dims.Lx) || 16} MuPos={Number(dims.mEdgXMpos)} MuNeg={Number(dims.mEdgXMneg)} />
+                  <MaeMomentStrip title="Franja borde X — cortante" formula="V(x)=∫q−ΣPu" ptsRaw={dims.vPtsEdgX} L={Number(dims.Lx) || 16} MuPos={Number(dims.vEdgXVmax)} unidad="t" kind="V" />
+                  <MaeMomentStrip title="Franja interior Y — momentos inf/sup" formula="Motor FEM  ·  M(y)=∫V" ptsRaw={dims.mPtsIntY} L={Number(dims.Ly) || 16} MuPos={Number(dims.mIntYMpos)} MuNeg={Number(dims.mIntYMneg)} />
+                  <MaeMomentStrip title="Franja interior Y — cortante" formula="V(y)=∫q−ΣPu" ptsRaw={dims.vPtsIntY} L={Number(dims.Ly) || 16} MuPos={Number(dims.vIntYVmax)} unidad="t" kind="V" />
+                  <MaeMomentStrip title="Franja borde Y — momentos inf/sup" formula="Motor FEM  ·  M(y)=∫V" ptsRaw={dims.mPtsEdgY} L={Number(dims.Ly) || 16} MuPos={Number(dims.mEdgYMpos)} MuNeg={Number(dims.mEdgYMneg)} />
+                  <MaeMomentStrip title="Franja borde Y — cortante" formula="V(y)=∫q−ΣPu" ptsRaw={dims.vPtsEdgY} L={Number(dims.Ly) || 16} MuPos={Number(dims.vEdgYVmax)} unidad="t" kind="V" />
+                  <MaeMomentStrip title="Viga de cimentación — momentos · h=ℓn/7" formula="M(x)  ·  q(x)=a+bx  ·  h=ℓn/7" ptsRaw={dims.mPts} L={Number(dims.Lbeam) || 12} MuPos={Number(dims.Mtop)} MuNeg={Number(dims.Msoil)} />
+                  <MaeMomentStrip title="Viga de cimentación — cortante" formula="V(x)=∫q−ΣPu" ptsRaw={dims.vPts} L={Number(dims.Lbeam) || 12} MuPos={Number(dims.VmaxVC) || Number(dims.vIntXVmax)} unidad="t" kind="V" />
                   <MaePunchFromDims values={dims} />
                   <MaeSteelPlan model={model} bars={{ infX: dims.asInfX || dims.asPos || 'Ø 1/2" @ 20', infY: dims.asInfY || 'Ø 1/2" @ 20', supX: dims.asSupX || dims.asNeg || 'Ø 1/2" @ 20', supY: dims.asSupY || 'Ø 1/2" @ 20' }} />
                 </>

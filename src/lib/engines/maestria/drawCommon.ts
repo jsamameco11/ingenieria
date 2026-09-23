@@ -39,6 +39,7 @@ export type PunchSpec = {
   Lx?: number;
   Ly?: number;
   d: number;
+  slab?: { x0: number; y0: number; x1: number; y1: number }[];
   col: { x: number; y: number; t1: number; t2: number; id: string };
   poly: { x: number; y: number }[];
   segs?: { x1: number; y1: number; x2: number; y2: number }[];
@@ -124,4 +125,104 @@ export function viewBoxOf(m: MaeModel, pad = 48) {
 export function toPx(m: MaeModel, x: number, y: number, pad: number, sc: number) {
   const e = extent(m);
   return { x: pad + (x - e.x0) * sc, y: pad + (e.y1 - y) * sc };
+}
+
+export type PlantRect = { x0: number; y0: number; x1: number; y1: number };
+
+function mergeIvs(ivs: [number, number][]) {
+  const s = ivs.filter((a) => a[1] - a[0] > 0.04).sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const iv of s) {
+    const last = out[out.length - 1];
+    if (last && iv[0] <= last[1] + 0.08) last[1] = Math.max(last[1], iv[1]);
+    else out.push([iv[0], iv[1]]);
+  }
+  return out;
+}
+
+/** Tramos horizontales de una barra que caen sobre concreto pintado (no cruza el vacío de una L). */
+export function clipHOnRects(y: number, x0: number, x1: number, rects: PlantRect[], recM = 0): { x0: number; x1: number }[] {
+  const ivs: [number, number][] = [];
+  for (const r of rects) {
+    if (y < r.y0 + recM - 1e-9 || y > r.y1 - recM + 1e-9) continue;
+    const a = Math.max(x0, r.x0);
+    const b = Math.min(x1, r.x1);
+    if (b - a > 0.04) ivs.push([a, b]);
+  }
+  return mergeIvs(ivs).map(([a, b]) => ({ x0: a, x1: b }));
+}
+
+/** Tramos verticales de una barra sobre concreto pintado. */
+export function clipVOnRects(x: number, y0: number, y1: number, rects: PlantRect[], recM = 0): { y0: number; y1: number }[] {
+  const ivs: [number, number][] = [];
+  for (const r of rects) {
+    if (x < r.x0 + recM - 1e-9 || x > r.x1 - recM + 1e-9) continue;
+    const a = Math.max(y0, r.y0);
+    const b = Math.min(y1, r.y1);
+    if (b - a > 0.04) ivs.push([a, b]);
+  }
+  return mergeIvs(ivs).map(([a, b]) => ({ y0: a, y1: b }));
+}
+
+/** Contorno exterior de la unión de rectángulos (planta en L / irregular). */
+export function orthoUnionOutline(rects: PlantRect[]): { x: number; y: number }[] {
+  if (!rects.length) return [];
+  const xs = [...new Set(rects.flatMap((r) => [r.x0, r.x1]))].sort((a, b) => a - b);
+  const ys = [...new Set(rects.flatMap((r) => [r.y0, r.y1]))].sort((a, b) => a - b);
+  const nx = xs.length - 1;
+  const ny = ys.length - 1;
+  if (nx < 1 || ny < 1) {
+    const r = rects[0];
+    return [
+      { x: r.x0, y: r.y0 },
+      { x: r.x1, y: r.y0 },
+      { x: r.x1, y: r.y1 },
+      { x: r.x0, y: r.y1 },
+    ];
+  }
+  const on = Array.from({ length: ny }, () => Array(nx).fill(false));
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const cx = (xs[i] + xs[i + 1]) / 2;
+      const cy = (ys[j] + ys[j + 1]) / 2;
+      on[j][i] = rects.some((r) => cx >= r.x0 - 1e-9 && cx <= r.x1 + 1e-9 && cy >= r.y0 - 1e-9 && cy <= r.y1 + 1e-9);
+    }
+  }
+  const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      if (!on[j][i]) continue;
+      if (j === 0 || !on[j - 1][i]) edges.push({ x1: xs[i], y1: ys[j], x2: xs[i + 1], y2: ys[j] });
+      if (j === ny - 1 || !on[j + 1][i]) edges.push({ x1: xs[i + 1], y1: ys[j + 1], x2: xs[i], y2: ys[j + 1] });
+      if (i === 0 || !on[j][i - 1]) edges.push({ x1: xs[i], y1: ys[j + 1], x2: xs[i], y2: ys[j] });
+      if (i === nx - 1 || !on[j][i + 1]) edges.push({ x1: xs[i + 1], y1: ys[j], x2: xs[i + 1], y2: ys[j + 1] });
+    }
+  }
+  if (!edges.length) return [];
+  const used = new Set<number>();
+  const eq = (a: { x: number; y: number }, x: number, y: number) => Math.hypot(a.x - x, a.y - y) < 1e-6;
+  const poly: { x: number; y: number }[] = [{ x: edges[0].x1, y: edges[0].y1 }];
+  used.add(0);
+  let guard = 0;
+  while (used.size < edges.length && guard++ < edges.length + 2) {
+    const last = poly[poly.length - 1];
+    let hit = -1;
+    for (let k = 0; k < edges.length; k++) {
+      if (used.has(k)) continue;
+      if (eq(last, edges[k].x1, edges[k].y1)) {
+        hit = k;
+        poly.push({ x: edges[k].x2, y: edges[k].y2 });
+        break;
+      }
+      if (eq(last, edges[k].x2, edges[k].y2)) {
+        hit = k;
+        poly.push({ x: edges[k].x1, y: edges[k].y1 });
+        break;
+      }
+    }
+    if (hit < 0) break;
+    used.add(hit);
+  }
+  if (poly.length >= 2 && eq(poly[0], poly[poly.length - 1].x, poly[poly.length - 1].y)) poly.pop();
+  return poly;
 }

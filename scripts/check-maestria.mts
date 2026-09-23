@@ -3,6 +3,9 @@ import { calcZapataCorrida } from "../src/lib/engines/maestria/zapataCalc.ts";
 import { calcPlatea } from "../src/lib/engines/maestria/plateaCalc.ts";
 import { punchGeom } from "../src/lib/engines/maestria/steel.ts";
 import { invertBeam } from "../src/lib/engines/maestria/matrixBeam.ts";
+import { clipHOnRects, orthoUnionOutline } from "../src/lib/engines/maestria/drawCommon.ts";
+import { buildZapataCorridaDespieceSpec } from "../src/lib/engines/maestria/zapataCorridaDespiece.ts";
+import { buildPlateaDespieceSpec } from "../src/lib/engines/maestria/plateaDespiece.ts";
 import {
   createGridAxes,
   collectGradeBeams,
@@ -32,13 +35,25 @@ const punch = JSON.parse(String(zap.dims?.punchJson));
 assert(punch.col.x >= punch.col.t2 / 2 - 1e-6, "zapata pedestal X sobre la losa");
 assert(punch.col.y >= punch.col.t1 / 2 - 1e-6, "zapata pedestal Y sobre la losa");
 assert(Array.isArray(punch.segs) && punch.segs.length >= 2, "zapata b0 en segmentos");
+assert(Array.isArray(punch.slab) && punch.slab.length >= 1, "zapata punch con losa pintada");
 console.log("ZAPATA", zap.headline, punch.kind, "b0", punch.b0);
 assert(Number(zap.dims?.nBeams) >= 4, `zapata tramos VC, hay ${zap.dims?.nBeams}`);
 assert(zap.steps.some((s) => s.n === "08" && /cimentación/i.test(s.title)), "paso 08 vigas de cimentación");
+assert(/^\d+\s*Ø/.test(String(zap.dims?.asVCInf ?? "")), `VC inf. es n Ø, hay ${zap.dims?.asVCInf}`);
+assert(zap.checks.some((c) => /qmáx/i.test(c.label)), "zapata verifica qmáx ≤ σn");
+const punchStep = zap.steps.find((s) => s.n === "07");
+const esq = punchStep?.table?.rows.find((r) => r[1] === "esquina");
+assert(esq && Number(esq[2]) >= 1.24, `α de esquina 1.25, hay ${esq?.join(" | ")}`);
 
 const pla = calcPlatea({ studioJson: dumpMae(exampleModel("platea")), t: "0.50", qadm: "1.5", Df: "1.2", gt: "1.8", sc: "0.3", Ks: "8", fc: "210", fy: "4200", rec: "7.5" });
-assert(pla.steps.length >= 8, "platea steps");
+assert(pla.steps.length >= 13, "platea steps incl. VC ℓn/7");
 assert(pla.dims?.punchJson, "platea punch");
+assert(pla.dims?.vPtsIntX && pla.dims?.vPtsEdgY, "platea V por franja");
+assert(pla.dims?.mPtsIntX && pla.dims?.mPts, "platea M franjas y VC");
+assert(Number(pla.dims?.hBeam) + 1e-6 >= Number(pla.dims?.hPred) - 0.01, `platea h=${pla.dims?.hBeam} ≥ ℓn/7=${pla.dims?.hPred}`);
+const punchP = JSON.parse(String(pla.dims?.punchJson));
+assert(Array.isArray(punchP.slab) && punchP.slab.length >= 1, "platea punch con losa pintada");
+assert(/^\d+\s*Ø/.test(String(pla.dims?.asVCInf ?? "")), `platea VC inf. es n Ø, hay ${pla.dims?.asVCInf}`);
 console.log("PLATEA", pla.headline);
 
 const z0 = exampleModel("zapata");
@@ -81,5 +96,25 @@ const pgInt = punchGeom(4, 1.2, 0.4, 0.4, dM, 2.4, 12);
 assert(pgInt.kind === "interior", `interior kind=${pgInt.kind}`);
 const b0Int = 2 * (0.4 + dM) + 2 * (0.4 + dM);
 assert(Math.abs(pgInt.b0 / 100 - b0Int) < 0.04, `b0 interior ${pgInt.b0.toFixed(1)} vs ${(b0Int * 100).toFixed(1)}`);
+
+const zL = exampleModel("zapata");
+const zRects: { x0: number; y0: number; x1: number; y1: number }[] = [];
+for (let iy = 0; iy < zL.axesY.length - 1; iy++) {
+  for (let ix = 0; ix < zL.axesX.length - 1; ix++) {
+    if (!zL.cells[iy]?.[ix]) continue;
+    zRects.push({ x0: zL.axesX[ix], y0: zL.axesY[iy], x1: zL.axesX[ix + 1], y1: zL.axesY[iy + 1] });
+  }
+}
+const Lpoly = orthoUnionOutline(zRects);
+assert(Lpoly.length >= 6, `contorno L tiene ≥6 vértices, hay ${Lpoly.length}`);
+const yVoid = (zL.axesY[1] + zL.axesY[2]) / 2;
+const segsVoid = clipHOnRects(yVoid, zL.axesX[0], zL.axesX[zL.axesX.length - 1], zRects, 0.05);
+assert(segsVoid.every((s) => s.x1 - s.x0 < 5), `barra en el hueco de la L no cruza 16 m, hay ${JSON.stringify(segsVoid)}`);
+const draftZ = buildZapataCorridaDespieceSpec({ studioJson: dumpMae(zL), tipo: "columnas", hf: "0.70", rec: "7.5", fy: "4200", fc: "210" });
+assert((draftZ.outline.match(/,/g) ?? []).length >= 6, `despiece L: outline con ≥6 puntos, hay ${draftZ.outline}`);
+const draftP = buildPlateaDespieceSpec({ studioJson: dumpMae(exampleModel("platea")), t: "0.50", rec: "7.5" });
+assert(draftP.layers.length >= 4, "platea despiece 4 mallas");
+assert(draftP.dims.some((d) => /eje|L_teo/i.test(d.label)), "platea cota eje→extremo");
+assert(draftZ.dims.some((d) => /eje|L_teo/i.test(d.label)), "zapata cota eje→extremo");
 
 console.log("OK engines");

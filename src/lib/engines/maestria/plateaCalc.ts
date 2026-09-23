@@ -1,10 +1,29 @@
-import { fmt, num, str, type Engine } from "../../types";
-import { invertBeam, packPts } from "./matrixBeam";
-import { asFlex, fmtBar, ldTension, ok, oneWayShear, out, pendingPlantOut, pickSlabBar, punchCapacity, punchGeom, round05, step } from "./steel";
+import { barByName, fmt, num, str, type Engine } from "../../types";
+import { designBeamStirrups } from "../../estribos";
+import { clearSpanLn, invertBeam, packPts, packV, predimHBeam } from "./matrixBeam";
+import {
+  asFlex,
+  fmtBar,
+  ldTension,
+  ok,
+  oneWayShear,
+  out,
+  pendingPlantOut,
+  pickBeamBars,
+  pickSlabBar,
+  punchCapacity,
+  punchGeom,
+  punchMomentAmp,
+  round05,
+  step,
+} from "./steel";
 import {
   cellOn,
   colXY,
+  collectGradeBeams,
   defaultModel,
+  ensureGradeBeams,
+  loadsOnGradeBeam,
   momentsAt,
   nxOf,
   nyOf,
@@ -162,7 +181,20 @@ export const calcPlatea: Engine = (raw) => {
   let qu = Put / A;
   let shX = { Vu: 0, phiVc: 0, ok: false };
   let okT = false;
-  for (let i = 0; i < 14; i++) {
+  const punchOf = (dd: number, quu: number) => {
+    let worst = { Vu: 0, phiVn: 1, ratio: 0, id: "—" };
+    for (const c of loads) {
+      const pg = punchGeom(c.x - m.axesX[0], c.y - m.axesY[0], c.c.t1, c.c.t2, dd / 100, Ly, Lx, painted);
+      const beta = Math.max(c.c.t1, c.c.t2) / Math.max(Math.min(c.c.t1, c.c.t2), 0.1);
+      const cap = punchCapacity(fc, pg.b0, dd, beta, pg.alphaS);
+      const am = punchMomentAmp(pg.kind);
+      const Vu = Math.max(0, am * Math.max(0, c.Pu - quu * pg.Acrit));
+      const ratio = Vu / Math.max(cap.phiVn, 0.01);
+      if (ratio >= worst.ratio) worst = { Vu, phiVn: cap.phiVn, ratio, id: c.c.id };
+    }
+    return worst;
+  };
+  for (let i = 0; i < 16; i++) {
     d = t * 100 - rec;
     qn = qNet(qadm, gt, Df, t, sc);
     Wslab = 2.4 * t * A;
@@ -171,25 +203,28 @@ export const calcPlatea: Engine = (raw) => {
     Put = PpU + 1.4 * (Wslab + Wfill) + 1.7 * sc * A;
     qserv = Pts / A;
     qu = Put / A;
-    const pg = punchGeom(cTyp.x - m.axesX[0], cTyp.y - m.axesY[0], cTyp.c.t1, cTyp.c.t2, d / 100, Ly, Lx, painted);
-    const beta = Math.max(cTyp.c.t1, cTyp.c.t2) / Math.max(Math.min(cTyp.c.t1, cTyp.c.t2), 0.1);
-    const cap = punchCapacity(fc, pg.b0, d, beta, pg.alphaS);
-    const Vu = Math.max(0, cTyp.Pu - qu * pg.Acrit);
+    const pun = punchOf(d, qu);
     shX = oneWayShear(qu * Math.max(Sx / 2 - cTyp.c.t2 / 2 - d / 100, 0) * Sy, Sy * 100, d, fc);
     const hMin = Math.max(0.35, Math.max(Sx, Sy) / 20);
-    okT = qn > 0 && qserv <= qn + 0.05 && Vu <= cap.phiVn + 1e-6 && shX.ok && t + 1e-9 >= hMin;
+    const qCol = PpS / A;
+    okT = qn > 0 && pun.Vu <= pun.phiVn + 1e-6 && shX.ok && t + 1e-9 >= hMin;
     rowsH.push([
       String(i + 1),
       t.toFixed(2),
       d.toFixed(1),
       qn.toFixed(2),
-      qserv.toFixed(2),
-      `${Vu.toFixed(1)}/${cap.phiVn.toFixed(1)}`,
+      qCol.toFixed(2),
+      `${pun.Vu.toFixed(1)}/${pun.phiVn.toFixed(1)}`,
       `${shX.Vu.toFixed(1)}/${shX.phiVc.toFixed(1)}`,
       okT ? "OK" : "NO",
     ]);
     if (okT) break;
     t = round05(t + 0.05);
+  }
+  for (const c of loads) {
+    const mom = momentsAt(c.c, t);
+    c.M2 = mom.M2;
+    c.M3 = mom.M3;
   }
 
   const Ec = 15000 * Math.sqrt(Math.max(fc, 1));
@@ -245,10 +280,106 @@ export const calcPlatea: Engine = (raw) => {
     const pg = punchGeom(c.x - m.axesX[0], c.y - m.axesY[0], c.c.t1, c.c.t2, d / 100, Ly, Lx, painted);
     const beta = Math.max(c.c.t1, c.c.t2) / Math.max(Math.min(c.c.t1, c.c.t2), 0.1);
     const cap = punchCapacity(fc, pg.b0, d, beta, pg.alphaS);
-    const Vu = Math.max(0, c.Pu - qu * pg.Acrit);
-    return { id: c.c.id, kind: pg.kind, Vu, phiVn: cap.phiVn, b0: pg.b0, ok: Vu <= cap.phiVn + 1e-6, poly: pg.poly, segs: pg.segs, x: pg.cx, y: pg.cy, t1: c.c.t1, t2: c.c.t2, govern: cap.govern };
+    const am = punchMomentAmp(pg.kind);
+    const Vu = Math.max(0, am * Math.max(0, c.Pu - qu * pg.Acrit));
+    return { id: c.c.id, kind: pg.kind, Vu, phiVn: cap.phiVn, b0: pg.b0, ok: Vu <= cap.phiVn + 1e-6, poly: pg.poly, segs: pg.segs, x: pg.cx, y: pg.cy, t1: c.c.t1, t2: c.c.t2, govern: cap.govern, amp: am };
   });
   const worst = punList.reduce((a, b) => (b.Vu / Math.max(b.phiVn, 0.01) > a.Vu / Math.max(a.phiVn, 0.01) ? b : a), punList[0]);
+
+  let MxS = 0;
+  let MyS = 0;
+  for (const c of loads) {
+    MxS += c.Pserv * (c.y - geom.yc) + c.M2;
+    MyS += c.Pserv * (c.x - geom.xc) + c.M3;
+  }
+  const Ixx = Math.max(geom.Ixx, 1e-4);
+  const Iyy = Math.max(geom.Iyy, 1e-4);
+  const qCol = PpS / A;
+  const qAt = (x: number, y: number) => qCol + (MxS * (y - geom.yc)) / Ixx + (MyS * (x - geom.xc)) / Iyy;
+  const qVerts: { x: number; y: number }[] = [];
+  for (let iy = 0; iy < nyOf(m); iy++) {
+    for (let ix = 0; ix < nxOf(m); ix++) {
+      if (!cellOn(m, ix, iy)) continue;
+      qVerts.push({ x: m.axesX[ix], y: m.axesY[iy] }, { x: m.axesX[ix + 1], y: m.axesY[iy] }, { x: m.axesX[ix], y: m.axesY[iy + 1] }, { x: m.axesX[ix + 1], y: m.axesY[iy + 1] });
+    }
+  }
+  const qVals = qVerts.map((p) => qAt(p.x, p.y));
+  const qmax = Math.max(...qVals, qCol);
+  const qmin = Math.min(...qVals, qCol);
+
+  const mBeams = ensureGradeBeams(m);
+  const runs = collectGradeBeams(mBeams);
+  const runPts = loads.map((c) => ({ x: c.x, y: c.y, P: c.Pu, M2: c.M2, M3: c.M3 }));
+  const runRes = runs.map((run) => {
+    const bl = loadsOnGradeBeam(run, runPts, runs);
+    const sumP = bl.reduce((s, p) => s + p.P, 0);
+    return { run, nCol: bl.length, beam: invertBeam(run.L, bl.length ? sumP / Math.max(run.L, 0.2) : 0, bl) };
+  });
+  const loadedRuns = runRes.filter((r) => r.nCol > 0);
+  const govRun = (loadedRuns.length ? loadedRuns : runRes).reduce((a, b) => {
+    const da = Math.max(Math.abs(a.beam.Mmax), Math.abs(a.beam.Mmin), a.beam.Vmax);
+    const db = Math.max(Math.abs(b.beam.Mmax), Math.abs(b.beam.Mmin), b.beam.Vmax);
+    return db > da ? b : a;
+  }, loadedRuns[0] ?? runRes[0] ?? { run: undefined, nCol: 0, beam: frIntX });
+  const govBeam = govRun?.beam ?? frIntX;
+  const bBeamM = 0.4;
+  const govStations = (govRun?.run
+    ? loadsOnGradeBeam(govRun.run, runPts, runs)
+    : lIntX
+  ).map((c) => c.x);
+  const faceVC = Math.max(0.15, (cTyp?.c.t1 ?? 0.4) / 2, (cTyp?.c.t2 ?? 0.4) / 2);
+  const lnVC = clearSpanLn(govStations, govRun?.run?.L ?? Lx, faceVC);
+  const hPred = predimHBeam(lnVC);
+  let hBeamM = Math.max(t, 0.4, hPred);
+  let dBeam = hBeamM * 100 - rec;
+  let flexVcInf = asFlex(Math.max(-govBeam.Mmin, 0), bBeamM * 100, dBeam, fc, fy, hBeamM * 100);
+  let flexVcSup = asFlex(Math.max(govBeam.Mmax, 0), bBeamM * 100, dBeam, fc, fy, hBeamM * 100);
+  let vcInf = pickBeamBars(flexVcInf.As, bBeamM * 100, rec);
+  let vcSup = pickBeamBars(Math.max(flexVcSup.As, 0.5), bBeamM * 100, rec);
+  const estBar = barByName('3/8"');
+  let shSt = designBeamStirrups({
+    b: bBeamM * 100,
+    h: hBeamM * 100,
+    d: dBeam,
+    rec: Math.min(rec, 5),
+    fc,
+    fy,
+    Vu: govBeam.Vmax,
+    VA: govBeam.Vmax,
+    Av: 2 * estBar.as,
+    L: govRun?.run?.L ?? Lx,
+    destName: estBar.name,
+    destDb: estBar.db,
+    dbLong: vcInf.db,
+    nRamas: 2,
+    sismico: true,
+  });
+  for (let k = 0; k < 10; k++) {
+    dBeam = hBeamM * 100 - rec;
+    flexVcInf = asFlex(Math.max(-govBeam.Mmin, 0), bBeamM * 100, dBeam, fc, fy, hBeamM * 100);
+    flexVcSup = asFlex(Math.max(govBeam.Mmax, 0), bBeamM * 100, dBeam, fc, fy, hBeamM * 100);
+    vcInf = pickBeamBars(flexVcInf.As, bBeamM * 100, rec);
+    vcSup = pickBeamBars(Math.max(flexVcSup.As, 0.5), bBeamM * 100, rec);
+    shSt = designBeamStirrups({
+      b: bBeamM * 100,
+      h: hBeamM * 100,
+      d: dBeam,
+      rec: Math.min(rec, 5),
+      fc,
+      fy,
+      Vu: govBeam.Vmax,
+      VA: govBeam.Vmax,
+      Av: 2 * estBar.as,
+      L: govRun?.run?.L ?? Lx,
+      destName: estBar.name,
+      destDb: estBar.db,
+      dbLong: vcInf.db,
+      nRamas: 2,
+      sismico: true,
+    });
+    if (shSt.sectionOk) break;
+    hBeamM = round05(hBeamM + 0.05);
+  }
 
   function franjaRow(name: string, b: number, beam: ReturnType<typeof invertBeam>) {
     const flexP = asFlex((amp * Math.max(-beam.Mmin, 0)) / b, 100, d, fc, fy, t * 100);
@@ -263,7 +394,7 @@ export const calcPlatea: Engine = (raw) => {
 
   return out(
     `Platea ${fmt(Lx, 2)}×${fmt(Ly, 2)}×${fmt(t, 2)} m  ·  ${rigido ? "rígida" : "flexible"}  ·  ${cols.length} col.`,
-    `Inf. ${fmtBar(sPos)} / ${fmtBar(sPosY)}  ·  sup. ${fmtBar(sNeg)} / ${fmtBar(sNegY)}  ·  q=${fmt(qserv, 2)} t/m². ${ejemploNota}`,
+    `Inf. ${fmtBar(sPos)} / ${fmtBar(sPosY)}  ·  sup. ${fmtBar(sNeg)} / ${fmtBar(sNegY)}  ·  qmáx=${fmt(qmax, 2)} t/m². ${ejemploNota}`,
     [
       step(
         "01",
@@ -325,15 +456,20 @@ export const calcPlatea: Engine = (raw) => {
         "q = ΣP/A    ·    qu = ΣPu/A    ·    σn = σadm − γt Df − γc t − s/c",
         "q=\\sum P/A\\qquad \\sigma_n=\\sigma_{adm}-\\gamma_t D_f-\\gamma_c t-s/c",
         `σadm = ${fmt(qadm, 2)} kg/cm² = ${fmt(qadm * 10, 2)} t/m²    ·    A = ${fmt(A, 1)} m²`,
-        `q = ${fmt(qserv, 2)} t/m²    ·    qu = ${fmt(qu, 2)} t/m²    ·    σn = ${fmt(qn, 2)} t/m²    ·    ${qserv <= qn + 0.05 && qn > 0 ? "CUMPLE" : "NO"}`,
-        "Platea rígida: q se toma uniforme si el centroide de cargas ≈ centroide de área. Si no, q(x,y) = P/A ± Mc/I (igual que zapata).",
+        `σn = ${fmt(qn, 2)} t/m²    ·    q col. = ${fmt(qCol, 2)}    ·    qmáx = ${fmt(qmax, 2)}    ·    qmín = ${fmt(qmin, 2)} t/m²    ·    q bruta = ${fmt(qserv, 2)} t/m²`,
+        "σn es el admisible NETO (ya descontó relleno, platea y s/c). q en planta se calcula con las columnas: ΣP/A ± Mc/I. Comparar la presión bruta contra σn duplicaría el peso propio.",
         {
-          ok: qserv <= qn + 0.05 && qn > 0,
+          ok: qmax <= qn + 0.05 && qn > 0 && qmin >= -0.02,
           desarrollo: [
             `σn = ${fmt(qadm * 10, 2)} − ${fmt(gt, 2)}×${fmt(Df, 2)} − 2.4×${fmt(t, 2)} − ${fmt(sc, 2)} = ${fmt(qn, 2)} t/m².`,
-            `q = ${fmt(Pts, 0)} / ${fmt(A, 1)} = ${fmt(qserv, 2)} t/m². qu = ${fmt(Put, 0)} / ${fmt(A, 1)} = ${fmt(qu, 2)} t/m².`,
-            qserv <= qn + 0.05 && qn > 0 ? `q / σn = ${fmt(qserv / Math.max(qn, 0.01), 2)} ≤ 1. CUMPLE E.050.` : "q supera σn: ensanchar platea, bajar t o mejorar el suelo.",
+            `q de columnas = ΣP3/A = ${fmt(PpS, 0)}/${fmt(A, 1)} = ${fmt(qCol, 2)} t/m². Presión bruta (información) qserv = ${fmt(qserv, 2)} t/m² vs σadm = ${fmt(qadm * 10, 2)}.`,
+            `q(x,y) = ΣP/A ± Mx cy/Ixx ± My cx/Iyy. qmáx = ${fmt(qmax, 2)} ${qmax <= qn + 0.05 ? "≤ σn (CUMPLE)" : "> σn (NO — ensanchar o recentrar)"}. qmín = ${fmt(qmin, 2)} t/m².`,
           ],
+          table: {
+            caption: "Presión neta en vértices (solo columnas)",
+            headers: ["Vértice", "x (m)", "y (m)", "q (t/m²)"],
+            rows: qVerts.slice(0, 12).map((p, i) => [`V${i + 1}`, fmt(p.x, 2), fmt(p.y, 2), fmt(qAt(p.x, p.y), 2)]),
+          },
         },
       ),
       step(
@@ -358,18 +494,18 @@ export const calcPlatea: Engine = (raw) => {
       step(
         "05",
         "Espesor de platea — iteración (punzonamiento gobierna)",
-        "t ← t + 5 cm hasta q ≤ σn, Vu ≤ φVn y corte 1 dir.    ·    t ≥ 35 cm y ≥ L/20",
+        "t ← t + 5 cm hasta Vu ≤ φVn (todas las columnas) y corte 1 dir.    ·    t ≥ 35 cm y ≥ L/20",
         "t\\leftarrow t+0.05\\,\\mathrm{m}\\quad d=t-\\mathrm{rec}",
         `t inicial = ${fmt(tIn, 2)} m    ·    rec = ${fmt(rec, 1)} cm (E.060 7.7.1 ≥ 7.5 cm)    ·    L/20 ≈ ${fmt(Math.max(Sx, Sy) / 20, 2)} m`,
-        `t = ${fmt(t, 2)} m    ·    d = ${fmt(d, 1)} cm    ·    ${okT ? "CUMPLE el lazo" : "revise σadm / luces / t"}`,
-        "El punzonamiento suele gobernar el espesor en plateas de edificios. Cada fila de la tabla es un espesor ensayado.",
+        `t = ${fmt(t, 2)} m    ·    d = ${fmt(d, 1)} cm    ·    ${okT ? "CUMPLE el lazo" : "revise luces / t / punzonamiento"}`,
+        "El punzonamiento suele gobernar el espesor. σn no se «arregla» subiendo t: al contrario, más peso propio reduce el admisible neto. Si qmáx > σn hay que ensanchar la planta.",
         {
           desarrollo: [
             `Se parte de t = ${fmt(tIn, 2)} m y se sube de 5 en 5 cm.`,
             `Peralte d = 100 t − rec = ${fmt(d, 1)} cm.`,
-            `El lazo exige q ≤ σn, Vu ≤ φVn en la columna más cargada, Vu ≤ φVc a d de la cara, y t ≥ máx(35 cm, L/20).`,
+            `El lazo exige Vu ≤ φVn en la peor columna (con α de esquina/borde), Vu ≤ φVc a d de la cara, t ≥ máx(35 cm, L/20) y σn > 0. La presión qmáx ≤ σn se verifica aparte (E.050).`,
           ],
-          table: { caption: "Iteración de espesor t", headers: ["i", "t (m)", "d (cm)", "σn", "q", "Vu/φVn", "Vu/φVc 1 dir.", "¿OK?"], rows: rowsH },
+          table: { caption: "Iteración de espesor t (punzonamiento de la peor columna)", headers: ["i", "t (m)", "d (cm)", "σn", "q col.", "Vu/φVn", "Vu/φVc 1 dir.", "¿OK?"], rows: rowsH },
         },
       ),
       step(
@@ -379,13 +515,14 @@ export const calcPlatea: Engine = (raw) => {
         "M(x)=\\dfrac{w x^2}{2}-\\sum P_u(x-x_i)",
         `b = ${fmt(bIntX, 2)} m    ·    w = ${fmt(sum(lIntX) / Math.max(LxUse, 0.2), 2)} t/m    ·    ${lIntX.length} columnas en la fila    ·    amp = ${fmt(amp, 2)}`,
         `M+ = ${fmt(frIntX.Mmax, 1)} t·m    ·    M− = ${fmt(frIntX.Mmin, 1)} t·m    ·    Vmáx = ${fmt(frIntX.Vmax, 1)} t    ·    con amp: Msuelo = ${fmt(amp * Math.max(-frIntX.Mmin, 0), 1)} t·m`,
-        "Entre columnas, tracción hacia el suelo (malla inferior). En vuelos, tracción superior. V(L) ≈ 0 verifica equilibrio de la fila.",
+        "Motor FEM de viga invertida (extremos libres, q lineal de equilibrio). M− = lecho inferior continuo (cara del suelo). M+ = lecho superior cortado L_teo+ℓd en bandas de columna. V(L) ≈ 0 cierra el equilibrio de la fila.",
         {
           desarrollo: [
             `Ancho tributario interior = Sy = ${fmt(bIntX, 2)} m.`,
             `w = Σ Pu de la fila / Lx = ${fmt(sum(lIntX), 1)} / ${fmt(LxUse, 2)} = ${fmt(sum(lIntX) / Math.max(LxUse, 0.2), 2)} t/m.`,
-            `Integración libre-libre. M− (suelo) = ${fmt(frIntX.Mmin, 1)} t·m; M+ (vuelo) = ${fmt(frIntX.Mmax, 1)} t·m.`,
-            !rigido ? `Platea flexible: momentos mayorados × 1.20.` : `Platea rígida: momentos sin mayorar.`,
+            `Lecho inf. (Msuelo = −Mmín): ${fmt(amp * Math.max(-frIntX.Mmin, 0), 1)} t·m → malla corrida ${fmtBar(sPos)}.`,
+            `Lecho sup. (Mvuelo = Mmáx): ${fmt(amp * Math.max(frIntX.Mmax, 0), 1)} t·m → malla cortada ${fmtBar(sNeg)} con L_teo+ℓd.`,
+            `Cortante Vmáx = ${fmt(frIntX.Vmax, 1)} t. ${!rigido ? "Platea flexible: momentos × 1.20." : "Platea rígida: sin mayorar."}`,
           ],
         },
       ),
@@ -396,11 +533,11 @@ export const calcPlatea: Engine = (raw) => {
         "M(x)=\\dfrac{w x^2}{2}-\\sum P_u(x-x_i)",
         `b = ${fmt(bEdgX, 2)} m    ·    w = ${fmt(sum(lEdgX) / Math.max(LxUse, 0.2), 2)} t/m    ·    ${lEdgX.length} columnas`,
         `M+ = ${fmt(frEdgX.Mmax, 1)} t·m    ·    M− = ${fmt(frEdgX.Mmin, 1)} t·m    ·    Vmáx = ${fmt(frEdgX.Vmax, 1)} t`,
-        "El vuelo de borde suele gobernar la malla superior.",
+        "El vuelo de borde suele gobernar el lecho superior (cortes L_teo+ℓd). El lecho inferior sigue corrido de borde a borde.",
         {
           desarrollo: [
-            `Ancho de borde ≈ Sy/2 = ${fmt(bEdgX, 2)} m.`,
-            `w = ${fmt(sum(lEdgX) / Math.max(LxUse, 0.2), 2)} t/m. M− = ${fmt(frEdgX.Mmin, 1)} t·m; M+ = ${fmt(frEdgX.Mmax, 1)} t·m.`,
+            `Ancho de borde ≈ Sy/2 = ${fmt(bEdgX, 2)} m. Motor FEM independiente de la franja interior.`,
+            `Lecho inf. Msuelo = ${fmt(amp * Math.max(-frEdgX.Mmin, 0), 1)} t·m. Lecho sup. Mvuelo = ${fmt(amp * Math.max(frEdgX.Mmax, 0), 1)} t·m. Vmáx = ${fmt(frEdgX.Vmax, 1)} t.`,
           ],
         },
       ),
@@ -411,12 +548,12 @@ export const calcPlatea: Engine = (raw) => {
         "M(y)=\\dfrac{w y^2}{2}-\\sum P_u(y-y_i)",
         `interior b = ${fmt(bIntY, 2)} m    ·    borde b = ${fmt(bEdgY, 2)} m    ·    Ly = ${fmt(LyUse, 2)} m`,
         `Int. M+ = ${fmt(frIntY.Mmax, 1)} t·m    M− = ${fmt(frIntY.Mmin, 1)} t·m    ·    Borde M+ = ${fmt(frEdgY.Mmax, 1)} t·m    M− = ${fmt(frEdgY.Mmin, 1)} t·m`,
-        "Por cara gobierna el mayor Mu/b de las cuatro franjas. La platea se arma inferior y superior en X e Y.",
+        "Cada franja Y tiene su propio motor FEM. Por cara gobierna el mayor Mu/b. Inferior continuo en X e Y; superior cortado sobre ejes de columna.",
         {
           desarrollo: [
-            `Franja interior Y: w = ${fmt(sum(lIntY) / Math.max(LyUse, 0.2), 2)} t/m, b = ${fmt(bIntY, 2)} m.`,
-            `Franja de borde Y: w = ${fmt(sum(lEdgY) / Math.max(LyUse, 0.2), 2)} t/m, b = ${fmt(bEdgY, 2)} m.`,
-            `Momentos de diseño con amp = ${fmt(amp, 2)}: Msuelo X = ${fmt(MsoilX, 1)} t·m, Mvuelo X = ${fmt(MtopX, 1)} t·m, Msuelo Y = ${fmt(MsoilY, 1)} t·m, Mvuelo Y = ${fmt(MtopY, 1)} t·m.`,
+            `Interior Y: inf. ${fmt(amp * Math.max(-frIntY.Mmin, 0), 1)} t·m · sup. ${fmt(amp * Math.max(frIntY.Mmax, 0), 1)} t·m · V = ${fmt(frIntY.Vmax, 1)} t.`,
+            `Borde Y: inf. ${fmt(amp * Math.max(-frEdgY.Mmin, 0), 1)} t·m · sup. ${fmt(amp * Math.max(frEdgY.Mmax, 0), 1)} t·m · V = ${fmt(frEdgY.Vmax, 1)} t.`,
+            `Diseño con amp = ${fmt(amp, 2)}: Msuelo X/Y = ${fmt(MsoilX, 1)} / ${fmt(MsoilY, 1)} t·m · Mvuelo X/Y = ${fmt(MtopX, 1)} / ${fmt(MtopY, 1)} t·m.`,
           ],
         },
       ),
@@ -440,22 +577,22 @@ export const calcPlatea: Engine = (raw) => {
       step(
         "10",
         "Punzonamiento — perímetro crítico, Vu y φVn",
-        "Vu = Pu − qu Acrit    ·    vc = mín{0.53(2+4/βc), 0.53(αs d/b0+2), 1.06} √f'c    ·    φVn = 0.85 vc b0 d",
-        "V_u=P_u-q_u A_{\\mathrm{crit}}\\qquad v_c=\\min\\{0.53(2+4/\\beta_c),\\,0.53(\\alpha_s d/b_0+2),\\,1.06\\}\\sqrt{f'_c}",
-        `Gobernante ${worst.id} (${worst.kind})    ·    b0 = ${fmt(worst.b0, 1)} cm    ·    αs = ${worst.kind === "interior" ? 40 : worst.kind === "borde" ? 30 : 20}    ·    criterio ${worst.govern}    ·    d = ${fmt(d, 1)} cm`,
+        "Vu = α (Pu − qu Acrit)    ·    vc = mín{0.53(2+4/βc), 0.53(αs d/b0+2), 1.06} √f'c    ·    φVn = 0.85 vc b0 d",
+        "V_u=\\alpha(P_u-q_u A_{\\mathrm{crit}})\\qquad v_c=\\min\\{0.53(2+4/\\beta_c),\\,0.53(\\alpha_s d/b_0+2),\\,1.06\\}\\sqrt{f'_c}",
+        `Gobernante ${worst.id} (${worst.kind})    ·    α = ${fmt(worst.amp, 2)}    ·    b0 = ${fmt(worst.b0, 1)} cm    ·    αs = ${worst.kind === "interior" ? 40 : worst.kind === "borde" ? 30 : 20}    ·    criterio ${worst.govern}    ·    d = ${fmt(d, 1)} cm`,
         `Vu = ${fmt(worst.Vu, 2)} t    ·    φVn = ${fmt(worst.phiVn, 2)} t    ·    Vu/φVn = ${fmt(worst.Vu / Math.max(worst.phiVn, 0.01), 2)}    ·    ${worst.ok ? "CUMPLE" : "NO"}`,
-        "αs = 40 interior, 30 borde, 20 esquina (E.060 11.12 / ACI 22.6.5). El gráfico pinta el perímetro recortado a d/2, Vu, φVn y el sello. Si NO: subir t, capitel o ábaco.",
+        "αs = 40 interior, 30 borde, 20 esquina. α = 1,00 / 1,15 / 1,25 cubre de forma simplificada la transferencia de momento (E.060 11.12.6). El espesor se itera hasta que TODAS las columnas cumplen, no solo la de mayor Pu.",
         {
           ok: punList.every((p) => p.ok),
           desarrollo: [
-            `Se verifica cada columna. Vu = Pu − qu Acrit (se descuenta la reacción del suelo dentro del perímetro).`,
-            `Gobernante ${worst.id}: tipo ${worst.kind}, b0 = ${fmt(worst.b0, 1)} cm, Vu = ${fmt(worst.Vu, 2)} t frente a φVn = ${fmt(worst.phiVn, 2)} t.`,
+            `Se verifica cada columna. Vu = α (Pu − qu Acrit). α = 1,15 en borde y 1,25 en esquina.`,
+            `Gobernante ${worst.id}: tipo ${worst.kind}, α = ${fmt(worst.amp, 2)}, b0 = ${fmt(worst.b0, 1)} cm, Vu = ${fmt(worst.Vu, 2)} t frente a φVn = ${fmt(worst.phiVn, 2)} t.`,
             `${punList.filter((p) => p.ok).length} de ${punList.length} columnas cumplen. ${punList.every((p) => p.ok) ? "Todas OK." : "Hay columnas que no cumplen: subir t."}`,
           ],
           table: {
             caption: "Punzonamiento por columna",
-            headers: ["Col", "tipo", "b0 (cm)", "Vu (t)", "φVn (t)", "Vu/φVn", "¿OK?"],
-            rows: punList.map((p) => [p.id, p.kind, fmt(p.b0, 1), fmt(p.Vu, 1), fmt(p.phiVn, 1), fmt(p.Vu / Math.max(p.phiVn, 0.01), 2), p.ok ? "OK" : "NO"]),
+            headers: ["Col", "tipo", "α", "b0 (cm)", "Vu (t)", "φVn (t)", "Vu/φVn", "¿OK?"],
+            rows: punList.map((p) => [p.id, p.kind, fmt(p.amp, 2), fmt(p.b0, 1), fmt(p.Vu, 1), fmt(p.phiVn, 1), fmt(p.Vu / Math.max(p.phiVn, 0.01), 2), p.ok ? "OK" : "NO"]),
           },
         },
       ),
@@ -488,16 +625,39 @@ export const calcPlatea: Engine = (raw) => {
           desarrollo: [
             `ℓd = 0.075 × ${fmt(fy, 0)} × ${fmt(sPos.db, 2)} / √${fmt(fc, 0)} = ${fmt(ldInf, 1)} cm para ${fmtBar(sPos)}.`,
             `Recubrimiento de cimentación ${fmt(rec, 1)} cm ≥ 7.5 cm (E.060 7.7.1).`,
+            `Lecho inf. continuo: L_barra = L − 2 rec, gancho 90° ≥ 12 db. Lecho sup.: L_barra = L_teo + ℓd desde el eje (L_teo ≈ 0,30 ℓn, L_ext ≥ máx(d, 12 db, ℓn/16)).`,
+          ],
+        },
+      ),
+      step(
+        "13",
+        "Vigas de cimentación — predimensión ℓn/7 y viga invertida",
+        "h = ℓn / 7    ·    q(x)=a+bx    ·    M− inf. continuo    ·    M+ sup. L_teo+ℓd",
+        "h=\\ell_n/7\\qquad q(x)=a+bx\\qquad M(0)=M(L)=0",
+        `ℓn libre = ${fmt(lnVC, 2)} m    ·    h_pred = ℓn/7 = ${fmt(hPred, 2)} m    ·    gobierna ${govRun?.run?.id ?? "—"}    ·    L = ${fmt(govRun?.run?.L ?? Lx, 2)} m    ·    ${govRun?.nCol ?? 0} col.`,
+        `h = ${fmt(hBeamM, 2)} m    ·    M− inf. = ${fmt(Math.max(-govBeam.Mmin, 0), 2)} t·m → ${vcInf.text}    ·    M+ sup. = ${fmt(Math.max(govBeam.Mmax, 0), 2)} t·m → ${vcSup.text}    ·    Vmáx = ${fmt(govBeam.Vmax, 1)} t    ·    est. ${shSt.arregloPlano}`,
+        "Motor propio de VC, distinto de las franjas de platea. Predimensión h = longitud libre entre caras de columna / 7. Si el cortante no cierra, se sube de 5 en 5 cm. Inferior corrido; superior cortado sobre apoyos.",
+        {
+          ok: shSt.sectionOk,
+          desarrollo: [
+            `Luz libre ℓn = máx. distancia entre caras de columna del tramo = ${fmt(lnVC, 2)} m.`,
+            `Predimensión h = ℓn/7 = ${fmt(lnVC, 2)}/7 = ${fmt(hPred, 2)} m (mín. 40 cm y ≥ t de platea). Adoptado h = ${fmt(hBeamM, 2)} m, d = ${fmt(dBeam, 1)} cm.`,
+            `Viga invertida: q(0) = ${fmt(govBeam.q0 ?? 0, 2)} t/m, q(L) = ${fmt(govBeam.qL ?? 0, 2)} t/m. V(L) ≈ ${fmt(govBeam.Vend, 2)} t.`,
+            `Lecho inf. (M− cara del suelo) As = ${fmt(flexVcInf.As, 2)} cm² → ${vcInf.text}, continuo.`,
+            `Lecho sup. (M+ en vuelos) As = ${fmt(flexVcSup.As, 2)} cm² → ${vcSup.text}, L_teo+ℓd desde cada eje.`,
+            `Estribos 2Ø ${estBar.name}: ${shSt.arregloPlano}. Vu = ${fmt(govBeam.Vmax, 1)} t vs φ(Vc+Vs) = ${fmt(0.85 * (shSt.Vc + shSt.VsMax), 1)} t. ${shSt.sectionOk ? "CUMPLE." : "NO — se subió h."}`,
           ],
         },
       ),
     ],
     [
-      ok("q ≤ σn", `${fmt(qserv, 2)}`, `≤ ${fmt(qn, 2)}`, qserv <= qn + 0.05 && qn > 0),
+      ok("qmáx ≤ σn", `${fmt(qmax, 2)}`, `≤ ${fmt(qn, 2)}`, qmax <= qn + 0.05 && qn > 0),
+      ok("qmín ≥ 0", `${fmt(qmin, 2)}`, "≥ 0", qmin >= -0.02),
       ok("Rigidez Westergaard", fmt(ratio, 2), rigido ? "< 1.75 rígida" : "≥ 1.75 ×1.20", true),
       ok("Punzonamiento gobernante", `${fmt(worst.Vu, 1)} t`, `≤ ${fmt(worst.phiVn, 1)} t`, worst.ok),
       ok("Todas las columnas, punzonamiento", `${punList.filter((p) => p.ok).length}/${punList.length}`, "todas OK", punList.every((p) => p.ok)),
       ok("Corte 1 dir.", `${fmt(shX.Vu, 1)} t`, `≤ ${fmt(shX.phiVc, 1)}`, shX.ok),
+      ok("Cortante de VC", `${fmt(govBeam.Vmax, 1)} t`, `≤ ${fmt(0.85 * (shSt.Vc + shSt.VsMax), 1)} t`, shSt.sectionOk),
       ok("t ≥ 35 cm", `${fmt(t * 100, 0)} cm`, "≥ 35", t >= 0.35),
     ],
     [
@@ -524,6 +684,14 @@ export const calcPlatea: Engine = (raw) => {
       mPtsEdgX: packPts(frEdgX.pts),
       mPtsIntY: packPts(frIntY.pts),
       mPtsEdgY: packPts(frEdgY.pts),
+      vPtsIntX: packV(frIntX.pts),
+      vPtsEdgX: packV(frEdgX.pts),
+      vPtsIntY: packV(frIntY.pts),
+      vPtsEdgY: packV(frEdgY.pts),
+      vIntXVmax: frIntX.Vmax.toFixed(2),
+      vEdgXVmax: frEdgX.Vmax.toFixed(2),
+      vIntYVmax: frIntY.Vmax.toFixed(2),
+      vEdgYVmax: frEdgY.Vmax.toFixed(2),
       bIntX: bIntX.toFixed(2),
       bEdgX: bEdgX.toFixed(2),
       bIntY: bIntY.toFixed(2),
@@ -562,6 +730,32 @@ export const calcPlatea: Engine = (raw) => {
         b0: worst.b0,
         kind: worst.kind,
         ok: worst.ok,
+        slab: painted,
+      }),
+      Lbeam: (govRun?.run?.L ?? Lx).toFixed(2),
+      bBeam: bBeamM.toFixed(2),
+      hBeam: hBeamM.toFixed(2),
+      lnVC: lnVC.toFixed(2),
+      hPred: hPred.toFixed(2),
+      asVCInf: vcInf.text,
+      asVCSup: vcSup.text,
+      AsVCInf: flexVcInf.As.toFixed(2),
+      AsVCSup: flexVcSup.As.toFixed(2),
+      VmaxVC: govBeam.Vmax.toFixed(2),
+      estVC: `2Ø ${estBar.name} ${shSt.arregloPlano}`,
+      sApoyoVC: String(shSt.sApoyo),
+      sCentroVC: String(shSt.sCentro),
+      nEstVC: String(shSt.nTotal),
+      LzonaVC: shSt.Lzona.toFixed(2),
+      Msoil: Math.max(-govBeam.Mmin, 0).toFixed(2),
+      Mtop: Math.max(govBeam.Mmax, 0).toFixed(2),
+      mPts: packPts(govBeam.pts),
+      vPts: packV(govBeam.pts),
+      vcColsJson: JSON.stringify({
+        cols: (govRun?.run
+          ? loadsOnGradeBeam(govRun.run, runPts, runs)
+          : lIntX
+        ).map((c, i) => ({ x: c.x, P: c.P, M: c.M, id: `C${i + 1}` })),
       }),
       studioJson: str(raw, "studioJson", ""),
       gridJson: str(raw, "gridJson", ""),

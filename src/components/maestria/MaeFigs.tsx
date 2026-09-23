@@ -22,6 +22,7 @@ export function MaeMomentStrip({
   MuPos,
   MuNeg,
   unidad = "t·m",
+  kind = "M",
 }: {
   title: string;
   formula: string;
@@ -30,26 +31,52 @@ export function MaeMomentStrip({
   MuPos?: number;
   MuNeg?: number;
   unidad?: string;
+  kind?: "M" | "V";
 }) {
   const pts = unpack(ptsRaw ?? "");
-  const W = 520;
-  const H = 200;
-  const pad = { l: 48, r: 24, t: 28, b: 36 };
+  const W = 560;
+  const H = 228;
+  const pad = { l: 52, r: 28, t: 36, b: 42 };
   const xs = pts.length >= 2 ? pts : [{ x: 0, M: 0 }, { x: Math.max(L, 1), M: 0 }];
-  const Mmax = Math.max(...xs.map((p) => Math.abs(p.M)), MuPos ?? 0, MuNeg ?? 0, 0.05);
+  const peak = Math.max(...xs.map((p) => Math.abs(p.M)), MuPos ?? 0, MuNeg ?? 0, 0.05);
   const xMax = Math.max(...xs.map((p) => p.x), L, 0.5);
   const x = (v: number) => pad.l + (v / xMax) * (W - pad.l - pad.r);
-  const y = (M: number) => pad.t + (H - pad.t - pad.b) / 2 - (M / Mmax) * ((H - pad.t - pad.b) / 2 - 8);
+  const yMid = pad.t + (H - pad.t - pad.b) / 2;
+  const amp = (H - pad.t - pad.b) / 2 - 10;
+  const y = (M: number) => yMid - (M / peak) * amp;
   const d = xs.map((p, i) => `${i ? "L" : "M"} ${x(p.x).toFixed(1)} ${y(p.M).toFixed(1)}`).join(" ");
+  const fill = `${d} L ${x(xs[xs.length - 1].x).toFixed(1)} ${yMid} L ${x(xs[0].x).toFixed(1)} ${yMid} Z`;
+  const iMax = xs.reduce((b, p, i, a) => (p.M > a[b].M ? i : b), 0);
+  const iMin = xs.reduce((b, p, i, a) => (p.M < a[b].M ? i : b), 0);
+  const plus = xs[iMax].M > 0.02 ? xs[iMax] : null;
+  const minus = xs[iMin].M < -0.02 ? xs[iMin] : null;
+  const stroke = kind === "V" ? "#5a4a28" : "#8b1e1e";
+  const tint = kind === "V" ? "rgba(90,74,40,0.12)" : "rgba(139,30,30,0.12)";
   return (
     <figure className="mae-fig">
       <figcaption>{title}</figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} className="mae-fig-svg">
-        <line x1={pad.l} y1={y(0)} x2={W - pad.r} y2={y(0)} stroke="#1a4473" />
-        <path d={d} fill="none" stroke="#8b1e1e" strokeWidth="2.2" />
-        <text x={pad.l} y={16} fontSize="11" fill="#5a4a28">
-          {formula} · M+={ (MuPos ?? 0).toFixed(2)} {unidad} · |M−|={(MuNeg ?? 0).toFixed(2)}
+        <rect x="0" y="0" width={W} height={H} fill="#fbf8f1" />
+        <text x={pad.l} y="16" fontSize="10" fill="#5a4a28">
+          {formula}
         </text>
+        <line x1={pad.l} y1={yMid} x2={W - pad.r} y2={yMid} stroke="#1a4473" strokeWidth="1.3" />
+        <path d={fill} fill={tint} />
+        <path d={d} fill="none" stroke={stroke} strokeWidth="2.1" />
+        <text x={pad.l} y={H - 10} fontSize="10" fill="#1a4473">
+          ℓ = {xMax.toFixed(2)} m · {kind === "V" ? "V" : "M+"}={(MuPos ?? plus?.M ?? 0).toFixed(2)} {unidad}
+          {kind === "M" ? ` · |M−|=${(MuNeg ?? Math.abs(minus?.M ?? 0)).toFixed(2)}` : ""} · {kind === "M" ? "inf. continuo / sup. L_teo+ℓd" : "equilibrio V(L)≈0"}
+        </text>
+        {plus ? (
+          <text x={x(plus.x)} y={y(plus.M) - 6} textAnchor="middle" fontSize="10" fill="#1f6b3a" fontWeight="700">
+            +{plus.M.toFixed(2)}
+          </text>
+        ) : null}
+        {minus ? (
+          <text x={x(minus.x)} y={y(minus.M) + 14} textAnchor="middle" fontSize="10" fill="#8b1e1e" fontWeight="700">
+            −{Math.abs(minus.M).toFixed(2)}
+          </text>
+        ) : null}
       </svg>
     </figure>
   );
@@ -58,7 +85,6 @@ export function MaeMomentStrip({
 export function MaePunchFig({ spec }: { spec: PunchSpec }) {
   const v = punchToView(spec);
   const poly = v.peri.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const out = v.outline.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const ratio = spec.Vu / Math.max(spec.phiVn, 0.01);
   const stamp = spec.ok ? "#2e7846" : "#8b1e1e";
   const d2 = (spec.d || 0) / 2;
@@ -73,7 +99,15 @@ export function MaePunchFig({ spec }: { spec: PunchSpec }) {
         </defs>
         <rect x="0" y="0" width={v.W} height={v.H} fill="#efe8dc" />
         <rect x="0" y="0" width={v.W} height={v.H} fill="url(#mae-soil)" />
-        <polygon points={out} fill="#d5c9a8" stroke="#1a4473" strokeWidth="1.8" />
+        {(v.slabs?.length ? v.slabs : [v.outline]).map((polyPts, i) => (
+          <polygon
+            key={`slab-${i}`}
+            points={polyPts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+            fill="#d5c9a8"
+            stroke="#1a4473"
+            strokeWidth="1.8"
+          />
+        ))}
         {v.edges.left ? <line x1={v.outline[0].x} y1={v.outline[0].y} x2={v.outline[3].x} y2={v.outline[3].y} stroke="#8b1e1e" strokeWidth="3" /> : null}
         {v.edges.bot ? <line x1={v.outline[0].x} y1={v.outline[0].y} x2={v.outline[1].x} y2={v.outline[1].y} stroke="#8b1e1e" strokeWidth="3" /> : null}
         {v.edges.right ? <line x1={v.outline[1].x} y1={v.outline[1].y} x2={v.outline[2].x} y2={v.outline[2].y} stroke="#8b1e1e" strokeWidth="3" /> : null}

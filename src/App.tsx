@@ -22,6 +22,7 @@ import { RevitVincularModule } from "./modules/RevitVincularModule";
 import { MisPresupuestosModule } from "./modules/MisPresupuestosModule";
 import { MovTierrasModule } from "./modules/MovTierrasModule";
 import { TopoModule } from "./modules/TopoModule";
+import { LotizacionModule } from "./modules/LotizacionModule";
 import { PotableModule } from "./modules/PotableModule";
 import { RdapModule } from "./modules/RdapModule";
 import { Edificio3dModule } from "./modules/Edificio3dModule";
@@ -116,6 +117,10 @@ const TOPO = [
   { id: "libreta-topo", code: "TOP-02", title: "Libreta de radiación", blurb: "Hilos estadimétricos, radiación, cotas y coordenadas X–Y–Z estación a estación." },
 ] as const;
 
+const URBANO = [
+  { id: "lotizacion", code: "GH.020", title: "Lotización urbana", blurb: "Perímetro por CSV, DXF o vértices; habilitación cercada o abierta; empalme de vías e ingresos; trazado GH.020 con plano A1 y DXF." },
+] as const;
+
 type Page = "home" | (typeof HIDROLOGIA)[number]["id"] | (typeof HIDRO)[number]["id"] | (typeof POTABLE)[number]["id"] | (typeof TOPO)[number]["id"] | string;
 
 /**
@@ -162,6 +167,13 @@ const HOME_FAMILIES: {
     kicker: "Taquimetría · radiación",
     blurb: "Cartera de campo, reducción al horizonte, cotas, plano local y perfil del eje.",
     children: TOPO.map((m) => ({ id: m.id, code: m.code, title: m.title, blurb: m.blurb })),
+  },
+  {
+    slug: "habilitacion",
+    title: "Habilitación urbana",
+    kicker: "GH.020 · D.S. 006-2011-VIVIENDA",
+    blurb: "Lotización sobre el perímetro del terreno: vías, manzanas, lotes, aportes e ingresos, con plano de trazado.",
+    children: URBANO.map((m) => ({ id: m.id, code: m.code, title: m.title, blurb: m.blurb })),
   },
   {
     slug: "mov-tierras",
@@ -232,6 +244,7 @@ function specialtyOfPage(page: string, currentSpecialty?: string): string {
   if (HIDRO.some((m) => m.id === page)) return "hidraulica";
   if (page in POTABLE_KIND || page === "ap-red") return "saneamiento";
   if (TOPO.some((m) => m.id === page)) return "topografia";
+  if (URBANO.some((m) => m.id === page)) return "habilitacion";
   if (MOV.some((m) => m.id === page)) return "mov-tierras";
   if (page === "presupuestos" || page === "formula-polinomica" || page === "cronograma" || page === "valorizaciones" || page === "especificaciones" || page === "mano-obra" || page === "presupuesto-pdf" || page === "mis-presupuestos" || page === "vincular-revit") return "presupuestos";
   if (page === "acb-caminos") return "carreteras";
@@ -280,6 +293,7 @@ export default function App() {
     page === "acb-caminos" ||
     page === "ap-red" ||
     page === "edificio-3d" ||
+    page === "lotizacion" ||
     plaza;
   const inModule = page !== "home" && !fullPage;
   const drawerOpen = navOpen || panelOpen;
@@ -353,6 +367,8 @@ export default function App() {
     if (next === "canaleta" || next === "canal" || next === "sifon" || next === "alcantarilla-hid" || next === "cuneta" || next === "desarenador" || next === "bocatoma" || next === "rapida" || next === "aliviadero" || next === "acueducto" || next === "riego" || next === "orificio") {
       setOpen("hidraulica");
     }
+    if (next === "taquimetro" || next === "libreta-topo") setOpen("topografia");
+    if (next === "lotizacion") setOpen("habilitacion");
     if (next === "compras" || next === "compras-publicar" || next === "compras-mios") setOpen("compras");
     if (next === "presupuesto-pdf" || next === "vincular-revit" || next === "presupuestos" || next === "mis-presupuestos" || next === "formula-polinomica" || next === "cronograma" || next === "valorizaciones" || next === "especificaciones" || next === "mano-obra") {
       setOpen("presupuestos");
@@ -539,6 +555,21 @@ export default function App() {
           </button>
           {open === "topografia" &&
             TOPO.map((m) => (
+              <button key={m.id} className={`nav-btn ${page === m.id ? "active" : ""}`} onClick={() => go(m.id)}>
+                {m.title} <small>{m.code}</small>
+              </button>
+            ))}
+        </div>
+
+        <div>
+          <button
+            className="nav-label"
+            onClick={() => setOpen(open === "habilitacion" ? "" : "habilitacion")}
+          >
+            Habilitación urbana {open === "habilitacion" ? "–" : "+"}
+          </button>
+          {open === "habilitacion" &&
+            URBANO.map((m) => (
               <button key={m.id} className={`nav-btn ${page === m.id ? "active" : ""}`} onClick={() => go(m.id)}>
                 {m.title} <small>{m.code}</small>
               </button>
@@ -768,6 +799,7 @@ export default function App() {
           {page === "volumenes-tierras" && <MovTierrasModule modo="volumenes" />}
           {page === "taquimetro" && <TopoModule modo="taqui" />}
           {page === "libreta-topo" && <TopoModule modo="libreta" />}
+          {page === "lotizacion" && <LotizacionModule />}
           {page === "tasacion-inmueble" && <TasacionModule modo="vivienda" />}
           {page === "tasacion-terreno" && <TasacionModule modo="terreno" />}
           {current && page !== "tasacion-inmueble" && page !== "tasacion-terreno" && page !== "acb-caminos" && page !== "edificio-3d" && (
