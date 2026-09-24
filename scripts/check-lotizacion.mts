@@ -1,6 +1,7 @@
 import { proyectoVacio, puntosEjemplo } from "../src/lib/lotizacion/norma.ts";
 import { leerCsv, leerDxf } from "../src/lib/lotizacion/importar.ts";
 import { proponer } from "../src/lib/lotizacion/modelo.ts";
+import { auditarDxf } from "../src/lib/lotizacion/dxf.ts";
 import { dxfDe } from "../src/lib/lotizacion/exportar.ts";
 import { area, distPuntoPoligono, pointInPoly } from "../src/lib/lotizacion/geom.ts";
 import { disenarParques, unirPanos } from "../src/lib/lotizacion/parque.ts";
@@ -103,8 +104,8 @@ assert(area(m.lindero) > 0, "lindero");
 const vend = m.lotes.filter((l) => l.uso === "vivienda");
 const minFrente = Math.min(...vend.map((l) => l.frente));
 const minArea = Math.min(...vend.map((l) => l.area));
-assert(minFrente + 0.05 >= 8 * 0.9, `frente ${minFrente}`);
-assert(minArea + 0.5 >= 160 * 0.92, `area lote ${minArea}`);
+assert(minFrente + 0.05 >= 6 * 0.9, `frente ${minFrente}`);
+assert(minArea + 0.5 >= 90, `area lote ${minArea}`);
 
 const ej = proyectoVacio();
 ej.puntos = puntosEjemplo();
@@ -225,6 +226,9 @@ assert(jardin[0].categoria === "pasiva", "jardín pasivo");
 assert(!jardin[0].piezas.some((p) => p.capa === "MC-PARQUE-CANCHA"), "sin cancha en pasiva");
 todoDentro(jardin[0], "jardín");
 
+const fallosDxf = auditarDxf(dxfOut);
+assert(fallosDxf.length === 0, `DXF inválido: ${fallosDxf.slice(0, 6).map((f) => `${f.donde}: ${f.detalle}`).join(" | ")}`);
+assert(dxfOut.includes("AC1018") && dxfOut.includes("$FILLMODE") && dxfOut.includes("*MODEL_SPACE"), "el DXF no queda en AutoCAD 2004");
 assert(dxfOut.includes("HATCH"), "DXF con hatch de parque");
 assert(dxfOut.includes("MC-PARQUE-CESPED"), "capa de césped");
 assert(dxfOut.includes("420"), "color real en el DXF");

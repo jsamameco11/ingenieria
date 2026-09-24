@@ -37,6 +37,8 @@ export type SteelLayer = {
   callout?: { x: number; y: number; anchor: "start" | "middle" | "end" };
   /** Segunda línea de la marca (p. ej. "4 Ø" o "@ 10 cm"). Si falta, se usa @s cm. */
   qty?: string;
+  /** Estribo: trazo fino, sin contorno ni tapas. El longitudinal lleva el grosor del Ø. */
+  hair?: boolean;
 };
 
 export type SteelDim = {
@@ -56,6 +58,14 @@ export type SteelAnno = {
   text: string;
   anchor?: "start" | "middle" | "end";
   fill?: string;
+  size?: number;
+};
+
+export type SteelSchedule = {
+  caption: string;
+  headers: string[];
+  rows: string[][];
+  note?: string;
 };
 
 export type SteelDraftSpec = {
@@ -92,6 +102,10 @@ export type SteelDraftSpec = {
   markBoxes?: boolean;
   /** Factor de afinado de varilla (0.55 = trazo fino profesional en planta). */
   lineScale?: number;
+  /** Elevación larga: el alto del svg sigue la escala, sin el mínimo de las hojas altas. */
+  layout?: "elevation";
+  /** Cuadros de despiece (sustituyen la tabla genérica de lechos). */
+  schedules?: SteelSchedule[];
 };
 
 export const STEEL_FLEX = "#8b1e1e";

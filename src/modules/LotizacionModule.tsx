@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { LotizacionPlano, aristaCercana } from "../components/LotizacionPlano";
 import { dist, fmtCoord, fmtM } from "../lib/lotizacion/geom";
-import { trazosDe } from "../lib/lotizacion/dibujo";
+import { corteEn, trazosDe } from "../lib/lotizacion/dibujo";
 import { descargarTexto, dxfDe, imprimirA1 } from "../lib/lotizacion/exportar";
 import { leerArchivoPerimetro } from "../lib/lotizacion/importar";
 import { proponer, referenciaDensidad } from "../lib/lotizacion/modelo";
@@ -23,7 +23,7 @@ import {
   viaVacia,
 } from "../lib/lotizacion/norma";
 import { svgSeccion } from "../lib/lotizacion/seccionVia";
-import type { CategoriaParque, Criterios, EstiloParque, Ingreso, Modelo, ModoParque, Pavimento, ProyectoLot, Punto, Seccion, TipoHab, TipoVia, ViaCampo, ViaExistente, ViaInterna } from "../lib/lotizacion/tipos";
+import type { CategoriaParque, Criterios, EstiloParque, Ingreso, LateralVia, Modelo, ModoParque, Pavimento, ProyectoLot, Punto, Seccion, TipoHab, TipoVia, ViaCampo, ViaExistente, ViaInterna } from "../lib/lotizacion/tipos";
 
 const PASOS = ["Perímetro", "Emplazamiento", "Vías existentes", "Ingresos", "Criterios GH.020", "Confirmación", "Plano"] as const;
 
@@ -89,8 +89,16 @@ export function LotizacionModule() {
   const [firmaOk, setFirmaOk] = useState("");
   const [pega, setPega] = useState("");
   const [viaSel, setViaSel] = useState("");
+  const [corteT, setCorteT] = useState<Record<string, number>>({});
 
-  const modelo = useMemo(() => proponer(plano), [plano]);
+  const modeloBase = useMemo(() => proponer(plano), [plano]);
+  const modelo = useMemo(
+    () => ({
+      ...modeloBase,
+      cortes: (modeloBase.cortes ?? []).map((c) => (corteT[c.letra] == null ? c : corteEn(c, corteT[c.letra]))),
+    }),
+    [modeloBase, corteT],
+  );
   const firma = useMemo(() => firmar(plano), [plano]);
   const sucio = firmar(proy) !== firma;
   const emitido = firmaOk !== "" && firmaOk === firma;
@@ -131,14 +139,28 @@ export function LotizacionModule() {
   };
 
   const setC = (patch: Partial<Criterios>) => setProy((p) => ({ ...p, criterios: { ...p.criterios, ...patch } }));
-  const fijarParque = (clave: string, patch: { categoria?: CategoriaParque; estilo?: EstiloParque }) => {
+  const fijarParque = (
+    clave: string,
+    patch: { categoria?: CategoriaParque; estilo?: EstiloParque; largoCancha?: number; anchoCancha?: number },
+  ) => {
     const aplicar = (p: ProyectoLot): ProyectoLot => {
       const prev = (p.parques ?? []).find((a) => a.clave === clave);
       const categoria = patch.categoria ?? prev?.categoria ?? "pasiva";
       const estilo = patch.estilo ?? prev?.estilo;
+      const largoCancha = "largoCancha" in patch ? patch.largoCancha : prev?.largoCancha;
+      const anchoCancha = "anchoCancha" in patch ? patch.anchoCancha : prev?.anchoCancha;
       return {
         ...p,
-        parques: [...(p.parques ?? []).filter((a) => a.clave !== clave), { clave, categoria, ...(estilo ? { estilo } : {}) }],
+        parques: [
+          ...(p.parques ?? []).filter((a) => a.clave !== clave),
+          {
+            clave,
+            categoria,
+            ...(estilo ? { estilo } : {}),
+            ...(largoCancha ? { largoCancha } : {}),
+            ...(anchoCancha ? { anchoCancha } : {}),
+          },
+        ],
       };
     };
     setProy(aplicar);
@@ -246,31 +268,31 @@ export function LotizacionModule() {
   return (
     <div className="lz-app">
       <header className="lz-head">
-        <div>
+        <div className="lz-head-main">
           <p className="lz-kicker">{NORMA}</p>
-          <h2>Lotización urbana</h2>
-        </div>
-        <div className="lz-head-tools">
-          <button type="button" className="btn lz-dibujar" onClick={dibujar}>Dibujar</button>
-          <div className="lz-menu">
-            <button type="button" className="btn secondary" aria-expanded={menu} onClick={() => setMenu((v) => !v)}>Opciones</button>
-            {menu ? (
-              <div className="lz-menu-list" role="menu">
-                {PASOS.map((nombre, i) => (
-                  <button
-                    key={nombre}
-                    type="button"
-                    role="menuitem"
-                    className={i === paso ? "is-on" : emitido && i === 6 ? "is-done" : ""}
-                    onClick={() => { setPaso(i); setMenu(false); }}
-                  >
-                    <i>{i + 1}</i>
-                    {nombre}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+          <div className="lz-head-row">
+            <h2>Lotización urbana</h2>
+            <button type="button" className="btn lz-dibujar" onClick={dibujar}>Dibujar</button>
           </div>
+        </div>
+        <div className="lz-menu">
+          <button type="button" className="btn secondary" aria-expanded={menu} onClick={() => setMenu((v) => !v)}>Opciones</button>
+          {menu ? (
+            <div className="lz-menu-list" role="menu">
+              {PASOS.map((nombre, i) => (
+                <button
+                  key={nombre}
+                  type="button"
+                  role="menuitem"
+                  className={i === paso ? "is-on" : emitido && i === 6 ? "is-done" : ""}
+                  onClick={() => { setPaso(i); setMenu(false); }}
+                >
+                  <i>{i + 1}</i>
+                  {nombre}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </header>
       {sucio ? <p className="lz-banner">Hay datos sin dibujar. Escriba los valores y pulse Dibujar para redibujar el plano y los cortes.</p> : null}
@@ -551,6 +573,32 @@ export function LotizacionModule() {
                 </label>
               )}
               <p className="lz-hint">Elija la sección, escriba los datos con decimales si hace falta y pulse Dibujar. El plano no cambia mientras tipea.</p>
+              <div className="lz-choice">
+                <button
+                  type="button"
+                  className={(proy.trazaVias ?? "recta") === "recta" ? "is-on" : ""}
+                  onClick={() => setProy((p) => ({
+                    ...p,
+                    trazaVias: "recta",
+                    parques: (p.parques ?? []).map((a) => ({ ...a, estilo: "lineal" as EstiloParque })),
+                  }))}
+                >
+                  <strong>Vías internas rectas</strong>
+                  <span>Trama ortogonal. Los recorridos del parque siguen ejes rectos.</span>
+                </button>
+                <button
+                  type="button"
+                  className={proy.trazaVias === "curva" ? "is-on" : ""}
+                  onClick={() => setProy((p) => ({
+                    ...p,
+                    trazaVias: "curva",
+                    parques: (p.parques ?? []).map((a) => ({ ...a, estilo: "organico" as EstiloParque })),
+                  }))}
+                >
+                  <strong>Vías internas curvas</strong>
+                  <span>Los senderos internos se trazan en curva, con anillo y empalmes suaves.</span>
+                </button>
+              </div>
               <div className="lz-opciones">
                 {(["local-secundaria", "local-principal", "acceso-exclusivo"] as TipoVia[]).map((via) => {
                   const sec = seccionPorTipo(via);
@@ -596,9 +644,9 @@ export function LotizacionModule() {
                 </label>
                 <label>Separador central (m)<NumBox value={c.seccion.separador} onChange={(n) => { if (n !== null) setC({ seccion: { ...c.seccion, separador: n } }); }} /></label>
                 <label>Longitud objetivo de manzana (m)<NumBox value={c.largoManzana} onChange={(n) => { if (n !== null) setC({ largoManzana: n }); }} /></label>
-                <label>Frente mínimo de lote (m)<NumBox value={c.frenteMin} onChange={(n) => { if (n !== null) setC({ frenteMin: n }); }} /></label>
+                <label>Ancho mínimo de lote (m)<NumBox value={c.frenteMin} onChange={(n) => { if (n !== null) setC({ frenteMin: n }); }} /></label>
+                <label>Largo mínimo de lote (m)<NumBox value={c.profundidad} onChange={(n) => { if (n !== null) setC({ profundidad: n }); }} /></label>
                 <label>Área mínima de lote (m²)<NumBox value={c.areaMin} onChange={(n) => { if (n !== null) setC({ areaMin: n }); }} /></label>
-                <label>Profundidad de lote (m)<NumBox value={c.profundidad} onChange={(n) => { if (n !== null) setC({ profundidad: n }); }} /></label>
                 <label>Recreación pública (%)<NumBox value={c.aporteRec + c.aporteParque} onChange={(n) => { if (n !== null) setC({ aporteRec: n, aporteParque: 0 }); }} /></label>
                 <label>Educación (%)<NumBox value={c.aporteEdu} onChange={(n) => { if (n !== null) setC({ aporteEdu: n }); }} /></label>
                 <label>Otros fines (%)<NumBox value={c.aporteOtros} onChange={(n) => { if (n !== null) setC({ aporteOtros: n }); }} /></label>
@@ -641,12 +689,14 @@ export function LotizacionModule() {
                 sel={viaSel}
                 tipo={((proy.ajustesVias ?? []).find((a) => a.id === viaSel)?.tipo) ?? modelo.viasInternas.find((v) => v.id === viaSel)?.tipo ?? c.tipoVia}
                 seccion={((proy.ajustesVias ?? []).find((a) => a.id === viaSel)?.seccion) ?? c.seccion}
+                lateral={(proy.ajustesVias ?? []).find((a) => a.id === viaSel)?.lateral ?? "estacionamiento"}
+                jardin={(proy.ajustesVias ?? []).find((a) => a.id === viaSel)?.jardin ?? 1.2}
                 onSel={setViaSel}
-                onChange={(tipo, seccion) => {
+                onChange={(tipo, seccion, lateral, jardin) => {
                   if (!viaSel) return;
                   setProy((p) => ({
                     ...p,
-                    ajustesVias: [...(p.ajustesVias ?? []).filter((a) => a.id !== viaSel), { id: viaSel, tipo, seccion }],
+                    ajustesVias: [...(p.ajustesVias ?? []).filter((a) => a.id !== viaSel), { id: viaSel, tipo, seccion, lateral, jardin }],
                   }));
                 }}
                 onSoltar={() => setProy((p) => ({ ...p, ajustesVias: (p.ajustesVias ?? []).filter((a) => a.id !== viaSel) }))}
@@ -761,7 +811,7 @@ export function LotizacionModule() {
               </table>
             </section>
           )}
-          {modelo.parques.length > 0 && (
+          {paso === 4 && modelo.parques.length > 0 && (
             <section>
               <h3>Parques</h3>
               <p>GH.020 Art. 29 y Art. 56.e. El parque se arma dentro del perímetro: primero los recorridos, después plaza, juegos, descanso y vegetación. La losa deportiva solo entra si cabe entera.</p>
@@ -809,6 +859,40 @@ export function LotizacionModule() {
                       </button>
                     ))}
                   </div>
+                  {pk.categoria === "activa" && (
+                    <div className="lz-meta">
+                      <label>
+                        Largo de la losa (m)
+                        <input
+                          type="number"
+                          min={12}
+                          max={70}
+                          step={0.5}
+                          placeholder="40"
+                          value={(plano.parques ?? []).find((a) => a.clave === pk.clave)?.largoCancha ?? ""}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            fijarParque(pk.clave, { largoCancha: e.target.value === "" || !Number.isFinite(n) ? undefined : n });
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Ancho de la losa (m)
+                        <input
+                          type="number"
+                          min={8}
+                          max={45}
+                          step={0.5}
+                          placeholder="22"
+                          value={(plano.parques ?? []).find((a) => a.clave === pk.clave)?.anchoCancha ?? ""}
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            fijarParque(pk.clave, { anchoCancha: e.target.value === "" || !Number.isFinite(n) ? undefined : n });
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
               ))}
             </section>
@@ -831,7 +915,9 @@ export function LotizacionModule() {
           viaSel={viaSel}
           onVia={paso >= 4 ? setViaSel : undefined}
           onMundo={onMundo}
+          onCorte={(letra, t) => setCorteT((prev) => ({ ...prev, [letra]: t }))}
         />
+        {(modelo.cortes ?? []).length > 0 ? <CortesLamina modelo={modelo} /> : null}
       </div>
     </div>
   );
@@ -877,6 +963,24 @@ function ViaForm({
   );
 }
 
+function CortesLamina({ modelo }: { modelo: Modelo }) {
+  const cortes = modelo.cortes ?? [];
+  const pavimento = modelo.pavimento ?? pavimentoVacio();
+  return (
+    <aside className="lz-cortes-lamina" aria-label="Cortes de vía">
+      <h4>Cortes</h4>
+      {cortes.map((corte) => {
+        const d = svgSeccion(corte.seccion, pavimento, `CORTE ${corte.titulo}`, corte.via, corte.lateral);
+        return (
+          <figure key={corte.titulo}>
+            <svg viewBox={d.viewBox} role="img" aria-label={`Corte ${corte.titulo}`} dangerouslySetInnerHTML={{ __html: d.body }} />
+          </figure>
+        );
+      })}
+    </aside>
+  );
+}
+
 function CortesPanel({ modelo }: { modelo: Modelo }) {
   const cortes = modelo.cortes ?? [];
   if (!cortes.length) return <p className="lz-hint">Pulse Dibujar para generar los cortes A-A, B-B de las vías.</p>;
@@ -884,9 +988,9 @@ function CortesPanel({ modelo }: { modelo: Modelo }) {
   return (
     <div className="lz-cortes">
       <h4>Cortes de las vías</h4>
-      <p className="lz-hint">Persona en línea y vehículos a escala. Salen en el PDF A1 y en el DXF.</p>
+      <p className="lz-hint">Corte de expediente, con cotas en metros. Va al lado de la planta y sale en el PDF A1 y en el DXF.</p>
       {cortes.map((corte) => {
-        const d = svgSeccion(corte.seccion, pavimento, `CORTE ${corte.titulo}`, corte.via);
+        const d = svgSeccion(corte.seccion, pavimento, `CORTE ${corte.titulo}`, corte.via, corte.lateral);
         return (
           <figure key={corte.titulo}>
             <figcaption>Corte {corte.titulo} · {corte.via}</figcaption>
@@ -903,6 +1007,8 @@ function EditorVia({
   sel,
   tipo,
   seccion,
+  lateral,
+  jardin,
   onSel,
   onChange,
   onSoltar,
@@ -911,15 +1017,18 @@ function EditorVia({
   sel: string;
   tipo: TipoVia;
   seccion: Seccion;
+  lateral: LateralVia;
+  jardin: number;
   onSel: (id: string) => void;
-  onChange: (tipo: TipoVia, seccion: Seccion) => void;
+  onChange: (tipo: TipoVia, seccion: Seccion, lateral: LateralVia, jardin: number) => void;
   onSoltar: () => void;
 }) {
   const via = vias.find((v) => v.id === sel);
+  const jardinOk = Math.max(1, jardin);
   return (
     <div>
       <h4>Vías del trazado</h4>
-      <p className="lz-hint">Seleccione una vía aquí o en el plano. El cambio queda en los datos y se dibuja al pulsar Dibujar.</p>
+      <p className="lz-hint">Seleccione una vía aquí o en el plano. El cambio queda en los datos y se dibuja al pulsar Dibujar. El martillo del cruce es siempre vereda.</p>
       <div className="lz-vias-pick">
         {vias.map((v) => (
           <button key={v.id} type="button" className={`btn secondary${v.id === sel ? " is-on" : ""}`} onClick={() => onSel(v.id)}>
@@ -930,14 +1039,15 @@ function EditorVia({
       {via ? (
         <div className="lz-block-note">
           <strong>{via.nombre}</strong>
-          <p>Radio de acera {fmtM(via.radio, 2)} m al sardinel. El ancho nuevo se toma de las manzanas al dibujar.</p>
+          <p>Radio de acera {fmtM(via.radio, 2)} m al sardinel. La vía local principal lleva estacionamiento a ambos lados. En secundaria o acceso exclusivo puede elegir estacionamiento o jardín; eso arma el martillo de la esquina.</p>
           <label className="lz-block">
             Clase de esta vía
             <select
               value={tipo}
               onChange={(e) => {
                 const next = e.target.value as TipoVia;
-                onChange(next, seccionPorTipo(next));
+                const lat = next === "local-principal" ? "estacionamiento" : lateral;
+                onChange(next, seccionPorTipo(next), lat, jardinOk);
               }}
             >
               <option value="local-secundaria">Local secundaria</option>
@@ -945,10 +1055,24 @@ function EditorVia({
               <option value="acceso-exclusivo">Acceso exclusivo</option>
             </select>
           </label>
+          <div className="lz-vias-pick">
+            <button type="button" className={`btn secondary${lateral === "estacionamiento" ? " is-on" : ""}`} onClick={() => onChange(tipo, { ...seccion, estacionamiento: Math.max(seccion.estacionamiento, 2.4), nEstacionamientos: 2 }, "estacionamiento", jardinOk)}>
+              Estacionamiento según norma (2.40 m)
+            </button>
+            {tipo === "local-principal" ? null : (
+              <button type="button" className={`btn secondary${lateral === "jardin" ? " is-on" : ""}`} onClick={() => onChange(tipo, seccion, "jardin", jardinOk)}>
+                Jardín (mínimo 1.00 m)
+              </button>
+            )}
+          </div>
           <div className="lz-meta">
-            <label>Vereda (m)<NumBox value={seccion.vereda} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, vereda: n }); }} /></label>
-            <label>Módulo de calzada (m)<NumBox value={seccion.moduloCalzada} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, moduloCalzada: n }); }} /></label>
-            <label>Estacionamiento (m)<NumBox value={seccion.estacionamiento} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, estacionamiento: n }); }} /></label>
+            <label>Vereda (m)<NumBox value={seccion.vereda} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, vereda: n }, lateral, jardinOk); }} /></label>
+            <label>Módulo de calzada (m)<NumBox value={seccion.moduloCalzada} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, moduloCalzada: n }, lateral, jardinOk); }} /></label>
+            {lateral === "jardin" ? (
+              <label>Jardín (m)<NumBox value={jardinOk} onChange={(n) => { if (n !== null) onChange(tipo, seccion, "jardin", Math.max(1, n)); }} /></label>
+            ) : (
+              <label>Estacionamiento (m)<NumBox value={seccion.estacionamiento} onChange={(n) => { if (n !== null) onChange(tipo, { ...seccion, estacionamiento: n, nEstacionamientos: n > 0.05 ? 2 : 0 }, "estacionamiento", jardinOk); }} /></label>
+            )}
           </div>
           <button type="button" className="btn secondary" onClick={onSoltar}>Volver a la sección general</button>
         </div>

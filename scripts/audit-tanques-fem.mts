@@ -284,6 +284,21 @@ const rec = auditEngine(
   ["mPtsVert", "vPtsVert", "mPtsHorLy", "vPtsHorLy", "mPtsHorLx", "mPtsTecho"],
   /MITC4/,
 );
+{
+  const mesh = String(rec.dims?.femMesh ?? "");
+  const head = mesh.split("|")[0] ?? "";
+  const [nx, nz] = head.split("x").map(Number);
+  const nCells = Number.isFinite(nx) && Number.isFinite(nz) ? nx * nz : 0;
+  const myy = (mesh.split("|")[2] ?? "").split(",").filter(Boolean);
+  add({
+    motor: "rectangular",
+    sev: nCells >= 40 && myy.length === nCells ? "ok" : "fail",
+    id: "rect-pack-mesh",
+    title: "Malla MITC4 empaquetada para el mapa de esfuerzos",
+    detail: mesh ? `${head} · ${myy.length} celdas myy` : "femMesh vacío",
+    numbers: { nx: nx || 0, nz: nz || 0, celdas: myy.length },
+  });
+}
 const col = auditEngine(
   "columnas",
   () => tanqueElevadoColumnas({ V: "150", Htorre: "14", fc: "210", fy: "4200", zona: "3", uso: "A", suelo: "S2" }),

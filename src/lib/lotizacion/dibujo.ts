@@ -11,9 +11,11 @@ const LOTE: Record<UsoLote, { fill: string; stroke: string }> = {
 };
 
 const FRANJA: Record<string, { fill: string; stroke: string }> = {
-  vereda: { fill: "#e7e0d4", stroke: "#b7ad9c" },
-  estacionamiento: { fill: "#d7e3d4", stroke: "#8aa384" },
-  calzada: { fill: "#c8c8c8", stroke: "#8d8d8d" },
+  vereda: { fill: "#d6d6d6", stroke: "#8d8d8d" },
+  rampa: { fill: "#a3534a", stroke: "#6e312b" },
+  estacionamiento: { fill: "#5e5e5e", stroke: "#3a3a3a" },
+  jardin: { fill: "#3dcf3a", stroke: "#1f8a1c" },
+  calzada: { fill: "#b9b9b9", stroke: "#8a8a8a" },
   separador: { fill: "#9aaf90", stroke: "#6d805f" },
   "existente-vereda": { fill: "#d5e3f2", stroke: "#6d8eae" },
   "existente-calzada": { fill: "#c5d0dc", stroke: "#5d7386" },
@@ -48,6 +50,20 @@ function corona(c: V2, r: number, n = 28): V2[] {
     pts.push({ x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) });
   }
   return pts;
+}
+
+/** Desplaza la marca a lo largo del eje de la calzada. t = 0.5 es la posición de origen. */
+export function corteEn(c: import("./tipos").CorteVia, t: number): import("./tipos").CorteVia {
+  if (!c.eje0 || !c.eje1) return c;
+  const u = Math.max(0, Math.min(1, t));
+  const mid = { x: c.eje0.x + (c.eje1.x - c.eje0.x) * u, y: c.eje0.y + (c.eje1.y - c.eje0.y) * u };
+  const cx = (c.a.x + c.b.x) / 2;
+  const cy = (c.a.y + c.b.y) / 2;
+  return {
+    ...c,
+    a: { x: c.a.x + mid.x - cx, y: c.a.y + mid.y - cy },
+    b: { x: c.b.x + mid.x - cx, y: c.b.y + mid.y - cy },
+  };
 }
 
 /** Marca de corte de presentación: burbuja con letra, flecha de vista y línea con extremos gruesos. */
@@ -148,27 +164,96 @@ function rectaOrientada(p: V2, dir: V2, largo: number, ancho: number): V2[] {
   ];
 }
 
-/** Vehículos y personas a escala sobre calzada y vereda. También salen en el DXF. */
+function caja(poly: V2[]) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of poly) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+
+/** Cruces peatonales y flechas de carril, en trazo fino blanco. */
 export function grafismosPlanta(m: Modelo): { capa: string; pts: V2[]; fill: string; stroke: string; sw: number }[] {
   const out: { capa: string; pts: V2[]; fill: string; stroke: string; sw: number }[] = [];
+  const calzadas = m.franjas.filter((f) => f.tipo === "calzada" && !f.soloVista && f.poly.length >= 3);
+  const marca = (pts: V2[]) => out.push({ capa: "MC-MARCAS", pts, fill: "#f7f7f7", stroke: "none", sw: 0.02 });
+  for (const f of calzadas) {
+    const box = caja(f.poly);
+    const horizontal = box.w >= box.h;
+    const dir = horizontal ? { x: 1, y: 0 } : { x: 0, y: 1 };
+    const ancho = horizontal ? box.h : box.w;
+    const cy = (box.minY + box.maxY) / 2;
+    const cx = (box.minX + box.maxX) / 2;
+    const cebra = (along: number) => {
+      const n = Math.max(4, Math.round(ancho / 0.55));
+      for (let i = 0; i < n; i += 2) {
+        const off = -ancho / 2 + (i + 0.5) * (ancho / n);
+        const c = horizontal
+          ? { x: along, y: cy + off }
+          : { x: cx + off, y: along };
+        const stripe = rectaOrientada(c, dir, 0.28, (ancho / n) * 0.62);
+        if (stripe.every((q) => pointInPoly(q, f.poly))) marca(stripe);
+      }
+    };
+    const flecha = (along: number, sentido: number) => {
+      const d = { x: dir.x * sentido, y: dir.y * sentido };
+      const carril = Math.min(ancho / 4, 1.15);
+      const p = horizontal ? { x: along, y: cy + carril } : { x: cx + carril, y: along };
+      const asta = rectaOrientada(p, d, 1.7, 0.07);
+      const punta = { x: p.x + d.x * 1.15, y: p.y + d.y * 1.15 };
+      const base = { x: p.x + d.x * 0.35, y: p.y + d.y * 0.35 };
+      const ala = 0.38;
+      const nrm = { x: -d.y, y: d.x };
+      const cabeza = [
+        punta,
+        { x: base.x + nrm.x * ala, y: base.y + nrm.y * ala },
+        { x: base.x - nrm.x * ala, y: base.y - nrm.y * ala },
+      ];
+      if (asta.every((q) => pointInPoly(q, f.poly))) marca(asta);
+      if (cabeza.every((q) => pointInPoly(q, f.poly))) marca(cabeza);
+    };
+    const cruces = calzadas.filter((g) => g !== f && (caja(g.poly).w >= caja(g.poly).h) !== horizontal);
+    const puestos: number[] = [];
+    for (const g of cruces) {
+      const gb = caja(g.poly);
+      if (horizontal) {
+        if (gb.maxX < box.minX + 1 || gb.minX > box.maxX - 1) continue;
+        if (gb.minY > cy + 1 || gb.maxY < cy - 1) continue;
+        puestos.push(gb.minX - 2.2, gb.maxX + 2.2);
+      } else {
+        if (gb.maxY < box.minY + 1 || gb.minY > box.maxY - 1) continue;
+        if (gb.minX > cx + 1 || gb.maxX < cx - 1) continue;
+        puestos.push(gb.minY - 2.2, gb.maxY + 2.2);
+      }
+    }
+    const dentro = (t: number) => (horizontal ? t > box.minX + 1.2 && t < box.maxX - 1.2 : t > box.minY + 1.2 && t < box.maxY - 1.2);
+    for (const t of puestos) if (dentro(t)) cebra(t);
+    const orden = puestos.filter(dentro).sort((a, b) => a - b);
+    const tramos = [horizontal ? box.minX : box.minY, ...orden, horizontal ? box.maxX : box.maxY];
+    for (let i = 0; i < tramos.length - 1; i++) {
+      const a = tramos[i];
+      const b = tramos[i + 1];
+      if (b - a < 8) continue;
+      flecha((a + b) / 2, 1);
+    }
+  }
   for (const f of m.franjas) {
     if (f.soloVista || f.poly.length < 3) continue;
-    if (f.tipo === "calzada") {
-      for (const s of muestrear(f.poly, 36, 8)) {
-        const caja = rectaOrientada(s.p, s.dir, 4.4, 1.7);
-        if (!caja.every((q) => pointInPoly(q, f.poly))) continue;
-        out.push({ capa: "MC-VEHICULO", pts: caja, fill: "none", stroke: "#1a1a1a", sw: 0.12 });
-        const cab = rectaOrientada({ x: s.p.x + s.dir.x * 0.7, y: s.p.y + s.dir.y * 0.7 }, s.dir, 1.5, 1.35);
-        out.push({ capa: "MC-VEHICULO", pts: cab, fill: "none", stroke: "#1a1a1a", sw: 0.08 });
-      }
-    } else if (f.tipo === "vereda") {
-      for (const s of muestrear(f.poly, 48, 6)) {
-        const cabeza = rectaOrientada(s.p, s.dir, 0.45, 0.45);
-        if (!cabeza.every((q) => pointInPoly(q, f.poly))) continue;
-        out.push({ capa: "MC-PERSONA", pts: cabeza, fill: "none", stroke: "#1a1a1a", sw: 0.08 });
-        const cuerpo = rectaOrientada({ x: s.p.x - s.dir.x * 0.35, y: s.p.y - s.dir.y * 0.35 }, s.dir, 0.35, 0.22);
-        out.push({ capa: "MC-PERSONA", pts: cuerpo, fill: "none", stroke: "#1a1a1a", sw: 0.07 });
-      }
+    if (f.tipo === "estacionamiento") {
+      const muestras = muestrear(f.poly, 6.2, 3.2);
+      muestras.forEach((s, i) => {
+        if (i % 2 === 0) {
+          const divisor = rectaOrientada(s.p, { x: -s.dir.y, y: s.dir.x }, 2.15, 0.06);
+          if (divisor.every((q) => pointInPoly(q, f.poly))) {
+            out.push({ capa: "MC-ESTACIONAMIENTO", pts: divisor, fill: "#f4f4f2", stroke: "#f4f4f2", sw: 0.02 });
+          }
+        }
+      });
+    } else if (f.tipo === "jardin" || f.tipo === "vereda") {
+      continue;
     }
   }
   return out;
@@ -178,18 +263,35 @@ export function trazosDe(m: Modelo): Trazo[] {
   const out: Trazo[] = [];
   for (const f of m.viasExistentes.flatMap((v) => v.franjas)) {
     const c = FRANJA[f.tipo] ?? FRANJA.vereda;
-    out.push(poly(f.poly, c.fill, c.stroke, 0.25, undefined, true));
+    out.push(poly(f.poly, c.fill, "#1a1a1a", 0.08, undefined, true));
   }
   for (const f of m.franjas) {
+    if (f.soloVista || f.tipo === "vereda") continue;
     const c = FRANJA[f.tipo] ?? FRANJA.vereda;
-    out.push(poly(f.poly, c.fill, c.stroke, 0.15, undefined, true));
+    const costura = f.tipo === "calzada" || f.tipo === "estacionamiento" || f.tipo === "jardin";
+    out.push(poly(f.poly, c.fill, costura ? c.fill : "#1a1a1a", costura ? 0.02 : 0.07, undefined, true));
+    for (const ln of f.lineas ?? []) {
+      if (ln.length >= 2) out.push(linea(ln[0], ln[1], f.tipo === "rampa" ? "#f2f2f2" : "#5c574e", 0.04, undefined, true));
+    }
   }
   const orden: UsoLote[] = ["residual", "parque-zonal", "otros", "educacion", "recreacion", "vivienda"];
   for (const uso of orden) {
     for (const lote of m.lotes.filter((l) => l.uso === uso)) {
       const c = LOTE[uso];
-      const sw = uso === "vivienda" ? 0.35 : 0.28;
-      out.push(poly(lote.poly, c.fill, c.stroke, sw));
+      if (lote.uso === "residual") continue;
+      out.push(poly(lote.poly, c.fill, "#1a1a1a", uso === "vivienda" ? 0.12 : 0.1));
+    }
+  }
+  for (const f of m.franjas) {
+    if (!f.soloVista || f.tipo !== "calzada" || f.poly.length < 3) continue;
+    out.push(poly(f.poly, FRANJA.calzada.fill, FRANJA.calzada.fill, 0.1, undefined, true));
+  }
+  for (const f of m.franjas) {
+    if (f.tipo !== "vereda" || f.poly.length < 3) continue;
+    out.push(poly(f.poly, FRANJA.vereda.fill, FRANJA.vereda.fill, 0.14, undefined, true));
+    if (!f.soloVista) continue;
+    for (const ln of f.lineas ?? []) {
+      if (ln.length >= 2) out.push(linea(ln[0], ln[1], "#1a1a1a", 0.06));
     }
   }
   for (const lote of m.lotes) {
@@ -212,17 +314,14 @@ export function trazosDe(m: Modelo): Trazo[] {
     for (const t of pk.textos) out.push(texto(t.p, t.text, t.size, t.fill));
   }
   if (m.lindero.length >= 3) {
-    out.push(poly([...m.lindero, m.lindero[0]], "none", "#1a1a1a", m.cerco.length ? 0.45 : 0.9));
+    out.push(poly([...m.lindero, m.lindero[0]], "none", "#1a1a1a", m.cerco.length ? 0.28 : 0.42));
   }
   for (const tramo of m.cerco) out.push(poly(tramo, "none", "#1a1a1a", 1.35));
   for (const eje of m.ejes) {
-    for (const seg of eje.partes) {
-      if (seg.length >= 2) out.push(linea(seg[0], seg[1], "#8b1e1e", 0.28, "2.2 1.4", true));
-    }
     const seg = eje.partes[0];
     if (seg && seg.length >= 2) {
       const mid = { x: (seg[0].x + seg[1].x) / 2, y: (seg[0].y + seg[1].y) / 2 };
-      out.push(texto(mid, eje.nombre, 2.8, "#8b1e1e"));
+      out.push(texto(mid, eje.nombre, 2.2, "#3a3a3a"));
     }
   }
   for (const sim of grafismosPlanta(m)) {
@@ -250,28 +349,6 @@ export function trazosDe(m: Modelo): Trazo[] {
       out.push(texto(ln.p, ln.nombre.split("—")[0].trim(), 2.4, "#1f4e79"));
     }
   }
-  for (const pl of m.polilineas ?? []) {
-    if (pl.capa !== "MC-VEREDA" && pl.capa !== "MC-OCHAVO") continue;
-    const pts: V2[] = [];
-    for (let i = 0; i < pl.pts.length - 1; i++) {
-      const arco = expandirBulge(pl.pts[i], pl.pts[i + 1], pl.pts[i].bulge ?? 0);
-      if (pts.length && arco.length) arco.shift();
-      pts.push(...arco);
-    }
-    if (pts.length < 2) continue;
-    const ochavo = pl.capa === "MC-OCHAVO";
-    for (let i = 0; i < pts.length - 1; i++) {
-      out.push(linea(pts[i], pts[i + 1], ochavo ? "#141414" : "#2b2b2b", ochavo ? 0.38 : 0.26));
-    }
-    const mid = pts[Math.floor(pts.length / 2)];
-    if (!ochavo && pl.pts[0]?.bulge) {
-      const radio = radioDeBulge(pl.pts[0], pl.pts[1], pl.pts[0].bulge);
-      if (radio > 0.2) out.push(texto({ x: mid.x, y: mid.y }, `R${radio.toFixed(2)}`, 1.15, "#2b2b2b"));
-    } else if (ochavo) {
-      const metros = pl.nombre.replace(/[^\d.]/g, "");
-      out.push(texto(mid, metros ? `${Number(metros).toFixed(2)}` : "OCHAVO", 1.05, "#141414"));
-    }
-  }
   m.lindero.forEach((p, i) => {
     out.push(poly(
       [
@@ -288,34 +365,6 @@ export function trazosDe(m: Modelo): Trazo[] {
   });
   for (const corte of m.cortes ?? []) out.push(...simboloCorte(corte.a, corte.b, corte.letra));
   return out;
-}
-
-function expandirBulge(a: V2, b: V2, bulge: number): V2[] {
-  if (!bulge || Math.abs(bulge) < 1e-5) return [a, b];
-  const theta = 4 * Math.atan(bulge);
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const chord = Math.hypot(dx, dy);
-  if (chord < 1e-4 || Math.abs(Math.sin(theta / 2)) < 1e-5) return [a, b];
-  const r = Math.abs(chord / (2 * Math.sin(theta / 2)));
-  const h = Math.sqrt(Math.max(0, r * r - (chord / 2) ** 2));
-  const sign = theta >= 0 ? 1 : -1;
-  const cx = (a.x + b.x) / 2 + (-dy / chord) * h * sign;
-  const cy = (a.y + b.y) / 2 + (dx / chord) * h * sign;
-  const a0 = Math.atan2(a.y - cy, a.x - cx);
-  const pts: V2[] = [];
-  for (let i = 0; i <= 10; i++) {
-    const t = a0 + theta * (i / 10);
-    pts.push({ x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) });
-  }
-  return pts;
-}
-
-function radioDeBulge(a: V2, b: V2, bulge: number): number {
-  const theta = 4 * Math.atan(bulge);
-  const chord = Math.hypot(b.x - a.x, b.y - a.y);
-  if (Math.abs(Math.sin(theta / 2)) < 1e-5) return 0;
-  return Math.abs(chord / (2 * Math.sin(theta / 2)));
 }
 
 /** Norte y escala gráfica, en metros de planta. Sirve en pantalla y en el A1. */

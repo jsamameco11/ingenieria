@@ -14,6 +14,7 @@ type Props = {
   viaSel?: string;
   onVia?: (id: string) => void;
   onMundo: (p: { e: number; n: number }) => void;
+  onCorte?: (letra: string, t: number) => void;
 };
 
 function encuadre(m: Modelo): Vista {
@@ -22,10 +23,29 @@ function encuadre(m: Modelo): Vista {
   return { minE: c.minX - pad, minN: c.minY - pad, w: c.w + pad * 2, h: c.h + pad * 2 };
 }
 
-export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaSel, onVia, onMundo }: Props) {
+function tSobreEje(p: V2, a: V2, b: V2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const L2 = dx * dx + dy * dy || 1;
+  return Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2));
+}
+
+function corteBajo(modelo: Modelo, e: number, n: number): { letra: string; t: number } | null {
+  const p = { x: e, y: n };
+  for (const c of modelo.cortes ?? []) {
+    if (!c.eje0 || !c.eje1) continue;
+    const cerca = [c.a, c.b].some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 6);
+    if (!cerca) continue;
+    return { letra: c.letra, t: tSobreEje(p, c.eje0, c.eje1) };
+  }
+  return null;
+}
+
+export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaSel, onVia, onMundo, onCorte }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [vista, setVista] = useState<Vista | null>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const corteDrag = useRef<string | null>(null);
   const nVerts = modelo.lindero.length;
   const fit = useMemo(() => encuadre(modelo), [modelo]);
   const view = vista ?? fit;
@@ -91,9 +111,24 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
         viewBox={vb}
         onPointerDown={(e) => {
           (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+          const p = mundo(e);
+          const hit = p && onCorte ? corteBajo(modelo, p.e, p.n) : null;
+          if (hit && onCorte) {
+            corteDrag.current = hit.letra;
+            drag.current = null;
+            onCorte(hit.letra, hit.t);
+            return;
+          }
+          corteDrag.current = null;
           drag.current = { x: e.clientX, y: e.clientY, moved: false };
         }}
         onPointerMove={(e) => {
+          if (corteDrag.current && onCorte) {
+            const p = mundo(e);
+            const corte = (modelo.cortes ?? []).find((c) => c.letra === corteDrag.current && c.eje0 && c.eje1);
+            if (p && corte?.eje0 && corte.eje1) onCorte(corte.letra, tSobreEje({ x: p.e, y: p.n }, corte.eje0, corte.eje1));
+            return;
+          }
           const d = drag.current;
           if (!d) return;
           const dx = e.clientX - d.x;
@@ -112,6 +147,10 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
           });
         }}
         onPointerUp={(e) => {
+          if (corteDrag.current) {
+            corteDrag.current = null;
+            return;
+          }
           const d = drag.current;
           drag.current = null;
           if (!d || d.moved) return;
@@ -179,7 +218,7 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
         <button type="button" className="btn secondary" onClick={() => setVista(null)}>
           Encuadrar
         </button>
-        <span>{borde.length >= 3 ? `${fmtM(modelo.areaBruta, 0)} m² · ${fmtM(modelo.perimetro, 1)} m` : "Sin perímetro"}</span>
+        <span>{borde.length >= 3 ? `${fmtM(modelo.areaBruta, 0)} m² · ${fmtM(modelo.perimetro, 1)} m · arrastre A, B, C sobre la calle` : "Sin perímetro"}</span>
       </div>
     </div>
   );

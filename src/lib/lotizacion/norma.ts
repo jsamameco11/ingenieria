@@ -29,7 +29,7 @@ export function filaVivienda(tipo: 1 | 2 | 3 | 4 | 5 | 6): FilaLote {
   return LOTES_VIVIENDA[tipo - 1];
 }
 
-export type ParteSeccion = { tipo: "vereda" | "estacionamiento" | "calzada" | "separador"; ancho: number; etiqueta: string };
+export type ParteSeccion = { tipo: "vereda" | "estacionamiento" | "jardin" | "calzada" | "separador"; ancho: number; etiqueta: string };
 
 /** GH.020 Art. 8: dos módulos de calzada. Con separador, dos módulos a cada lado. */
 export function partesDeSeccion(s: Seccion): ParteSeccion[] {
@@ -169,8 +169,8 @@ export function criteriosDeNorma(tipoHab: TipoHab, densidad: Criterios["tipoDens
   }
   const f = filaVivienda(tipoHab === "vivienda-taller" ? 3 : densidad);
   const frente = f.frente > 0 ? f.frente : 6;
-  const areaMin = f.area;
-  const profundidad = areaMin > 0 ? Math.round((areaMin / frente) * 10) / 10 : 16;
+  const areaMin = f.area > 0 ? f.area : 90;
+  const profundidad = 10;
   return {
     frenteMin: frente,
     areaMin,
@@ -236,9 +236,10 @@ export function proyectoVacio(): ProyectoLot {
     ajustesVias: [],
     pavimento: pavimentoVacio(),
     modoParque: "lotes",
+    trazaVias: "recta",
     criterios: {
       tipoHab: "vivienda",
-      tipoDensidad: 3,
+      tipoDensidad: 4,
       tipoVia: "local-secundaria",
       cesionPrimaria: 0,
       reservaRegional: 0,
@@ -286,7 +287,7 @@ export function firmar(p: ProyectoLot): string {
     .join("|");
   const ing = p.ingresos.map((i) => `${i.arista}:${r(i.distancia)}:${r(i.ancho)}`).join("|");
   const aj = (p.ajustesVias ?? [])
-    .map((a) => `${a.id}:${a.tipo}:${r(a.seccion.vereda)}:${a.seccion.nVeredas}:${r(a.seccion.moduloCalzada)}:${r(a.seccion.estacionamiento)}:${a.seccion.nEstacionamientos}:${r(a.seccion.separador)}`)
+    .map((a) => `${a.id}:${a.tipo}:${r(a.seccion.vereda)}:${a.seccion.nVeredas}:${r(a.seccion.moduloCalzada)}:${r(a.seccion.estacionamiento)}:${a.seccion.nEstacionamientos}:${r(a.seccion.separador)}:${a.lateral ?? "estacionamiento"}:${r(a.jardin ?? 1.2)}`)
     .join("|");
   const c = p.criterios;
   const pq = (p.parques ?? []).map((a) => `${a.clave}:${a.categoria}:${a.estilo ?? ""}`).join("|");
@@ -327,6 +328,7 @@ export function firmar(p: ProyectoLot): string {
     r(pv.veredaEsp),
     r(pv.sardinel),
     p.modoParque ?? "lotes",
+    p.trazaVias ?? "recta",
     pq,
   ].join("#");
 }

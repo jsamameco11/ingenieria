@@ -376,8 +376,8 @@ export function TanqueFemBoard({
     );
   return (
     <div className="fig-stack fig-stack-tanque">
-      {geom}
       {fem}
+      {geom}
     </div>
   );
 }

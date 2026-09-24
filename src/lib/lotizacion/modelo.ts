@@ -58,7 +58,7 @@ import type {
   ViaInterna,
 } from "./tipos";
 
-type Face = "n" | "s";
+type Face = "n" | "s" | "e" | "w";
 type Kind = "perim" | "doble";
 
 type Work = {
@@ -100,16 +100,18 @@ function letraManzana(i: number): string {
 }
 
 function frenteSobre(rect: Rect, face: Face, poly: V2[]): number {
-  const yLine = face === "n" ? rect.y + rect.h : rect.y;
-  const y = face === "n" ? yLine - 0.08 : yLine + 0.08;
+  const vertical = face === "e" || face === "w";
   const N = 24;
   let acc = 0;
   let prev = false;
+  const paso = (vertical ? rect.h : rect.w) / N;
   for (let i = 0; i <= N; i++) {
-    const x = rect.x + (rect.w * i) / N;
+    const t = i / N;
+    const x = vertical ? (face === "e" ? rect.x + rect.w - 0.08 : rect.x + 0.08) : rect.x + rect.w * t;
+    const y = vertical ? rect.y + rect.h * t : face === "n" ? rect.y + rect.h - 0.08 : rect.y + 0.08;
     const ins = pointInPoly({ x, y }, poly);
-    if (i > 0 && ins && prev) acc += rect.w / N;
-    else if (i > 0 && ins !== prev) acc += rect.w / (2 * N);
+    if (i > 0 && ins && prev) acc += paso;
+    else if (i > 0 && ins !== prev) acc += paso / 2;
     prev = ins;
   }
   return acc;
@@ -521,8 +523,11 @@ export function proponer(p: ProyectoLot): Modelo {
   const toWorld = (q: V2) => add(rotate(q, ang), centro);
   const local = world.map(toLocal);
   const bb = bbox(local);
-  const fondo = c.profundidad > 1 ? c.profundidad : 15;
-  const frenteDiseno = Math.max(6, c.areaMin > 0 ? c.areaMin / fondo : c.frenteMin > 0 ? c.frenteMin : 6);
+  const anchoMin = Math.max(6, c.frenteMin > 0 ? c.frenteMin : 6);
+  const areaPiso = Math.max(MIN_LOTE, c.areaMin > 0 ? c.areaMin : MIN_LOTE);
+  const largoMin = Math.max(10, c.profundidad > 1 ? c.profundidad : 10);
+  const fondo = Math.max(largoMin, areaPiso / anchoMin);
+  const frenteDiseno = anchoMin;
   const dObjetivo = fondo;
   const dMin = Math.max(6, fondo * 0.96);
   const dMax = Math.max(dMin, fondo * 1.06);
@@ -611,63 +616,107 @@ export function proponer(p: ProyectoLot): Modelo {
   const esquinas = esquinasDe(hCalles, vCalles);
 
   const works: Work[] = [];
+  const volcar = (
+    crudas: { calle: Rect; i: number }[],
+    face: Face,
+    side: number,
+    bandN: number,
+    colI: number,
+    kind: Kind,
+    marca: (i: number) => { o: boolean; e: boolean; s: boolean; n: boolean },
+  ) => {
+    const armar = (calle: Rect, lado: { o: boolean; e: boolean; s: boolean; n: boolean }) => {
+      const rect = extenderRect(calle, bb, lado);
+      const poly = clipRect(local, rect);
+      return { calle, rect, poly, area: poly.length >= 3 ? area(poly) : 0 };
+    };
+    const piezas = crudas.map((celda) => ({ ...armar(celda.calle, marca(celda.i)), i: celda.i }));
+    const fundirPieza = (i: number, j: number) => {
+      const calle = unionRect(piezas[i].calle, piezas[j].calle);
+      const a = marca(piezas[i].i);
+      const b = marca(piezas[j].i);
+      const hecho = armar(calle, { o: a.o || b.o, e: a.e || b.e, s: a.s || b.s, n: a.n || b.n });
+      piezas[i] = { ...hecho, i: piezas[i].i };
+      piezas.splice(j, 1);
+    };
+    for (let k = piezas.length - 1; k >= 1; k--) {
+      if (piezas[k].area + 0.5 >= areaPiso) continue;
+      fundirPieza(k - 1, k);
+    }
+    if (piezas.length >= 2 && piezas[0].area + 0.5 < areaPiso) fundirPieza(0, 1);
+    piezas.forEach((pz, idx) => {
+      if (pz.poly.length < 3 || pz.area < 8) return;
+      const fEf = frenteSobre(pz.calle, face, local);
+      const polyW = pz.poly.map(toWorld);
+      works.push({
+        poly: polyW,
+        area: pz.area,
+        frente: fEf,
+        profundidad: fEf > 0.5 ? pz.area / fEf : face === "e" || face === "w" ? pz.calle.w : pz.calle.h,
+        centro: centroid(polyW),
+        grid: { band: bandN, col: colI, side, index: idx, kind },
+        uso: "vivienda",
+        celda: pz.calle,
+      });
+    });
+  };
   for (const band of bandas) {
-    const slices =
-      band.kind === "perim"
-        ? [{ y: band.y, h: band.h, face: band.face, side: 0 }]
-        : [
-            { y: band.y, h: band.h / 2, face: "s" as Face, side: 0 },
-            { y: band.y + band.h / 2, h: band.h / 2, face: "n" as Face, side: 1 },
-          ];
     const sur = band.calleAbajo === null;
     const norte = band.calleArriba === null;
-    for (const sl of slices) {
-      for (const col of cols) {
-        const n = Math.min(80, Math.max(1, Math.floor((col.w + 0.02) / frenteDiseno)));
+    for (const col of cols) {
+      const cabeTapa = col.w >= fondo * 2 + frenteDiseno && band.h + 0.02 >= frenteDiseno;
+      const tapa = cabeTapa ? fondo : 0;
+      if (tapa > 0) {
+        const nT = Math.min(80, Math.max(1, Math.floor((band.h + 0.02) / frenteDiseno)));
+        const oeste: { calle: Rect; i: number }[] = [];
+        const este: { calle: Rect; i: number }[] = [];
+        let yCursor = band.y;
+        for (let i = 0; i < nT; i++) {
+          const hLot = i === nT - 1 ? band.y + band.h - yCursor : frenteDiseno;
+          oeste.push({ calle: { x: col.x, y: yCursor, w: tapa, h: Math.max(0.05, hLot) }, i });
+          este.push({ calle: { x: col.x + col.w - tapa, y: yCursor, w: tapa, h: Math.max(0.05, hLot) }, i });
+          if (i < nT - 1) yCursor += frenteDiseno;
+        }
+        const primera = (i: number) => i === 0;
+        const ultima = (i: number) => i === nT - 1;
+        volcar(oeste, "w", 2, band.band, col.i, band.kind, (i) => ({
+          o: col.i === 0,
+          e: false,
+          s: sur && primera(i),
+          n: norte && ultima(i),
+        }));
+        volcar(este, "e", 3, band.band, col.i, band.kind, (i) => ({
+          o: false,
+          e: col.i === cols.length - 1,
+          s: sur && primera(i),
+          n: norte && ultima(i),
+        }));
+      }
+      const medioX = col.x + tapa;
+      const medioW = col.w - tapa * 2;
+      if (medioW < frenteDiseno * 0.8) continue;
+      const slices =
+        band.kind === "perim"
+          ? [{ y: band.y, h: band.h, face: band.face as Face, side: 0 }]
+          : [
+              { y: band.y, h: band.h / 2, face: "s" as Face, side: 0 },
+              { y: band.y + band.h / 2, h: band.h / 2, face: "n" as Face, side: 1 },
+            ];
+      for (const sl of slices) {
+        const n = Math.min(80, Math.max(1, Math.floor((medioW + 0.02) / frenteDiseno)));
         const crudas: { calle: Rect; i: number }[] = [];
-        let xCursor = col.x;
+        let xCursor = medioX;
         for (let i = 0; i < n; i++) {
-          const wLot = i === n - 1 ? col.x + col.w - xCursor : frenteDiseno;
+          const wLot = i === n - 1 ? medioX + medioW - xCursor : frenteDiseno;
           crudas.push({ calle: { x: xCursor, y: sl.y, w: Math.max(0.05, wLot), h: sl.h }, i });
           if (i < n - 1) xCursor += frenteDiseno;
         }
-        const esOeste = (i: number) => i === 0 && col.i === 0;
-        const esEste = (i: number) => i === n - 1 && col.i === cols.length - 1;
-        const armar = (calle: Rect, o: boolean, e: boolean) => {
-          const rect = extenderRect(calle, bb, { o, e, s: sur, n: norte });
-          const poly = clipRect(local, rect);
-          return { calle, rect, poly, area: poly.length >= 3 ? area(poly) : 0 };
-        };
-        const piezas = crudas.map((celda) => ({
-          ...armar(celda.calle, esOeste(celda.i), esEste(celda.i)),
-          i: celda.i,
+        volcar(crudas, sl.face, sl.side, band.band, col.i, band.kind, (i) => ({
+          o: tapa === 0 && i === 0 && col.i === 0,
+          e: tapa === 0 && i === n - 1 && col.i === cols.length - 1,
+          s: sur,
+          n: norte,
         }));
-        const fundirPieza = (i: number, j: number) => {
-          const calle = unionRect(piezas[i].calle, piezas[j].calle);
-          const hecho = armar(calle, esOeste(piezas[i].i) || esOeste(piezas[j].i), esEste(piezas[i].i) || esEste(piezas[j].i));
-          piezas[i] = { ...hecho, i: piezas[i].i };
-          piezas.splice(j, 1);
-        };
-        for (let k = piezas.length - 1; k >= 1; k--) {
-          if (piezas[k].area + 0.5 >= MIN_LOTE) continue;
-          fundirPieza(k - 1, k);
-        }
-        if (piezas.length >= 2 && piezas[0].area + 0.5 < MIN_LOTE) fundirPieza(0, 1);
-        piezas.forEach((pz, idx) => {
-          if (pz.poly.length < 3 || pz.area < 8) return;
-          const fEf = frenteSobre(pz.calle, sl.face, local);
-          const polyW = pz.poly.map(toWorld);
-          works.push({
-            poly: polyW,
-            area: pz.area,
-            frente: fEf,
-            profundidad: fEf > 0.5 ? pz.area / fEf : sl.h,
-            centro: centroid(polyW),
-            grid: { band: band.band, col: col.i, side: sl.side, index: idx, kind: band.kind },
-            uso: "vivienda",
-            celda: pz.calle,
-          });
-        });
       }
     }
   }
@@ -831,7 +880,10 @@ export function proponer(p: ProyectoLot): Modelo {
         manzana: letra,
         numero: i + 1,
         uso: "vivienda",
-        poly: w.poly,
+        poly: ochavarPoligono(
+          w.poly,
+          esquinas.map((e) => ({ p: toWorld(e.p), a: toWorld(e.propA), b: toWorld(e.propB) })),
+        ),
         area: w.area,
         frente: w.frente,
         profundidad: w.profundidad,
@@ -869,28 +921,28 @@ export function proponer(p: ProyectoLot): Modelo {
     if (prev) prev.partes.push(...partesEje);
     else ejes.push({ nombre, partes: partesEje });
   };
-  const recortarX = (col: (typeof cols)[number], calle: (typeof hCalles)[number], borde: "s" | "n") => {
+  const recortarX = (col: (typeof cols)[number], calle: (typeof hCalles)[number], borde: "s" | "n", holgura: number) => {
     let x0 = col.x;
     let x1 = col.x + col.w;
     const vereda = borde === "s" ? calle.veredaInicio : calle.veredaFin;
     if (vereda > 0.05) {
       const izq = vCalles[col.i - 1];
       const der = vCalles[col.i];
-      if (izq) x0 += retroceso(Math.max(calle.radio, izq.radio), izq.veredaFin);
-      if (der) x1 -= retroceso(Math.max(calle.radio, der.radio), der.veredaInicio);
+      if (izq) x0 += retroceso(Math.max(calle.radio, izq.radio), izq.veredaFin) + holgura;
+      if (der) x1 -= retroceso(Math.max(calle.radio, der.radio), der.veredaInicio) + holgura;
     }
     return { x: x0, w: x1 - x0 };
   };
-  const recortarY = (band: (typeof bandas)[number], calle: (typeof vCalles)[number]) => {
+  const recortarY = (band: (typeof bandas)[number], calle: (typeof vCalles)[number], holgura: number) => {
     let y0 = band.y;
     let y1 = band.y + band.h;
     if (band.calleAbajo !== null) {
       const abajo = hCalles[band.calleAbajo];
-      y0 += retroceso(Math.max(calle.radio, abajo.radio), abajo.veredaFin);
+      y0 += retroceso(Math.max(calle.radio, abajo.radio), abajo.veredaFin) + holgura;
     }
     if (band.calleArriba !== null) {
       const arriba = hCalles[band.calleArriba];
-      y1 -= retroceso(Math.max(calle.radio, arriba.radio), arriba.veredaInicio);
+      y1 -= retroceso(Math.max(calle.radio, arriba.radio), arriba.veredaInicio) + holgura;
     }
     return { y: y0, h: y1 - y0 };
   };
@@ -904,8 +956,9 @@ export function proponer(p: ProyectoLot): Modelo {
         emitir({ x: bb.minX, y: st.pos + fr.a, w: bb.w, h: alto }, fr.tipo);
       } else {
         const borde: "s" | "n" = fr.a < st.span / 2 ? "s" : "n";
+        const holgura = fr.tipo === "vereda" ? -0.35 : fr.tipo === "estacionamiento" || fr.tipo === "jardin" ? 0.35 : 0.2;
         for (const col of cols) {
-          const rec = recortarX(col, st, borde);
+          const rec = recortarX(col, st, borde, holgura);
           if (rec.w > 0.15) emitir({ x: rec.x, y: st.pos + fr.a, w: rec.w, h: alto }, fr.tipo);
         }
       }
@@ -925,8 +978,9 @@ export function proponer(p: ProyectoLot): Modelo {
       if (fr.tipo === "calzada" || fr.tipo === "separador") {
         emitir({ x: st.pos + fr.a, y: bb.minY, w: anchoFr, h: bb.h }, fr.tipo);
       } else {
+        const holgura = fr.tipo === "vereda" ? -0.35 : fr.tipo === "estacionamiento" || fr.tipo === "jardin" ? 0.35 : 0.2;
         for (const band of bandas) {
-          const rec = recortarY(band, st);
+          const rec = recortarY(band, st, holgura);
           if (rec.h > 0.15) emitir({ x: st.pos + fr.a, y: rec.y, w: anchoFr, h: rec.h }, fr.tipo);
         }
       }
@@ -938,8 +992,14 @@ export function proponer(p: ProyectoLot): Modelo {
   }
   for (const esq of esquinas) {
     if (esq.vereda.length >= 3) {
-      const vereda = clipByConvex(local, esq.vereda);
-      if (vereda.length >= 3) franjas.push({ tipo: "vereda", poly: vereda.map(toWorld), soloVista: true });
+      const marco: V2[][] = [];
+      const sardinel = esq.vereda.slice(1, -1).map(toWorld);
+      for (let i = 0; i < sardinel.length - 1; i++) marco.push([sardinel[i], sardinel[i + 1]]);
+      if (esq.vereda.length >= 2) marco.push([toWorld(esq.vereda[0]), toWorld(esq.vereda[esq.vereda.length - 1])]);
+      franjas.push({ tipo: "vereda", poly: esq.vereda.map(toWorld), soloVista: true, lineas: marco });
+    }
+    if (esq.pista.length >= 3) {
+      franjas.push({ tipo: "calzada", poly: esq.pista.map(toWorld), soloVista: true });
     }
   }
   const hitVia = (rect: Rect): V2[] => {
@@ -1200,12 +1260,24 @@ export function proponer(p: ProyectoLot): Modelo {
       "radios",
       "GH.020",
       esquinas.length
-        ? `Martillo del sardinel: ${radiosUsados.map((r) => r.toFixed(2)).join(" m y ")} m. En cada cruce manda el mayor: 3.00 m en local secundaria o acceso exclusivo, y 5.00 m en local principal. Ochavo recto de 3.00 m sobre cada frente de la manzana, o el retiro que exija el radio para no angostar la vereda.`
+        ? `Martillo del sardinel: ${radiosUsados.map((r) => r.toFixed(2)).join(" m y ")} m. La curva es vereda: el estacionamiento o el jardín se cortan en la tangente y no entran al retorno. En cada cruce manda el mayor radio: 3.00 m en local secundaria o acceso exclusivo, y 5.00 m en local principal. Ochavo recto de 3.00 m sobre cada frente.`
         : `Sin cruces internos. El radio exigible de la acera sigue siendo ${radioEsquina(c.tipoVia).toFixed(2)} m al sardinel.`,
       esquinas.length ? "cumple" : "info",
       esquinas.length ? `${esquinas.length} curvas` : `Radio ${radioEsquina(c.tipoVia).toFixed(2)} m`,
     ),
   );
+  const conJardin = [...hCalles, ...vCalles].filter((st) => st.lateral === "jardin");
+  if (conJardin.length) {
+    checks.push(
+      ver(
+        "jardin-via",
+        "GH.020 Art. 9",
+        `Berma jardín en lugar del módulo de estacionamiento: ${conJardin.map((v) => `${v.nombre} ${v.seccion.estacionamiento.toFixed(2)} m`).join(", ")}. El ancho no baja de 1.00 m y el martillo del cruce permanece en la vereda.`,
+        "observacion",
+        `${conJardin.length} vía(s)`,
+      ),
+    );
+  }
   checks.push(
     ver(
       "nomenclatura",
@@ -1219,6 +1291,7 @@ export function proponer(p: ProyectoLot): Modelo {
   const ornato = disenarParques(
     lotes.filter((l) => l.uso === "recreacion" || l.uso === "parque-zonal").map((l) => l.poly),
     p.parques ?? [],
+    p.trazaVias ?? "recta",
   );
   ornato.forEach((pk, i) => {
     checks.push(ver(`parque-${i + 1}`, "GH.020 Art. 29 y 56.e", `${pk.nombre}. ${pk.nota}`, "info", pk.categoria === "activa" ? "Recreación activa" : "Recreación pasiva"));
@@ -1228,28 +1301,38 @@ export function proponer(p: ProyectoLot): Modelo {
   const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const cortes: CorteVia[] = [...hCalles, ...vCalles].map((st, i) => {
     const letra = letras[i] ?? String(i + 1);
-    const fuera = 11;
+    const fuera = 8;
+    const medioCol = cols[Math.floor(cols.length / 2)];
+    const medioBan = bandas[Math.floor(bandas.length / 2)];
     if (st.orientacion === "h") {
-      const x = bb.minX + bb.w * (0.22 + (i % 6) * 0.1);
+      const x = medioCol ? medioCol.x + medioCol.w / 2 : bb.minX + bb.w / 2;
+      const yc = st.pos + st.span / 2;
       return {
         letra,
         titulo: `${letra}-${letra}`,
         via: st.nombre,
         orientacion: "h" as const,
         seccion: st.seccion,
+        lateral: st.lateral,
         a: toWorld({ x, y: st.pos - fuera }),
         b: toWorld({ x, y: st.pos + st.span + fuera }),
+        eje0: toWorld({ x: bb.minX + 6, y: yc }),
+        eje1: toWorld({ x: bb.maxX - 6, y: yc }),
       };
     }
-    const y = bb.minY + bb.h * (0.22 + (i % 6) * 0.1);
+    const y = medioBan ? medioBan.y + medioBan.h / 2 : bb.minY + bb.h / 2;
+    const xc = st.pos + st.span / 2;
     return {
       letra,
       titulo: `${letra}-${letra}`,
       via: st.nombre,
       orientacion: "v" as const,
       seccion: st.seccion,
+      lateral: st.lateral,
       a: toWorld({ x: st.pos - fuera, y }),
       b: toWorld({ x: st.pos + st.span + fuera, y }),
+      eje0: toWorld({ x: xc, y: bb.minY + 6 }),
+      eje1: toWorld({ x: xc, y: bb.maxY - 6 }),
     };
   });
   return {

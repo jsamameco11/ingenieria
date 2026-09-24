@@ -98,7 +98,7 @@ body {
 
 .app-signature {
   position: fixed;
-  top: 14px;
+  top: 52px;
   right: 22px;
   font-family: var(--ui);
   font-size: 11px;
@@ -112,14 +112,13 @@ body {
   .app-signature {
     display: flex;
     align-items: center;
-    top: 0;
-    height: var(--chrome-h);
+    top: calc(var(--chrome-h) + 6px);
+    height: auto;
     right: max(12px, var(--safe-right));
     font-size: 10px;
     letter-spacing: 0.14em;
-    z-index: 60;
+    z-index: 55;
   }
-  .app.has-module .app-signature { display: none; }
 }
 
 .sidebar {
@@ -1463,6 +1462,14 @@ button.nav-label.nav-label-white {
   min-height: 720px;
   width: 100%;
 }
+.croquis-steel.croquis-strip .croquis-stage svg,
+.paper .croquis-steel.croquis-strip .croquis-stage svg,
+.fig-inline .croquis-steel.croquis-a1.croquis-strip .croquis-stage svg,
+.croquis-steel.croquis-a1.croquis-strip .croquis-stage svg {
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
 .paper .croquis-didactica .croquis-stage svg,
 .fig-inline .croquis-didactica .croquis-stage svg,
 .croquis-didactica .croquis-stage svg {
@@ -1502,6 +1509,26 @@ button.nav-label.nav-label-white {
 .steel-schedule td:nth-child(n+4) {
   font-family: var(--mono);
   font-size: 11px;
+}
+.steel-sch-cap {
+  margin: 12px 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #163a63;
+}
+.steel-sch-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #5a4a28;
+}
+.platea-fem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  padding: 8px 10px 4px;
+}
+.platea-fem-grid .mae-fig {
+  margin: 0;
 }
 .croquis-cap {
   margin: 0;
@@ -2196,10 +2223,10 @@ html.is-printing .sd-props {
   overflow: visible;
 }
 .croquis-board-tanque-fem .fig-stack-tanque .croquis-stage-stack svg {
-  max-height: min(210px, 26vh);
+  max-height: min(150px, 18vh);
 }
 .croquis-board-tanque-fem .fig-stack-tanque .croquis-fem .croquis-stage svg {
-  max-height: 360px;
+  max-height: 400px;
 }
 .paper .croquis-fem .croquis-stage svg {
   max-height: none;
@@ -2215,6 +2242,10 @@ html.is-printing .sd-props {
     max-height: none;
     overflow: visible;
   }
+}
+.croquis-board.croquis-board-muro-fem {
+  min-height: 0;
+  align-items: stretch;
 }
 .croquis-board.croquis-board-muro-fem .ficha {
   max-height: 560px;
@@ -2829,6 +2860,13 @@ select.ficha-input {
   .fig-inline .croquis-steel.croquis-a1 .croquis-stage svg {
     max-height: 250mm !important;
     min-height: 180mm;
+  }
+  .croquis-steel.croquis-strip svg,
+  .croquis-steel.croquis-strip .croquis-stage svg,
+  .fig-inline .croquis-steel.croquis-a1.croquis-strip .croquis-stage svg {
+    min-height: 0 !important;
+    max-height: none !important;
+    height: auto !important;
   }
   .croquis-didactica svg {
     max-height: 165mm !important;
@@ -11666,9 +11704,16 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-end;
+  align-items: center;
   padding: 14px 18px 8px;
   border-bottom: 1px solid var(--line);
+}
+.lz-head-main { min-width: 0; flex: 1; }
+.lz-head-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 .lz-head h2 {
   margin: 0;
@@ -11690,16 +11735,15 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   line-height: 1.4;
   color: var(--muted);
 }
-.lz-head-tools {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-left: auto;
-}
 .lz-dibujar {
   min-width: 108px;
 }
-.lz-menu { position: relative; }
+.lz-menu {
+  position: fixed;
+  top: 10px;
+  right: 18px;
+  z-index: 70;
+}
 .lz-menu-list {
   position: absolute;
   right: 0;
@@ -11791,6 +11835,30 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+}
+.lz-body:has(.lz-cortes-lamina) {
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr) minmax(240px, 340px);
+}
+.lz-cortes-lamina {
+  overflow: auto;
+  min-height: 0;
+  padding: 10px 10px 18px;
+  border-left: 1px solid var(--line);
+  background: #f3efe6;
+}
+.lz-cortes-lamina h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lz-cortes-lamina figure { margin: 0 0 10px; }
+.lz-cortes-lamina svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #fffefb;
+  border: 1px solid #1c1c1c;
 }
 .lz-side {
   overflow: auto;
@@ -11963,10 +12031,21 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   font-family: var(--mono);
 }
 @media (max-width: 980px) {
-  .lz-body { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 42vh) minmax(0, 1fr); }
+  .lz-body, .lz-body:has(.lz-cortes-lamina) { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 38vh) minmax(0, 1fr) auto; }
+  .lz-cortes-lamina { max-height: 42vh; border-left: 0; border-top: 1px solid var(--line); }
   .lz-board { order: -1; }
   .lz-side { border-right: 0; border-top: 1px solid var(--line); }
-  .lz-head { flex-direction: column; align-items: flex-start; }
+  .lz-head { flex-direction: column; align-items: flex-start; padding-right: 12px; }
+  .lz-head-row { width: 100%; }
+  .lz-dibujar { margin-left: auto; }
+  .lz-menu {
+    top: 0;
+    height: var(--chrome-h);
+    display: flex;
+    align-items: center;
+    right: max(76px, calc(var(--safe-right) + 64px));
+  }
+  .lz-menu > .btn { min-height: 34px; padding: 6px 10px; font-size: 13px; }
   .lz-pt { grid-template-columns: 1fr 1fr; }
 }
 

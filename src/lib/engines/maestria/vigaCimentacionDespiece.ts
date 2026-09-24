@@ -14,12 +14,13 @@ import { ldTension } from "./steel";
  * Motor de renderizado propio de la viga de cimentación (elevación A1).
  * No comparte lógica de planta de losa/zapata ni de cortes de muro.
  *
- * Lechos:
- *  — Inferior: continuo de extremo a extremo (M− entre apoyos), gancho 90° hacia el alma.
- *  — Superior: solo sobre apoyos (L_teo = 0,30 ℓn, capado al tercio de vano). Nunca cruza el
- *    centro del tramo: ahí no hay tracción superior.
+ * Lechos (E.060: mínimo dos barras corridas arriba y abajo):
+ *  — Inferior: todo el lecho, continuo de extremo a extremo, gancho 90° hacia el alma.
+ *    Se dibujan dos líneas para leer el par corrido; la marca lleva el n real.
+ *  — Superior: dos barras corridas de extremo a extremo. El resto del As de apoyo
+ *    (si n > 2) se corta sobre cada columna: 0,30 ℓn + ℓd, sin cruzar el tercio central.
  *  — Temperatura / piel: Ø 1/2" a media altura, únicamente si h ≥ 70 cm (E.060 10.6.7).
- *  — Estribos: ticks verticales de recubrimiento a recubrimiento (no puntos a media altura).
+ *  — Estribos: trazo fino, de recubrimiento a recubrimiento. Misma escala que la longitud.
  */
 
 const TEMP_H_MIN_CM = 70;
@@ -116,22 +117,33 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
   }
   const nodes = [0, ...colsX, L];
 
-  const padL = 92;
-  const padR = 176;
-  const padT = 108;
-  const padB = 118;
-  const scX = 1040 / Math.max(L, 2);
-  const beamHpx = Math.max(148, Math.min(210, 28 + hCm * 2.35));
+  const padL = 120;
+  const padR = 168;
+  const padB = 152;
+  const scX = 1080 / Math.max(L, 2);
+  const beamHpx = Math.max(hM, 0.25) * scX;
+  const stubH = Math.max(14, 0.4 * scX);
+  const padT = Math.ceil(stubH + 78);
   const W = Math.ceil(padL + L * scX + padR);
   const H = Math.ceil(padT + beamHpx + padB);
   const beamY = padT;
   const X = (x: number) => padL + x * scX;
-  const recPx = Math.min(beamHpx * 0.16, Math.max(11, (rec / Math.max(hCm, 1)) * beamHpx));
-  const yInf = beamY + beamHpx - recPx - 2;
-  const ySup = beamY + recPx + 2;
+  const recPx = Math.max(2.2, (rec / 100) * scX);
   const yMid = beamY + beamHpx / 2;
-  const rInf = Math.min(9, Math.max(4, 0.12 * recPx * inf.db));
-  const hHook = Math.min(18, Math.max(9, 0.22 * recPx * inf.db + 6));
+  const room = beamHpx - 2 * recPx - 2;
+  const barGap = Math.max(3.6, Math.min(7, (room - 8) / 2));
+  const inset = Math.max(2.1, recPx * 0.35);
+  const ySupA = beamY + recPx + inset;
+  const ySupB = Math.min(yMid - barGap, ySupA + barGap);
+  const yInfA = beamY + beamHpx - recPx - inset;
+  const yInfB = Math.max(yMid + barGap, yInfA - barGap);
+  const ySupExtra = Math.min(yMid - 1.5, ySupB + barGap);
+  const hookOf = (y: number, dbCm: number, toward: "up" | "down") => {
+    const target = toward === "up" ? ySupA : yInfA;
+    const room = Math.max(4, Math.abs(y - target) - 3.5);
+    return Math.min((12 * dbCm) / 100 * scX, room);
+  };
+  const radOf = (dbCm: number) => Math.max(1.1, Math.min(3.2, (dbCm / 100) * scX * 2));
 
   const outline = ptsStr([
     { x: X(0), y: beamY },
@@ -146,53 +158,58 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
     { x: X(0) + recPx, y: beamY + beamHpx - recPx },
   ]);
 
-  const infPath = pathBothHooks90(
-    { x: X(0) + recPx, y: yInf },
-    { x: X(L) - recPx, y: yInf },
-    "up",
-    "up",
-    rInf,
-    hHook,
-  );
+  const xSteel0 = X(0) + recPx;
+  const xSteel1 = X(L) - recPx;
+  const corrido = (y: number, dbCm: number, toward: "up" | "down") =>
+    pathBothHooks90({ x: xSteel0, y }, { x: xSteel1, y }, toward, toward, radOf(dbCm), hookOf(y, dbCm, toward));
 
-  // Superior: un solo corte por apoyo interior. No invade el tercio central del vano.
+  const nInf = Math.max(2, inf.n);
+  const nSupRun = 2;
+  const nSupExtra = Math.max(0, sup.n - nSupRun);
+  const infPaths = [corrido(yInfA, inf.db, "up"), corrido(yInfB, inf.db, "up")];
+  const supRunPaths = [corrido(ySupA, sup.db, "down"), corrido(ySupB, sup.db, "down")];
+
+  // Resto del As superior: un corte por apoyo. No invade el tercio central del vano.
   const supPaths: { x: number; y: number }[][] = [];
-  for (let i = 1; i < nodes.length - 1; i++) {
-    const cx = nodes[i];
-    const lnL = Math.max(nodes[i] - nodes[i - 1], 0.4);
-    const lnR = Math.max(nodes[i + 1] - nodes[i], 0.4);
-    const reachL = Math.min(0.3 * lnL + ldSupM, 0.42 * lnL);
-    const reachR = Math.min(0.3 * lnR + ldSupM, 0.42 * lnR);
-    const xa = Math.max(recPx / scX, cx - reachL);
-    const xb = Math.min(L - recPx / scX, cx + reachR);
-    if (xb - xa < 0.25) continue;
-    const y = ySup;
-    supPaths.push([
-      { x: X(xa), y },
-      { x: X(xb), y },
-    ]);
+  if (nSupExtra > 0) {
+    for (let i = 1; i < nodes.length - 1; i++) {
+      const cx = nodes[i];
+      const lnL = Math.max(nodes[i] - nodes[i - 1], 0.4);
+      const lnR = Math.max(nodes[i + 1] - nodes[i], 0.4);
+      const reachL = Math.min(0.3 * lnL + ldSupM, 0.42 * lnL);
+      const reachR = Math.min(0.3 * lnR + ldSupM, 0.42 * lnR);
+      const xa = Math.max(recPx / scX, cx - reachL);
+      const xb = Math.min(L - recPx / scX, cx + reachR);
+      if (xb - xa < 0.25) continue;
+      supPaths.push([
+        { x: X(xa), y: ySupExtra },
+        { x: X(xb), y: ySupExtra },
+      ]);
+    }
   }
 
   const showTemp = hCm + 1e-9 >= TEMP_H_MIN_CM;
   const tempDef = barByName(TEMP_BAR);
-  const tempPath = showTemp
-    ? pathBothHooks90(
-        { x: X(0) + recPx, y: yMid },
-        { x: X(L) - recPx, y: yMid },
-        "up",
-        "up",
-        Math.min(6, rInf),
-        Math.min(12, hHook),
-      )
-    : [];
+  const tempPath = showTemp ? corrido(yMid, tempDef.db, "up") : [];
 
   const estXs = stirrupXs(L, lZona, sAp, sCe);
-  const estPaths = estXs.map((x) => [
-    { x: X(x), y: ySup },
-    { x: X(x), y: yInf },
-  ]);
+  const ySt0 = beamY + recPx;
+  const ySt1 = beamY + beamHpx - recPx;
+  const minStPx = 1.7;
+  let lastSt = -1e9;
+  const estPaths = estXs
+    .filter((x) => {
+      const px = X(x);
+      if (px - lastSt < minStPx) return false;
+      lastSt = px;
+      return true;
+    })
+    .map((x) => [
+      { x: X(x), y: ySt0 },
+      { x: X(x), y: ySt1 },
+    ]);
 
-  const colW = Math.max(10, Math.min(22, 0.35 * bCm));
+  const colW = Math.max(8, bM * scX);
   const regions = [
     {
       points: outline,
@@ -201,8 +218,8 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
     },
     ...colsX.map((x) => ({
       points: ptsStr([
-        { x: X(x) - colW / 2, y: beamY - 36 },
-        { x: X(x) + colW / 2, y: beamY - 36 },
+        { x: X(x) - colW / 2, y: beamY - stubH },
+        { x: X(x) + colW / 2, y: beamY - stubH },
         { x: X(x) + colW / 2, y: beamY },
         { x: X(x) - colW / 2, y: beamY },
       ]),
@@ -215,13 +232,13 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
     {
       mark: 1,
       name: "Longitudinal inferior corrido",
-      face: `Cara del suelo · ${inf.n} Ø ${inf.bar}`,
+      face: `Cara del suelo · ${nInf} Ø ${inf.bar} · mínimo 2 corridos`,
       bar: inf.bar,
       dbCm: inf.db,
       sCm: 0,
-      nReal: inf.n,
-      qty: `${inf.n} Ø`,
-      asProv: inf.n * inf.as,
+      nReal: nInf,
+      qty: `${nInf} Ø`,
+      asProv: nInf * inf.as,
       asReq: asInfReq || undefined,
       asUnit: "cm²",
       ldCm: ldInf,
@@ -229,24 +246,48 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
       color: STEEL_FLEX,
       side: "bottom",
       draw: "bar",
-      bars: [infPath[Math.floor(infPath.length / 2)]],
-      barPath: infPath,
-      attach: { x: X(L * 0.38), y: yInf },
-      callout: { x: X(L * 0.38), y: beamY + beamHpx + 52, anchor: "middle" },
+      bars: [infPaths[0][Math.floor(infPaths[0].length / 2)]],
+      barPath: infPaths[0],
+      barPaths: infPaths,
+      attach: { x: X(L * 0.22), y: yInfA },
+      callout: { x: X(L * 0.22), y: beamY + beamHpx + 46, anchor: "middle" },
+    },
+    {
+      mark: 2,
+      name: "Longitudinal superior corrido",
+      face: `2 Ø ${sup.bar} de extremo a extremo · el par mínimo del lecho`,
+      bar: sup.bar,
+      dbCm: sup.db,
+      sCm: 0,
+      nReal: nSupRun,
+      qty: `${nSupRun} Ø`,
+      asProv: nSupRun * sup.as,
+      asReq: nSupExtra > 0 ? undefined : asSupReq || undefined,
+      asUnit: "cm²",
+      ldCm: ldSup,
+      recCm: rec,
+      color: STEEL_DIST,
+      side: "top",
+      draw: "bar",
+      bars: [supRunPaths[0][Math.floor(supRunPaths[0].length / 2)]],
+      barPath: supRunPaths[0],
+      barPaths: supRunPaths,
+      attach: { x: X(L * 0.78), y: ySupA },
+      callout: { x: X(L * 0.78), y: beamY - stubH - 44, anchor: "middle" },
     },
     ...(supPaths.length
       ? [
           {
-            mark: 2,
+            mark: 3,
             name: "Longitudinal superior en apoyos",
-            face: `Cortes sobre columna · ${sup.n} Ø ${sup.bar} · 0,30ℓn (no al centro)`,
+            face: `Adicional de momento negativo · ${nSupExtra} Ø ${sup.bar} · 0,30ℓn + ℓd`,
             bar: sup.bar,
             dbCm: sup.db,
             sCm: 0,
-            nReal: sup.n,
-            qty: `${sup.n} Ø`,
-            asProv: sup.n * sup.as,
-            asReq: asSupReq || undefined,
+            nReal: nSupExtra,
+            qty: `${nSupExtra} Ø`,
+            asProv: nSupExtra * sup.as,
+            asReq: Math.max(0, (asSupReq || 0) - nSupRun * sup.as) || undefined,
             asUnit: "cm²" as const,
             ldCm: ldSup,
             recCm: rec,
@@ -256,19 +297,19 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
             bars: [supPaths[0][Math.floor(supPaths[0].length / 2)]],
             barPath: supPaths[0],
             barPaths: supPaths,
-            attach: { x: X(colsX[0] ?? L / 3), y: ySup },
-            callout: { x: X(colsX[0] ?? L / 3), y: beamY - 50, anchor: "middle" as const },
+            attach: { x: X(colsX[0] ?? L / 3), y: ySupExtra },
+            callout: { x: X(colsX[0] ?? L / 3), y: beamY - stubH - 44, anchor: "middle" as const },
           } satisfies SteelLayer,
         ]
       : []),
     {
-      mark: supPaths.length ? 3 : 2,
+      mark: supPaths.length ? 4 : 3,
       name: `Estribos Ø ${estBar}`,
       face: `1@5 + @${sAp} en 2h · @${sCe} al centro`,
       bar: barByName(estBar).name,
       dbCm: estDb,
       sCm: sAp,
-      nReal: estPaths.length,
+      nReal: estXs.length,
       qty: `@${sAp}/${sCe} cm`,
       asProv: (barByName(estBar).as * 2 * 100) / Math.max(sAp, 1),
       asUnit: "cm²/m",
@@ -276,9 +317,10 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
       color: "#1a4473",
       side: "right",
       draw: "bar",
+      hair: true,
       bars: estPaths.map((p) => p[0]),
       barPaths: estPaths,
-      attach: { x: X(L) - 8, y: yMid },
+      attach: { x: X(L) - 4, y: yMid },
       callout: { x: X(L) + 78, y: yMid, anchor: "middle" },
     },
   ];
@@ -307,35 +349,16 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
   }
 
   const annos = [
-    ...colsX.map((x, i) => ({ x: X(x), y: beamY - 44, text: `C${i + 1}`, anchor: "middle" as const, fill: "#8b1e1e" })),
-    { x: X(0) - 8, y: beamY + beamHpx + 16, text: "0+00", anchor: "end" as const, fill: "#163a63" },
-    { x: X(L) + 8, y: beamY + beamHpx + 16, text: `${L.toFixed(2)} m`, anchor: "start" as const, fill: "#163a63" },
+    ...colsX.map((x, i) => ({ x: X(x), y: beamY - stubH - 8, text: `C${i + 1}`, anchor: "middle" as const, fill: "#8b1e1e" })),
+    { x: X(0) - 8, y: beamY + beamHpx + 14, text: "0+00", anchor: "end" as const, fill: "#163a63" },
   ];
 
   const dims = [
-    { x1: X(0), y1: beamY + beamHpx + 28, x2: X(L), y2: beamY + beamHpx + 28, label: `L = ${L.toFixed(2)} m`, side: "bottom" as const },
-    { x1: X(L) + 28, y1: beamY, x2: X(L) + 28, y2: beamY + beamHpx, label: `h = ${hCm} cm`, side: "right" as const },
+    { x1: X(0), y1: beamY + beamHpx + 26, x2: X(L), y2: beamY + beamHpx + 26, label: `L = ${L.toFixed(2)} m`, side: "bottom" as const },
+    { x1: X(0) - 36, y1: beamY, x2: X(0) - 36, y2: beamY + beamHpx, label: `h = ${(hCm / 100).toFixed(2)} m`, side: "left" as const },
     ...(colsX[0]
-      ? [{ x1: X(0), y1: beamY - 22, x2: X(colsX[0]), y2: beamY - 22, label: `ℓ1 = ${colsX[0].toFixed(2)} m`, side: "top" as const }]
+      ? [{ x1: X(0), y1: beamY - 12, x2: X(colsX[0]), y2: beamY - 12, label: `ℓ1 = ${colsX[0].toFixed(2)} m`, side: "top" as const }]
       : []),
-    ...(() => {
-      const extra: { x1: number; y1: number; x2: number; y2: number; label: string; side: "top"; tiny: true }[] = [];
-      if (nodes.length >= 3) {
-        const cx = nodes[1];
-        const lnR = Math.max(nodes[2] - nodes[1], 0.4);
-        const reachR = Math.min(0.3 * lnR + ldSupM, 0.42 * lnR);
-        extra.push({
-          x1: X(cx),
-          y1: ySup - 16,
-          x2: X(Math.min(L - recPx / scX, cx + reachR)),
-          y2: ySup - 16,
-          label: `eje→ext. ${reachR.toFixed(2)} m (L_teo+ℓd)`,
-          side: "top",
-          tiny: true,
-        });
-      }
-      return extra;
-    })(),
   ];
 
   const tempNote = showTemp
@@ -345,15 +368,17 @@ export function buildVigaCimentacionDespieceSpec(values: Record<string, string>)
   return {
     title: "ELEVACIÓN — DESPIECE DE VIGA DE CIMENTACIÓN · HOJA A1",
     subtitle: `VC ${bCm}×${hCm} cm · L = ${L.toFixed(2)} m · ${colsX.length} apoyos · estribos verticales`,
-    caption: `1  ${inf.n}Ø ${inf.bar} inf. corrido   ·   2  ${sup.n}Ø ${sup.bar} sup. solo en apoyos   ·   ${estBar} @ ${sAp}/${sCe} cm${showTemp ? `   ·   temp. 2Ø ${TEMP_BAR}` : ""}   ·   rec ${rec.toFixed(1)} cm`,
-    note: `Viga invertida de extremos libres. Inferior corrido con gancho 90°. Superior únicamente sobre columnas (0,30ℓn, sin entrar al tercio central). Estribos dibujados de canto a canto, no como puntos a media altura.${tempNote} Rec contra suelo ≥ 7,5 cm.`,
+    caption: `1  ${nInf}Ø ${inf.bar} inf. corrido   ·   2  2Ø ${sup.bar} sup. corrido${nSupExtra ? `   ·   3  ${nSupExtra}Ø ${sup.bar} sup. en apoyos` : ""}   ·   ${estBar} @ ${sAp}/${sCe} cm${showTemp ? `   ·   temp. 2Ø ${TEMP_BAR}` : ""}   ·   rec ${rec.toFixed(1)} cm`,
+    note: `Escala uniforme: el peralte y la longitud usan la misma escala gráfica. En cada lecho van al menos 2 barras corridas de extremo a extremo, con gancho 90°.${nSupExtra ? ` El As superior de apoyo se completa con ${nSupExtra} Ø ${sup.bar} cortados a 0,30ℓn + ℓd, sin entrar al tercio central.` : " El superior de cálculo cabe en las 2 barras corridas."} Estribos en trazo fino, de recubrimiento a recubrimiento.${tempNote} Rec contra suelo ≥ 7,5 cm.`,
     W,
     H,
     sheet: "a1",
     pxPerM: scX,
-    lineScale: 0.58,
+    lineScale: 0.72,
     markBoxes: true,
     mode: "section",
+    footer: "Elevación · escala uniforme",
+    layout: "elevation",
     outline,
     cover,
     regions,

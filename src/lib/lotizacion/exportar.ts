@@ -1,14 +1,8 @@
 import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta, cartelaSvg, simboloCorte } from "./dibujo";
+import { DxfDoc } from "./dxf";
 import { dxfDeSeccion, svgSeccion } from "./seccionVia";
 import type { Meta, Modelo, Trazo } from "./tipos";
 import { NORMA, pavimentoVacio } from "./norma";
-
-function dxfText(s: string): string {
-  return s.replace(/[^\x20-\x7E]/g, (ch) => {
-    const c = ch.codePointAt(0) ?? 63;
-    return `\\U+${c.toString(16).toUpperCase().padStart(4, "0")}`;
-  });
-}
 
 const CAPAS: { name: string; color: number }[] = [
   { name: "MC-PERIMETRO", color: 7 },
@@ -17,7 +11,8 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-CALZADA", color: 8 },
   { name: "MC-VEREDA", color: 9 },
   { name: "MC-OCHAVO", color: 7 },
-  { name: "MC-ESTACIONAMIENTO", color: 3 },
+  { name: "MC-ESTACIONAMIENTO", color: 8 },
+  { name: "MC-JARDIN", color: 3 },
   { name: "MC-SEPARADOR", color: 3 },
   { name: "MC-LOTE", color: 7 },
   { name: "MC-MANZANA", color: 4 },
@@ -33,11 +28,13 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-CORTE", color: 7 },
   { name: "MC-SECCION", color: 7 },
   { name: "MC-VEHICULO", color: 7 },
+  { name: "MC-MARCAS", color: 7 },
   { name: "MC-PERSONA", color: 7 },
   { name: "MC-PARQUE-CESPED", color: 3 },
   { name: "MC-PARQUE-CANCHA", color: 3 },
   { name: "MC-PARQUE-LINEA", color: 7 },
   { name: "MC-PARQUE-SENDERO", color: 32 },
+  { name: "MC-PARQUE-EMPALME", color: 32 },
   { name: "MC-PARQUE-BANCA", color: 32 },
   { name: "MC-PARQUE-FLOR", color: 1 },
   { name: "MC-PARQUE-ARBOL", color: 3 },
@@ -67,150 +64,60 @@ function capaDeUso(uso: string): string {
 
 function capaFranja(tipo: string): string {
   if (tipo === "calzada" || tipo === "existente-calzada") return "MC-CALZADA";
-  if (tipo === "vereda" || tipo === "existente-vereda") return "MC-VEREDA";
+  if (tipo === "vereda" || tipo === "rampa" || tipo === "existente-vereda") return "MC-VEREDA";
   if (tipo === "estacionamiento") return "MC-ESTACIONAMIENTO";
+  if (tipo === "jardin") return "MC-JARDIN";
   if (tipo === "separador") return "MC-SEPARADOR";
   return "MC-VEREDA";
 }
 
-function trueColor(hex: string): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m || hex === "none") return "";
-  return `420\n${parseInt(m[1], 16)}`;
-}
-
-function lwpoly(capa: string, pts: { x: number; y: number; bulge?: number }[], cerrada: boolean, hex = ""): string {
-  if (pts.length < 2) return "";
-  const body = pts
-    .map((p) => {
-      const bulge = p.bulge && Math.abs(p.bulge) > 1e-6 ? `\n42\n${p.bulge.toFixed(6)}` : "";
-      return `10\n${p.x.toFixed(4)}\n20\n${p.y.toFixed(4)}${bulge}`;
-    })
-    .join("\n");
-  const col = trueColor(hex);
-  return `0\nLWPOLYLINE\n8\n${capa}\n${col ? `${col}\n` : ""}90\n${pts.length}\n70\n${cerrada ? 1 : 0}\n${body}\n`;
-}
-
-function textEnt(capa: string, x: number, y: number, h: number, value: string, hex = ""): string {
-  const col = trueColor(hex);
-  return `0\nTEXT\n8\n${capa}\n${col ? `${col}\n` : ""}10\n${x.toFixed(4)}\n20\n${y.toFixed(4)}\n40\n${h.toFixed(3)}\n1\n${dxfText(value)}\n`;
-}
-
-function hatchSolido(capa: string, pts: { x: number; y: number }[], hex: string): string {
-  if (pts.length < 3) return "";
-  let sx = 0;
-  let sy = 0;
-  const verts = pts
-    .map((p) => {
-      sx += p.x;
-      sy += p.y;
-      return `10\n${p.x.toFixed(4)}\n20\n${p.y.toFixed(4)}`;
-    })
-    .join("\n");
-  const cx = sx / pts.length;
-  const cy = sy / pts.length;
-  return [
-    "0",
-    "HATCH",
-    "8",
-    capa,
-    trueColor(hex),
-    "10",
-    "0.0",
-    "20",
-    "0.0",
-    "30",
-    "0.0",
-    "210",
-    "0.0",
-    "220",
-    "0.0",
-    "230",
-    "1.0",
-    "2",
-    "SOLID",
-    "70",
-    "1",
-    "71",
-    "0",
-    "91",
-    "1",
-    "92",
-    "2",
-    "72",
-    "0",
-    "73",
-    "1",
-    "93",
-    String(pts.length),
-    verts,
-    "97",
-    "0",
-    "75",
-    "0",
-    "76",
-    "1",
-    "98",
-    "1",
-    "10",
-    cx.toFixed(4),
-    "20",
-    cy.toFixed(4),
-  ]
-    .filter((line) => line !== "")
-    .join("\n") + "\n";
-}
-
 export function dxfDe(m: Modelo, meta: Meta): string {
-  const capas = CAPAS.map(
-    (c) => `0\nLAYER\n2\n${c.name}\n70\n0\n62\n${c.color}\n6\nCONTINUOUS\n`,
-  ).join("");
-  const ents: string[] = [];
-  if (m.lindero.length >= 3) ents.push(lwpoly("MC-PERIMETRO", [...m.lindero, m.lindero[0]], true));
-  for (const tr of m.cerco) ents.push(lwpoly("MC-CERCO", tr, false));
+  const doc = new DxfDoc(CAPAS);
+  if (m.lindero.length >= 3) doc.polilinea("MC-PERIMETRO", m.lindero, true);
+  for (const tr of m.cerco) doc.polilinea("MC-CERCO", tr, false);
   for (const f of m.franjas) {
     if (f.soloVista) continue;
-    ents.push(lwpoly(capaFranja(f.tipo), [...f.poly, f.poly[0]], true));
+    doc.polilinea(capaFranja(f.tipo), f.poly, true);
   }
-  for (const pl of m.polilineas ?? []) ents.push(lwpoly(pl.capa, pl.pts, pl.cerrada));
+  for (const pl of m.polilineas ?? []) doc.polilinea(pl.capa, pl.pts, pl.cerrada);
   for (const v of m.viasExistentes) {
-    for (const f of v.franjas) ents.push(lwpoly(capaFranja(f.tipo), [...f.poly, f.poly[0]], true));
+    for (const f of v.franjas) doc.polilinea(capaFranja(f.tipo), f.poly, true);
     for (const ln of v.lineas) {
-      ents.push(lwpoly("MC-VIA-EXISTENTE", [ln.a, ln.b], false));
-      ents.push(textEnt("MC-VIA-EXISTENTE", ln.p.x, ln.p.y, 1.6, ln.nombre.split("—")[0].trim()));
+      doc.polilinea("MC-VIA-EXISTENTE", [ln.a, ln.b], false);
+      doc.texto("MC-VIA-EXISTENTE", ln.p.x, ln.p.y, 1.6, ln.nombre.split("—")[0].trim());
     }
   }
   for (const eje of m.ejes) {
-    for (const seg of eje.partes) ents.push(lwpoly("MC-EJE", seg, false));
+    for (const seg of eje.partes) doc.polilinea("MC-EJE", seg, false);
     const seg = eje.partes[0];
     if (seg && seg.length >= 2) {
-      ents.push(textEnt("MC-EJE", (seg[0].x + seg[1].x) / 2, (seg[0].y + seg[1].y) / 2, 2.2, eje.nombre));
+      doc.texto("MC-EJE", (seg[0].x + seg[1].x) / 2, (seg[0].y + seg[1].y) / 2, 2.2, eje.nombre);
     }
   }
   for (const lot of m.lotes) {
     const capa = capaDeUso(lot.uso);
-    if (lot.poly.length >= 3) ents.push(lwpoly(capa, [...lot.poly, lot.poly[0]], true));
+    if (lot.poly.length >= 3) doc.polilinea(capa, lot.poly, true);
     if (lot.uso === "vivienda") {
-      ents.push(textEnt("MC-LOTE-TXT", lot.centro.x, lot.centro.y, 1.8, lot.id));
-      ents.push(textEnt("MC-LOTE-TXT", lot.centro.x, lot.centro.y - 2.2, 1.2, `${lot.area.toFixed(2)} m2`));
+      doc.texto("MC-LOTE-TXT", lot.centro.x, lot.centro.y, 1.8, lot.id);
+      doc.texto("MC-LOTE-TXT", lot.centro.x, lot.centro.y - 2.2, 1.2, `${lot.area.toFixed(2)} m2`);
     } else if (lot.uso !== "residual") {
       const nombre = lot.uso === "recreacion" ? "RECREACION PUBLICA" : lot.uso === "educacion" ? "EDUCACION" : lot.uso === "otros" ? "OTROS FINES" : lot.uso.toUpperCase();
-      ents.push(textEnt(capa, lot.centro.x, lot.centro.y, 2.2, nombre));
-      ents.push(textEnt(capa, lot.centro.x, lot.centro.y - 2.6, 1.4, `${lot.area.toFixed(0)} m2`));
+      doc.texto(capa, lot.centro.x, lot.centro.y, 2.2, nombre);
+      doc.texto(capa, lot.centro.x, lot.centro.y - 2.6, 1.4, `${lot.area.toFixed(0)} m2`);
     } else {
-      ents.push(textEnt(capa, lot.centro.x, lot.centro.y, 1.6, "RESIDUAL"));
+      doc.texto(capa, lot.centro.x, lot.centro.y, 1.6, "RESIDUAL");
     }
   }
   for (const pk of m.parques ?? []) {
     for (const pz of pk.piezas) {
-      if (pz.hatch && pz.pts.length >= 3) ents.push(hatchSolido(pz.capa, pz.pts, pz.fill));
+      if (pz.hatch && pz.pts.length >= 3) doc.hatch(pz.capa, pz.pts, pz.fill);
       const color = pz.fill !== "none" ? pz.fill : pz.stroke;
-      if (pz.pts.length >= 2) ents.push(lwpoly(pz.capa, pz.pts, pz.cerrado && pz.pts.length >= 3, color));
+      if (pz.pts.length >= 2) doc.polilinea(pz.capa, pz.pts, pz.cerrado && pz.pts.length >= 3, color);
     }
-    for (const t of pk.textos) ents.push(textEnt("MC-PARQUE-TXT", t.p.x, t.p.y, t.size, t.text, t.fill));
+    for (const t of pk.textos) doc.texto("MC-PARQUE-TXT", t.p.x, t.p.y, t.size, t.text, t.fill);
   }
   for (const ing of m.ingresos) {
-    ents.push(textEnt("MC-INGRESO", ing.pt.x, ing.pt.y, 2.4, `${ing.nombre} E=${ing.pt.x.toFixed(3)} N=${ing.pt.y.toFixed(3)}`));
+    doc.texto("MC-INGRESO", ing.pt.x, ing.pt.y, 2.4, `${ing.nombre} E=${ing.pt.x.toFixed(3)} N=${ing.pt.y.toFixed(3)}`);
   }
   const nota = [
     meta.proyecto || "Habilitacion urbana",
@@ -221,65 +128,71 @@ export function dxfDe(m: Modelo, meta: Meta): string {
   const caja = cajaModelo(m);
   for (const corte of m.cortes ?? []) {
     for (const tr of simboloCorte(corte.a, corte.b, corte.letra)) {
-      if (tr.t === "poly" && tr.pts && tr.pts.length >= 3) ents.push(lwpoly("MC-CORTE", [...tr.pts, tr.pts[0]], true));
-      else if (tr.t === "line" && tr.a && tr.b) ents.push(lwpoly("MC-CORTE", [tr.a, tr.b], false));
-      else if (tr.t === "text" && tr.p && tr.text) ents.push(textEnt("MC-CORTE", tr.p.x, tr.p.y, tr.size ?? 2.2, tr.text));
+      if (tr.t === "poly" && tr.pts && tr.pts.length >= 3) doc.polilinea("MC-CORTE", tr.pts, true);
+      else if (tr.t === "line" && tr.a && tr.b) doc.polilinea("MC-CORTE", [tr.a, tr.b], false);
+      else if (tr.t === "text" && tr.p && tr.text) doc.texto("MC-CORTE", tr.p.x, tr.p.y, tr.size ?? 2.2, tr.text);
     }
   }
   for (const sim of grafismosPlanta(m)) {
-    ents.push(lwpoly(sim.capa, [...sim.pts, sim.pts[0]], true));
+    doc.polilinea(sim.capa, sim.pts, true);
   }
   const pav = m.pavimento ?? pavimentoVacio();
-  (m.cortes ?? []).forEach((corte, i) => {
-    const col = i % 2;
-    const fila = Math.floor(i / 2);
-    const ox = caja.maxX + 24 + col * 36;
-    const oy = caja.maxY - fila * 12;
-    ents.push(dxfDeSeccion(corte.seccion, pav, `CORTE ${corte.titulo}`, corte.via, ox, oy));
-  });
-  nota.forEach((line, i) => ents.push(textEnt("MC-CAJETIN", caja.minX, caja.minY - 6 - i * 4, 2.5, line)));
+  const cortes = m.cortes ?? [];
+  const planW = Math.max(caja.maxX - caja.minX, 40);
+  const planH = Math.max(caja.maxY - caja.minY, 40);
+  const dibujos = cortes.map((corte) => ({
+    corte,
+    d: svgSeccion(corte.seccion, pav, `CORTE ${corte.titulo}`, corte.via, corte.lateral),
+  }));
+  const sep = planH * 0.03;
+  const altoObj = dibujos.length ? (planH - sep * (dibujos.length - 1)) / dibujos.length : 0;
+  const anchoObj = planW * 0.46;
+  const escala = dibujos.length
+    ? Math.min(...dibujos.map((item) => Math.min(altoObj / item.d.alto, anchoObj / item.d.ancho)))
+    : 1;
+  const colW = dibujos.reduce((m, item) => Math.max(m, item.d.ancho * escala), 0);
+  const oxCorte = caja.maxX + planW * 0.05;
+  let yCorte = caja.maxY;
+  for (const item of dibujos) {
+    const h = item.d.alto * escala;
+    yCorte -= h;
+    dxfDeSeccion(doc, item.corte.seccion, pav, `CORTE ${item.corte.titulo}`, item.corte.via, oxCorte, yCorte, item.corte.lateral, escala);
+    yCorte -= sep;
+  }
+  const contenido = {
+    minX: caja.minX,
+    minY: Math.min(caja.minY, dibujos.length ? yCorte : caja.minY),
+    maxX: caja.maxX + (dibujos.length ? planW * 0.05 + colW + planW * 0.03 : 8),
+    maxY: caja.maxY,
+  };
+  const altoCont = contenido.maxY - contenido.minY;
+  const esc = escalaA1(contenido.maxX - contenido.minX, altoCont);
+  const hojaW = 0.841 * esc;
+  const hojaH = 0.594 * esc;
+  const margen = 0.012 * esc;
+  const cajaH = 0.045 * esc;
+  const ox = contenido.minX - margen - Math.max(0, hojaW - 2 * margen - (contenido.maxX - contenido.minX)) / 2;
+  const oy = contenido.minY - cajaH - margen;
+  doc.polilinea("MC-CAJETIN", [{ x: ox, y: oy }, { x: ox + hojaW, y: oy }, { x: ox + hojaW, y: oy + hojaH }, { x: ox, y: oy + hojaH }], true);
+  doc.polilinea(
+    "MC-CAJETIN",
+    [
+      { x: ox + margen * 0.45, y: oy + margen * 0.45 },
+      { x: ox + hojaW - margen * 0.45, y: oy + margen * 0.45 },
+      { x: ox + hojaW - margen * 0.45, y: oy + hojaH - margen * 0.45 },
+      { x: ox + margen * 0.45, y: oy + hojaH - margen * 0.45 },
+    ],
+    true,
+  );
+  doc.polilinea("MC-CAJETIN", [{ x: ox, y: oy + cajaH }, { x: ox + hojaW, y: oy + cajaH }], false);
+  const tx = Math.max(1.6, esc * 0.0032);
+  nota.forEach((line, i) => doc.texto("MC-CAJETIN", ox + margen, oy + cajaH - tx * 1.6 - i * tx * 1.45, tx, line));
+  doc.texto("MC-CAJETIN", ox + hojaW * 0.62, oy + cajaH * 0.62, tx * 1.35, `ESCALA 1:${esc}`);
+  doc.texto("MC-CAJETIN", ox + hojaW * 0.62, oy + cajaH * 0.28, tx, "FORMATO A1  841 x 594 mm");
+  doc.texto("MC-CAJETIN", ox + hojaW * 0.82, oy + cajaH * 0.62, tx, meta.fecha || "");
+  doc.texto("MC-CAJETIN", ox + hojaW - margen * 3, oy + hojaH - margen * 2.2, tx * 1.4, "N");
 
-  return [
-    "0",
-    "SECTION",
-    "2",
-    "HEADER",
-    "9",
-    "$ACADVER",
-    "1",
-    "AC1024",
-    "9",
-    "$INSUNITS",
-    "70",
-    "6",
-    "0",
-    "ENDSEC",
-    "0",
-    "SECTION",
-    "2",
-    "TABLES",
-    "0",
-    "TABLE",
-    "2",
-    "LAYER",
-    "70",
-    String(CAPAS.length),
-    capas.trimEnd(),
-    "0",
-    "ENDTAB",
-    "0",
-    "ENDSEC",
-    "0",
-    "SECTION",
-    "2",
-    "ENTITIES",
-    ents.join("").trimEnd(),
-    "0",
-    "ENDSEC",
-    "0",
-    "EOF",
-    "",
-  ].join("\n");
+  return doc.serializar({ minX: ox, minY: oy, maxX: ox + hojaW, maxY: oy + hojaH });
 }
 
 function escalaA1(w: number, h: number): number {
@@ -321,7 +234,7 @@ export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
   const pav = m.pavimento ?? pavimentoVacio();
   const cortesHtml = (m.cortes ?? [])
     .map((c) => {
-      const d = svgSeccion(c.seccion, pav, `CORTE ${c.titulo}`, c.via);
+      const d = svgSeccion(c.seccion, pav, `CORTE ${c.titulo}`, c.via, c.lateral);
       return `<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="${d.viewBox}">${d.body}</svg><figcaption>Corte ${c.titulo} · ${c.via} · persona 1.75 m · vehículo a escala</figcaption></figure>`;
     })
     .join("");
@@ -415,7 +328,7 @@ export function trazosPlano(m: Modelo): Trazo[] {
 
 export function descargarTexto(nombre: string, texto: string, mime: string) {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([texto], { type: mime }));
+  a.href = URL.createObjectURL(new Blob([texto], { type: `${mime};charset=us-ascii` }));
   a.download = nombre;
   a.click();
   URL.revokeObjectURL(a.href);

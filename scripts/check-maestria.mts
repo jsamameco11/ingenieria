@@ -115,6 +115,9 @@ assert((draftZ.outline.match(/,/g) ?? []).length >= 6, `despiece L: outline con 
 const draftP = buildPlateaDespieceSpec({ studioJson: dumpMae(exampleModel("platea")), t: "0.50", rec: "7.5" });
 assert(draftP.layers.length >= 4, "platea despiece 4 mallas");
 assert(draftP.dims.some((d) => /eje|L_teo/i.test(d.label)), "platea cota eje→extremo");
+assert((draftP.schedules?.length ?? 0) >= 2, "platea cuadro por paño y taller");
+assert((draftP.schedules?.[0].rows.length ?? 0) >= 4, "platea una fila de acero por paño");
+assert(draftP.layers.every((l) => (l.barPaths?.length ?? 0) >= 2), "platea barras dibujadas por paño");
 assert(draftZ.dims.some((d) => /eje|L_teo/i.test(d.label)), "zapata cota eje→extremo");
 
 console.log("OK engines");

@@ -58,11 +58,18 @@ export type Ingreso = {
   ancho: number;
 };
 
+/** Lo que va entre la vereda y la calzada. El martillo del sardinel sigue siendo vereda. */
+export type LateralVia = "estacionamiento" | "jardin";
+
 /** Sección propia de una vía interna. El id es `h:0` (calle) o `v:0` (jirón). */
 export type AjusteVia = {
   id: string;
   tipo: TipoVia;
   seccion: Seccion;
+  /** Estacionamiento de 2.40 m (GH.020 Art. 9) o berma jardín de al menos 1.00 m. */
+  lateral?: LateralVia;
+  /** Ancho de la berma jardín, en metros. No baja de 1.00. */
+  jardin?: number;
 };
 
 /** Espesores del corte, en metros. Se editan y recién entran al dibujo con Dibujar. */
@@ -80,8 +87,12 @@ export type CorteVia = {
   via: string;
   orientacion: "h" | "v";
   seccion: Seccion;
+  lateral?: LateralVia;
   a: V2;
   b: V2;
+  /** Eje de la calzada. La marca de corte se desliza entre estos dos puntos. */
+  eje0?: V2;
+  eje1?: V2;
 };
 
 export type Meta = {
@@ -111,6 +122,8 @@ export type ProyectoLot = {
   parques?: AjusteParque[];
   /** Cómo se arma el aporte de recreación. */
   modoParque?: ModoParque;
+  /** Recorridos internos: rectos o con curvas suaves. */
+  trazaVias?: "recta" | "curva";
 };
 
 export type CategoriaParque = "pasiva" | "activa";
@@ -124,6 +137,10 @@ export type AjusteParque = {
   clave: string;
   categoria: CategoriaParque;
   estilo?: EstiloParque;
+  /** Largo de la losa, en metros. Vacío: el motor elige según el claro. */
+  largoCancha?: number;
+  /** Ancho de la losa, en metros. */
+  anchoCancha?: number;
 };
 
 export type PiezaParque = {
@@ -162,10 +179,12 @@ export type LoteM = {
 };
 
 export type Franja = {
-  tipo: "vereda" | "estacionamiento" | "calzada" | "separador" | "cerco" | "existente-vereda" | "existente-calzada";
+  tipo: "vereda" | "rampa" | "estacionamiento" | "jardin" | "calzada" | "separador" | "cerco" | "existente-vereda" | "existente-calzada";
   poly: V2[];
   /** Relleno de la curva: el DXF sale como arco (bulge), no como esta poligonal. */
   soloVista?: boolean;
+  /** Pendiente de la rampa, en pares de puntos. */
+  lineas?: V2[][];
 };
 
 export type PuntoPl = { x: number; y: number; bulge?: number };

@@ -39,18 +39,41 @@ const ancha = proponer({
 });
 const via = ancha.viasInternas.find((v) => v.id === id);
 assert(via && via.ancho > anchoAntes + 0.4, `la vía no creció: ${via?.ancho} vs ${anchoAntes}`);
+const conJardin = proponer({
+  ...base,
+  ajustesVias: [{ id, tipo: "local-secundaria", seccion: seccionPorTipo("local-secundaria"), lateral: "jardin", jardin: 1 }],
+});
+const viaJardin = conJardin.viasInternas.find((v) => v.id === id);
+assert(viaJardin && viaJardin.ancho < anchoAntes - 1.5, `el jardín no angosta la vía: ${viaJardin?.ancho} vs ${anchoAntes}`);
+assert(conJardin.franjas.some((f) => f.tipo === "jardin"), "no se graficó la berma jardín");
+assert(conJardin.franjas.some((f) => f.tipo === "vereda" && f.soloVista), "el martillo no se dibuja como vereda");
+assert(
+  conJardin.franjas.some((f) => f.tipo === "vereda" && f.soloVista && (f.lineas?.length ?? 0) >= 8),
+  "el martillo no tiene marco de sardinel",
+);
+assert(Math.abs(conJardin.sinAsignar) < Math.max(40, conJardin.areaBruta * 0.03), `el jardín no cierra el área ${conJardin.sinAsignar.toFixed(1)}`);
+const pk = m.parques[0];
+assert(pk && pk.piezas.some((p) => p.capa === "MC-PARQUE-LINEA"), "la cancha no tiene líneas");
+assert(pk && pk.piezas.filter((p) => p.capa === "MC-PARQUE-CANCHA").length >= 1, "la cancha no se reservó");
+assert(pk && /fútbol 7/i.test(pk.nota), pk?.nota ?? "sin parque");
 assert(Math.abs((via?.radio ?? 0) - 5) < 0.01, "la principal debe usar radio 5 m");
+const principalJardin = proponer({
+  ...base,
+  ajustesVias: [{ id, tipo: "local-principal", seccion: seccionPorTipo("local-principal"), lateral: "jardin", jardin: 1.2 }],
+});
+assert(!principalJardin.franjas.some((f) => f.tipo === "jardin"), "la vía principal no puede llevar jardín");
+assert(principalJardin.franjas.some((f) => f.tipo === "estacionamiento"), "la vía principal debe llevar estacionamiento");
 assert(ancha.areaLotes < m.areaLotes - 1, `las manzanas no cedieron área: ${ancha.areaLotes} vs ${m.areaLotes}`);
 
 const dxf = dxfDe(m, base.meta);
 assert(dxf.includes("MC-MANZANA"), "falta capa de manzana");
-assert(dxf.includes("\n42\n"), "el DXF no trae bulge de arco");
+assert(/\n42\r?\n/.test(dxf), "el DXF no trae bulge de arco");
 const manzanas = dxf.split("MC-MANZANA").length - 1;
 assert(manzanas >= 1, "el DXF no separa manzanas");
 assert(!m.lotes.some((l) => l.uso === "parque-zonal"), "parques zonales siguen como aporte aparte");
 assert(m.cortes.length >= 2, `faltan cortes ${m.cortes.length}`);
 assert(dxf.includes("MC-SECCION"), "el DXF no trae la sección");
-assert(dxf.includes("MC-VEHICULO") || dxf.includes("MC-PERSONA"), "el DXF no trae persona o vehículo");
+assert(dxf.includes("MC-MARCAS"), "el DXF no trae las marcas del pavimento");
 const edu = m.lotes.filter((l) => l.uso === "educacion").reduce((s, l) => s + l.area, 0);
 const otros = m.lotes.filter((l) => l.uso === "otros").reduce((s, l) => s + l.area, 0);
 if (edu > 0) assert(edu + 1 >= 400, `educación ${edu.toFixed(0)} m²`);
@@ -76,7 +99,7 @@ assert(m.cortes.length >= 2 && m.cortes.every((c) => Math.hypot(c.b.x - c.a.x, c
 
 const p90 = proyectoVacio();
 p90.puntos = puntosEjemplo();
-p90.criterios = { ...p90.criterios, areaMin: 90, frenteMin: 8, profundidad: 15 };
+p90.criterios = { ...p90.criterios, areaMin: 90, frenteMin: 6, profundidad: 10 };
 const m90 = proponer(p90);
 const chicos = m90.lotes.filter((l) => l.uso === "vivienda" && l.area < 160);
 assert(chicos.length > 4, `pocos lotes mínimos: ${chicos.length}`);

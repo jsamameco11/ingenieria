@@ -1,8 +1,8 @@
 import { barByName } from "../../types";
 import {
   nAlong,
-  nDraw,
   pathBothHooks90,
+  pathHook90,
   ptsStr,
   STEEL_FLEX,
   STEEL_TEMP,
@@ -10,6 +10,7 @@ import {
   type SteelDraftSpec,
   type SteelLayer,
   type SteelDim,
+  type SteelSchedule,
 } from "../../steelDraft";
 import { parseGrid, type GridModel } from "../../layoutGrid";
 import {
@@ -23,7 +24,7 @@ import {
   parseMae,
 } from "./types";
 import { ldTension, losaNegBarM } from "./steel";
-import { clipHOnRects, clipVOnRects, orthoUnionOutline } from "./drawCommon";
+import { orthoUnionOutline } from "./drawCommon";
 
 function nv(v: Record<string, string>, k: string, fb = 0) {
   const s = String(v[k] ?? "").trim().replace(",", ".");
@@ -154,7 +155,7 @@ function modelFromValues(values: Record<string, string>): { cells: Cell[]; cols:
 function mkLayer(opts: {
   mark: number; name: string; face: string; bar: string; sCm: number; color: string;
   side: SteelLayer["side"]; paths: { x: number; y: number }[][]; recCm: number; nReal: number; ldCm?: number;
-  callout?: SteelLayer["callout"];
+  asReq?: number;
 }): SteelLayer {
   const def = barByName(opts.bar);
   const path = opts.paths[0] ?? [];
@@ -162,18 +163,17 @@ function mkLayer(opts: {
   return {
     mark: opts.mark, name: opts.name, face: opts.face, bar: def.name, dbCm: def.db, sCm: opts.sCm,
     nReal: opts.nReal, asProv: (def.as / Math.max(opts.sCm, 1e-6)) * 100, asUnit: "cm²/m",
-    recCm: opts.recCm, ldCm: opts.ldCm, color: opts.color, side: opts.side, draw: "bar",
+    asReq: opts.asReq, recCm: opts.recCm, ldCm: opts.ldCm, color: opts.color, side: opts.side, draw: "bar",
     bars: [attach], barPath: path.length > 1 ? path : undefined,
-    barPaths: opts.paths.filter((p) => p.length > 1), attach, callout: opts.callout,
+    barPaths: opts.paths.filter((p) => p.length > 1), attach,
   };
 }
 
 /**
- * Motor de renderizado dedicado — despiece de platea en planta A1.
- * Fiel a la planta izquierda: mismos paños pintados, mismas columnas
- * (C1…Cn en sus nudos) y mismas vigas VC1…VCn sobre los ejes que tocan
- * concreto. Mallas inf. continuas + sup. cortadas sobre ejes de columnas,
- * cajas de marca DENTRO del concreto, gancho 90° corto y varilla fina.
+ * Despiece de platea en planta A1, un juego de barras por paño.
+ * Inferior cortado en el paño (gancho 90° en cada eje). Superior en tramos
+ * L_teo+ℓd desde el eje hacia dentro; el resumen de taller junta los dos
+ * tramos del mismo eje en una sola pieza.
  */
 export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDraftSpec {
   const plan = modelFromValues(values);
@@ -199,13 +199,6 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   const recM = rec / 100;
   const cells = plan.cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }));
 
-  const x0s = xy(plan.x0, plan.y0).x;
-  const x1s = xy(plan.x1, plan.y0).x;
-  const yTopS = xy(plan.x0, plan.y1).y;
-  const yBotS = xy(plan.x0, plan.y0).y;
-  const clampX = (x: number) => Math.min(x1s - 78, Math.max(x0s + 78, x));
-  const clampY = (y: number) => Math.min(yBotS - 30, Math.max(yTopS + 30, y));
-
   const regions = plan.cells.map((c) => ({
     points: ptsStr([xy(c.x0, c.y0), xy(c.x1, c.y0), xy(c.x1, c.y1), xy(c.x0, c.y1)]),
     fill: "#e6d9b8",
@@ -223,136 +216,299 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
     });
   }
 
-  // Mallas inferiores continuas (fondo): varias líneas finas por dirección.
-  const spanX = Math.max(Lx - 2 * recM, 0.5);
-  const spanY = Math.max(Ly - 2 * recM, 0.5);
-  const nInfXReal = nAlong(spanY * 100, infX.s);
-  const nInfYReal = nAlong(spanX * 100, infY.s);
-  const nInfXShow = Math.min(nDraw(nInfXReal, 8), 8);
-  const nInfYShow = Math.min(nDraw(nInfYReal, 8), 8);
+  // Cada paño lleva sus barras. El largo y la cantidad del cuadro salen de estas piezas.
+  const eps = 1e-3;
+  const asReqX = nv(values, "AsInfX", nv(values, "AsPos", 0));
+  const asReqY = nv(values, "AsInfY", 0);
+  const asReqSX = nv(values, "AsSupX", nv(values, "AsNeg", 0));
+  const asReqSY = nv(values, "AsSupY", 0);
+  const bayX = plan.cells.length ? Math.min(...plan.cells.map((c) => c.x1 - c.x0)) : Lx;
+  const bayY = plan.cells.length ? Math.min(...plan.cells.map((c) => c.y1 - c.y0)) : Ly;
+  const ldSX = ldTension(fy, fc, supX.db);
+  const ldSY = ldTension(fy, fc, supY.db);
+  const dCm = Math.max(t * 100 - rec, 20);
+  const cutXM = losaNegBarM({ LteoM: 0.3 * Math.max(bayX, 1), dbCm: supX.db, dCm, lnM: Math.max(bayX, 1), recCm: rec, src: "pórtico" });
+  const cutYM = losaNegBarM({ LteoM: 0.3 * Math.max(bayY, 1), dbCm: supY.db, dCm, lnM: Math.max(bayY, 1), recCm: rec, src: "pórtico" });
+  const cutX = Math.max(cutXM.LbarM, ldSX / 100);
+  const cutY = Math.max(cutYM.LbarM, ldSY / 100);
   const rIX = bendR(infX.db, sc);
   const hIX = hookLen(infX.db, sc);
   const rIY = bendR(infY.db, sc);
   const hIY = hookLen(infY.db, sc);
-  const infXPaths: { x: number; y: number }[][] = [];
-  for (let i = 0; i < nInfXShow; i++) {
-    const tt = nInfXShow === 1 ? 0.5 : i / (nInfXShow - 1);
-    const y = plan.y0 + recM + tt * spanY;
-    for (const seg of clipHOnRects(y, plan.x0 + recM, plan.x1 - recM, cells, recM)) {
-      infXPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "up", "up", rIX, hIX));
-    }
-  }
-  const infYPaths: { x: number; y: number }[][] = [];
-  for (let i = 0; i < nInfYShow; i++) {
-    const tt = nInfYShow === 1 ? 0.5 : i / (nInfYShow - 1);
-    const x = plan.x0 + recM + tt * spanX;
-    for (const seg of clipVOnRects(x, plan.y0 + recM, plan.y1 - recM, cells, recM)) {
-      infYPaths.push(pathBothHooks90(xy(x, seg.y0), xy(x, seg.y1), "right", "right", rIY, hIY));
-    }
-  }
-
-  // Superiores cortados sobre ejes de columnas (L_teo + ℓd a cada lado del eje).
-  const colXs = [...new Set(plan.cols.map((c) => c.x))].sort((a, b) => a - b);
-  const colYs = [...new Set(plan.cols.map((c) => c.y))].sort((a, b) => a - b);
-  const stepX = colXs.length >= 2 ? Math.min(...colXs.slice(1).map((x, i) => x - colXs[i])) : Lx / 2;
-  const stepY = colYs.length >= 2 ? Math.min(...colYs.slice(1).map((y, i) => y - colYs[i])) : Ly / 2;
-  const ldSX = ldTension(fy, fc, supX.db);
-  const ldSY = ldTension(fy, fc, supY.db);
-  const dCm = Math.max(t * 100 - rec, 20);
-  const cutXM = losaNegBarM({ LteoM: 0.3 * Math.max(stepX, 1), dbCm: supX.db, dCm, lnM: Math.max(stepX, 1), recCm: rec, src: "pórtico" });
-  const cutYM = losaNegBarM({ LteoM: 0.3 * Math.max(stepY, 1), dbCm: supY.db, dCm, lnM: Math.max(stepY, 1), recCm: rec, src: "pórtico" });
-  const cutX = Math.max(cutXM.LbarM, ldSX / 100);
-  const cutY = Math.max(cutYM.LbarM, ldSY / 100);
   const rSX = bendR(supX.db, sc);
   const hSX = hookLen(supX.db, sc);
   const rSY = bendR(supY.db, sc);
   const hSY = hookLen(supY.db, sc);
-  const nSupXReal = nAlong(spanY * 100, supX.s);
-  const nSupYReal = nAlong(spanX * 100, supY.s);
-  const nSupXShow = Math.min(nDraw(nSupXReal, 4), 4);
-  const nSupYShow = Math.min(nDraw(nSupYReal, 4), 4);
-  const supXPaths: { x: number; y: number }[][] = [];
+  const hookMX = (12 * infX.db) / 100;
+  const hookMY = (12 * infY.db) / 100;
+  const hookMSX = (12 * supX.db) / 100;
+  const hookMSY = (12 * supY.db) / 100;
+
+  type Pt = { x: number; y: number };
+  const infXPaths: Pt[][] = [];
+  const infYPaths: Pt[][] = [];
+  const supXPaths: Pt[][] = [];
+  const supYPaths: Pt[][] = [];
   const axisDims: SteelDim[] = [];
-  const axesY = colYs.length ? colYs : [(plan.y0 + plan.y1) / 2];
   let dimX = false;
-  for (const ay of axesY) {
-    for (let i = 0; i < nSupXShow; i++) {
-      const tt = nSupXShow === 1 ? 0.5 : i / (nSupXShow - 1);
-      const y = ay + (tt - 0.5) * Math.min(0.5, spanY * 0.06);
-      if (y < plan.y0 + recM || y > plan.y1 - recM) continue;
-      const xs0 = colXs.length ? colXs : [plan.x0, plan.x1];
-      for (const ax of xs0) {
-        const xa = Math.max(plan.x0 + recM, ax - cutX);
-        const xb = Math.min(plan.x1 - recM, ax + cutX);
-        if (xb - xa < 0.4) continue;
-        for (const seg of clipHOnRects(y, xa, xb, cells, recM)) {
-          if (seg.x1 - seg.x0 < 0.3) continue;
-          supXPaths.push(pathBothHooks90(xy(seg.x0, y), xy(seg.x1, y), "down", "down", rSX, hSX));
-          if (!dimX && xb - ax > 0.25) {
-            const yD = xy(ax, y).y - 18;
-            axisDims.push({
-              x1: xy(ax, y).x, y1: yD, x2: xy(Math.min(seg.x1, ax + cutX), y).x, y2: yD,
-              label: `eje→ext. ${cutX.toFixed(2)} m (L_teo+ℓd)`,
-              side: "top", tiny: true,
-            });
-            dimX = true;
-          }
-        }
-      }
-    }
+
+  type Piece = { mark: number; bar: string; L: number; n: number; forma: string };
+  const taller: Piece[] = [];
+  const rows: string[][] = [];
+
+  function asTxt(v: number) {
+    return v > 0.001 ? v.toFixed(2) : "—";
   }
-  const supYPaths: { x: number; y: number }[][] = [];
-  const axesX = colXs.length ? colXs : [(plan.x0 + plan.x1) / 2];
-  let dimY = false;
-  for (const ax of axesX) {
-    for (let i = 0; i < nSupYShow; i++) {
-      const tt = nSupYShow === 1 ? 0.5 : i / (nSupYShow - 1);
-      const x = ax + (tt - 0.5) * Math.min(0.5, spanX * 0.06);
-      if (x < plan.x0 + recM || x > plan.x1 - recM) continue;
-      const ys0 = colYs.length ? colYs : [plan.y0, plan.y1];
-      for (const ay of ys0) {
-        const ya = Math.max(plan.y0 + recM, ay - cutY);
-        const yb = Math.min(plan.y1 - recM, ay + cutY);
-        if (yb - ya < 0.4) continue;
-        for (const seg of clipVOnRects(x, ya, yb, cells, recM)) {
-          if (seg.y1 - seg.y0 < 0.3) continue;
-          supYPaths.push(pathBothHooks90(xy(x, seg.y0), xy(x, seg.y1), "left", "left", rSY, hSY));
-          if (!dimY && yb - ay > 0.25) {
-            const xD = xy(x, ay).x + 18;
-            axisDims.push({
-              x1: xD, y1: xy(x, ay).y, x2: xD, y2: xy(x, Math.min(seg.y1, ay + cutY)).y,
-              label: `eje→ext. ${cutY.toFixed(2)} m (L_teo+ℓd)`,
-              side: "right", tiny: true,
-            });
-            dimY = true;
-          }
-        }
-      }
+  function sep(s: number) {
+    const r = Math.round(s * 10) / 10;
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  }
+  function qL(m: number) {
+    return Math.round(Math.max(m, 0) * 100) / 100;
+  }
+  function addTaller(mark: number, bar: string, L: number, n: number, forma: string) {
+    if (n <= 0 || L < 0.15) return;
+    taller.push({ mark, bar, L: qL(L), n, forma });
+  }
+  function touch(a: number, b: number) {
+    return Math.abs(a - b) < eps;
+  }
+  function overlap(a0: number, a1: number, b0: number, b1: number) {
+    return Math.min(a1, b1) - Math.max(a0, b0) > 0.2;
+  }
+  function neighbor(c: Cell, side: "L" | "R" | "B" | "T") {
+    return plan.cells.some((o) => {
+      if (o.id === c.id) return false;
+      if (side === "L") return touch(o.x1, c.x0) && overlap(o.y0, o.y1, c.y0, c.y1);
+      if (side === "R") return touch(o.x0, c.x1) && overlap(o.y0, o.y1, c.y0, c.y1);
+      if (side === "B") return touch(o.y1, c.y0) && overlap(o.x0, o.x1, c.x0, c.x1);
+      return touch(o.y0, c.y1) && overlap(o.x0, o.x1, c.x0, c.x1);
+    });
+  }
+  function pushPath(bag: Pt[][], pts: Pt[]) {
+    if (pts.length > 1) bag.push(pts);
+  }
+  function hBar(x0: number, x1: number, y: number, hookL: boolean, hookR: boolean, r: number, h: number): Pt[] {
+    if (x1 - x0 < 0.2) return [];
+    const a = xy(x0, y);
+    const b = xy(x1, y);
+    if (hookL && hookR) return pathBothHooks90(a, b, "up", "up", r, h);
+    if (hookL) return pathHook90(b, a, "up", r, h);
+    if (hookR) return pathHook90(a, b, "up", r, h);
+    return [a, b];
+  }
+  function vBar(x: number, y0: number, y1: number, hookB: boolean, hookT: boolean, r: number, h: number): Pt[] {
+    if (y1 - y0 < 0.2) return [];
+    const a = xy(x, y0);
+    const b = xy(x, y1);
+    if (hookB && hookT) return pathBothHooks90(a, b, "right", "right", r, h);
+    if (hookB) return pathHook90(b, a, "right", r, h);
+    if (hookT) return pathHook90(a, b, "right", r, h);
+    return [a, b];
+  }
+  function nSpan(spans: { a: number; b: number }[], sCm: number) {
+    const s = [...spans].sort((p, q) => p.a - q.a);
+    let n = 0;
+    let a = -1e9;
+    let b = -1e9;
+    for (const sp of s) {
+      if (sp.a > b + 0.05) {
+        if (b > a) n += nAlong((b - a) * 100, sCm);
+        a = sp.a;
+        b = sp.b;
+      } else b = Math.max(b, sp.b);
     }
+    if (b > a) n += nAlong((b - a) * 100, sCm);
+    return n;
   }
 
-  const qx = (x0s + x1s) / 2;
-  const qy = (yTopS + yBotS) / 2;
+  const defIX = barByName(infX.bar);
+  const defIY = barByName(infY.bar);
+  const defSX = barByName(supX.bar);
+  const defSY = barByName(supY.bar);
+  const asDisp = (as: number, s: number) => ((as / Math.max(s, 1e-6)) * 100).toFixed(2);
+
+  type Meta = Cell & {
+    nInfX: number;
+    nInfY: number;
+    nSupX: number;
+    nSupY: number;
+    clearX: number;
+    clearY: number;
+    reachX: number;
+    reachY: number;
+    fullX: boolean;
+    fullY: boolean;
+  };
+  const metas: Meta[] = [];
+
+  for (const c of plan.cells) {
+    const lx = c.x1 - c.x0;
+    const ly = c.y1 - c.y0;
+    const clearX = Math.max(lx - 2 * recM, 0.3);
+    const clearY = Math.max(ly - 2 * recM, 0.3);
+    const reachX = Math.min(Math.max(cutX, 0.35), clearX / 2);
+    const reachY = Math.min(Math.max(cutY, 0.35), clearY / 2);
+    const fullX = cutX >= clearX / 2 - 1e-6;
+    const fullY = cutY >= clearY / 2 - 1e-6;
+    const nInfX = nAlong(Math.max(ly - 2 * recM, 0.2) * 100, infX.s);
+    const nInfY = nAlong(Math.max(lx - 2 * recM, 0.2) * 100, infY.s);
+    const nSupX = nAlong(Math.max(ly - 2 * recM, 0.2) * 100, supX.s);
+    const nSupY = nAlong(Math.max(lx - 2 * recM, 0.2) * 100, supY.s);
+    metas.push({ ...c, nInfX, nInfY, nSupX, nSupY, clearX, clearY, reachX, reachY, fullX, fullY });
+
+    const xA = c.x0 + recM;
+    const xB = c.x1 - recM;
+    const yA = c.y0 + recM;
+    const yB = c.y1 - recM;
+    for (const y of [c.y0 + ly * 0.36, c.y0 + ly * 0.64]) pushPath(infXPaths, hBar(xA, xB, y, true, true, rIX, hIX));
+    for (const x of [c.x0 + lx * 0.36, c.x0 + lx * 0.64]) pushPath(infYPaths, vBar(x, yA, yB, true, true, rIY, hIY));
+
+    const libreL = !neighbor(c, "L");
+    const libreR = !neighbor(c, "R");
+    const libreB = !neighbor(c, "B");
+    const libreT = !neighbor(c, "T");
+    const ySup = [c.y0 + ly * 0.16, c.y0 + ly * 0.84];
+    const xSup = [c.x0 + lx * 0.16, c.x0 + lx * 0.84];
+    if (fullX) {
+      for (const y of ySup) pushPath(supXPaths, hBar(xA, xB, y, libreL, libreR, rSX, hSX));
+      if (!dimX) {
+        const y = ySup[0];
+        const yD = xy(xA, y).y - 14;
+        axisDims.push({
+          x1: xy(xA, y).x, y1: yD, x2: xy(xB, y).x, y2: yD,
+          label: `L_teo+ℓd ${clearX.toFixed(2)} m`, side: "top", tiny: true,
+        });
+        dimX = true;
+      }
+    } else {
+      for (const y of ySup) {
+        pushPath(supXPaths, hBar(xA, xA + reachX, y, libreL, false, rSX, hSX));
+        pushPath(supXPaths, hBar(xB - reachX, xB, y, false, libreR, rSX, hSX));
+      }
+      if (!dimX) {
+        const y = ySup[0];
+        const yD = xy(xA, y).y - 14;
+        axisDims.push({
+          x1: xy(c.x0, y).x,
+          y1: yD,
+          x2: xy(xA + reachX, y).x,
+          y2: yD,
+          label: `L_teo+ℓd ${reachX.toFixed(2)} m`,
+          side: "top",
+          tiny: true,
+        });
+        dimX = true;
+      }
+    }
+    if (fullY) {
+      for (const x of xSup) pushPath(supYPaths, vBar(x, yA, yB, libreB, libreT, rSY, hSY));
+    } else {
+      for (const x of xSup) {
+        pushPath(supYPaths, vBar(x, yA, yA + reachY, libreB, false, rSY, hSY));
+        pushPath(supYPaths, vBar(x, yB - reachY, yB, false, libreT, rSY, hSY));
+      }
+    }
+
+    const LinfX = qL(clearX + 2 * hookMX);
+    const LinfY = qL(clearY + 2 * hookMY);
+    addTaller(1, infX.bar, LinfX, nInfX, "recta + 2 ganchos 90°");
+    addTaller(2, infY.bar, LinfY, nInfY, "recta + 2 ganchos 90°");
+
+    const formaSupX = fullX ? (libreL || libreR ? "corrida en el paño + gancho en borde" : "corrida en el paño") : "2 tramos desde el eje";
+    const formaSupY = fullY ? (libreB || libreT ? "corrida en el paño + gancho en borde" : "corrida en el paño") : "2 tramos desde el eje";
+    const LshowSupX = fullX ? qL(clearX + (libreL ? hookMSX : 0) + (libreR ? hookMSX : 0)) : qL(reachX);
+    const LshowSupY = fullY ? qL(clearY + (libreB ? hookMSY : 0) + (libreT ? hookMSY : 0)) : qL(reachY);
+    if (fullX) addTaller(3, supX.bar, LshowSupX, nSupX, formaSupX);
+    if (fullY) addTaller(4, supY.bar, LshowSupY, nSupY, formaSupY);
+
+    const pushRow = (mark: string, lecho: string, bar: string, s: number, n: number, L: number, forma: string, req: number, disp: string) => {
+      rows.push([c.id, mark, lecho, `Ø ${bar}`, sep(s), String(n), L.toFixed(2), forma, asTxt(req), disp]);
+    };
+    pushRow("1", "inf. X", infX.bar, infX.s, nInfX, LinfX, "recta + 2 ganchos 90°", asReqX, asDisp(defIX.as, infX.s));
+    pushRow("2", "inf. Y", infY.bar, infY.s, nInfY, LinfY, "recta + 2 ganchos 90°", asReqY, asDisp(defIY.as, infY.s));
+    pushRow("3", "sup. X", supX.bar, supX.s, fullX ? nSupX : nSupX * 2, LshowSupX, formaSupX, asReqSX, asDisp(defSX.as, supX.s));
+    pushRow("4", "sup. Y", supY.bar, supY.s, fullY ? nSupY : nSupY * 2, LshowSupY, formaSupY, asReqSY, asDisp(defSY.as, supY.s));
+  }
+
+  function joinAxis(mark: number, bar: string, horizontal: boolean, sCm: number, hookM: number) {
+    const seen = new Set<string>();
+    const axes = [...new Set(metas.flatMap((c) => (horizontal ? [c.x0, c.x1] : [c.y0, c.y1])))].sort((a, b) => a - b);
+    for (const axis of axes) {
+      const neg = metas.filter((c) => (horizontal ? touch(c.x1, axis) : touch(c.y1, axis)));
+      const pos = metas.filter((c) => (horizontal ? touch(c.x0, axis) : touch(c.y0, axis)));
+      const take = (o: Meta) => {
+        const key = `${o.id}@${axis.toFixed(3)}@${horizontal ? "x" : "y"}`;
+        if (seen.has(key)) return;
+        const opp = (neg.includes(o) ? pos : neg).find((c) =>
+          horizontal ? touch(c.y0, o.y0) && touch(c.y1, o.y1) : touch(c.x0, o.x0) && touch(c.x1, o.x1),
+        );
+        seen.add(key);
+        if (opp) seen.add(`${opp.id}@${axis.toFixed(3)}@${horizontal ? "x" : "y"}`);
+        const full = horizontal ? o.fullX || !!opp?.fullX : o.fullY || !!opp?.fullY;
+        if (full) return;
+        const spans = (neg.length ? neg : pos)
+          .filter((c) => (horizontal ? touch(c.y0, o.y0) && touch(c.y1, o.y1) : touch(c.x0, o.x0) && touch(c.x1, o.x1)) || c.id === o.id)
+          .map((c) => (horizontal ? { a: c.y0 + recM, b: c.y1 - recM } : { a: c.x0 + recM, b: c.x1 - recM }));
+        const n = nSpan(spans.length ? spans : [horizontal ? { a: o.y0 + recM, b: o.y1 - recM } : { a: o.x0 + recM, b: o.x1 - recM }], sCm);
+        const r1 = horizontal ? o.reachX : o.reachY;
+        const r2 = opp ? (horizontal ? opp.reachX : opp.reachY) : 0;
+        addTaller(mark, bar, r1 + r2 + (opp ? 0 : hookM), n, opp ? "recta, centrada en el eje" : "recta + gancho 90° en borde");
+      };
+      for (const o of neg) take(o);
+      for (const o of pos) take(o);
+    }
+  }
+  joinAxis(3, supX.bar, true, supX.s, hookMSX);
+  joinAxis(4, supY.bar, false, supY.s, hookMSY);
+
+  const grouped = new Map<string, Piece>();
+  for (const p of taller) {
+    const k = `${p.mark}|${p.bar}|${p.L.toFixed(2)}|${p.forma}`;
+    const g = grouped.get(k);
+    if (g) g.n += p.n;
+    else grouped.set(k, { ...p });
+  }
+  const kgm = (bar: string) => barByName(bar).as * 0.785;
+  const tallerRows = [...grouped.values()]
+    .sort((a, b) => a.mark - b.mark || a.L - b.L)
+    .map((p) => [String(p.mark), `Ø ${p.bar}`, p.forma, p.L.toFixed(2), String(p.n), (p.n * p.L * kgm(p.bar)).toFixed(1)]);
+  const schedules: SteelSchedule[] = [
+    {
+      caption: "Cuadro de despiece por paño",
+      headers: ["Paño", "Marca", "Lecho", "Ø", "@ (cm)", "n", "L (m)", "Forma", "As req", "As disp"],
+      rows,
+      note: "n y L son las piezas de ese paño. En el superior, L es la longitud de cada tramo desde el eje. As req es el de la franja gobernante (cm²/m) y As disp el que aporta el Ø adoptado.",
+    },
+    {
+      caption: "Resumen de taller — piezas a cortar",
+      headers: ["Marca", "Ø", "Forma", "L corte (m)", "Cant.", "kg"],
+      rows: tallerRows,
+      note: "El inferior se corta por paño, con dos ganchos 90°. El negativo de un eje interior es una sola barra (tramo + tramo) y entra una vez. kg = n × L × 0,785 × As de la barra.",
+    },
+  ];
+  const sumN = (mark: number) => tallerRows.filter((r) => r[0] === String(mark)).reduce((s, r) => s + Number(r[4] || 0), 0);
+
   const layers: SteelLayer[] = [
     mkLayer({
-      mark: 1, name: "Inferior X", face: "fondo · sentido X · continua", bar: infX.bar, sCm: infX.s,
-      color: STEEL_FLEX, side: "bottom", paths: infXPaths, recCm: rec, nReal: nInfXReal,
-      ldCm: ldTension(fy, fc, infX.db), callout: { x: clampX(qx), y: clampY(yBotS - 30), anchor: "middle" },
+      mark: 1, name: "Inferior X", face: "por paño · ganchos en los ejes", bar: infX.bar, sCm: infX.s,
+      color: STEEL_FLEX, side: "bottom", paths: infXPaths, recCm: rec, nReal: Math.max(2, sumN(1)),
+      ldCm: ldTension(fy, fc, infX.db), asReq: asReqX > 0 ? asReqX : undefined,
     }),
     mkLayer({
-      mark: 2, name: "Inferior Y", face: "fondo · sentido Y · continua", bar: infY.bar, sCm: infY.s,
-      color: STEEL_DIST, side: "left", paths: infYPaths, recCm: rec, nReal: nInfYReal,
-      ldCm: ldTension(fy, fc, infY.db), callout: { x: clampX(x0s + 150), y: clampY(qy), anchor: "middle" },
+      mark: 2, name: "Inferior Y", face: "por paño · ganchos en los ejes", bar: infY.bar, sCm: infY.s,
+      color: STEEL_DIST, side: "left", paths: infYPaths, recCm: rec, nReal: Math.max(2, sumN(2)),
+      ldCm: ldTension(fy, fc, infY.db), asReq: asReqY > 0 ? asReqY : undefined,
     }),
     mkLayer({
-      mark: 3, name: "Superior X", face: "cara sup. · X sobre ejes · L_teo + ℓd", bar: supX.bar, sCm: supX.s,
-      color: STEEL_TEMP, side: "top", paths: supXPaths.length ? supXPaths : infXPaths.slice(0, 1), recCm: rec, nReal: nSupXReal,
-      ldCm: ldSX, callout: { x: clampX(qx), y: clampY(yTopS + 30), anchor: "middle" },
+      mark: 3, name: "Superior X", face: "tramos L_teo+ℓd desde el eje", bar: supX.bar, sCm: supX.s,
+      color: STEEL_TEMP, side: "top", paths: supXPaths, recCm: rec, nReal: Math.max(2, sumN(3)),
+      ldCm: ldSX, asReq: asReqSX > 0 ? asReqSX : undefined,
     }),
     mkLayer({
-      mark: 4, name: "Superior Y", face: "cara sup. · Y sobre ejes · L_teo + ℓd", bar: supY.bar, sCm: supY.s,
-      color: STEEL_TEMP, side: "right", paths: supYPaths.length ? supYPaths : infYPaths.slice(0, 1), recCm: rec, nReal: nSupYReal,
-      ldCm: ldSY, callout: { x: clampX(x1s - 150), y: clampY(qy), anchor: "middle" },
+      mark: 4, name: "Superior Y", face: "tramos L_teo+ℓd desde el eje", bar: supY.bar, sCm: supY.s,
+      color: "#245c78", side: "right", paths: supYPaths, recCm: rec, nReal: Math.max(2, sumN(4)),
+      ldCm: ldSY, asReq: asReqSY > 0 ? asReqSY : undefined,
     }),
   ];
 
@@ -362,9 +518,14 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
   }));
 
   const annos = [
-    ...plan.cells.map((c) => {
+    ...metas.flatMap((c) => {
       const p = xy((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2);
-      return { x: p.x, y: p.y + 4, text: c.id, anchor: "middle" as const, fill: "#163a63" };
+      const lines = [
+        { text: c.id, size: 12, fill: "#163a63", dy: -8 },
+        { text: `1 Ø ${infX.bar} @ ${sep(infX.s)}   ·   2 Ø ${infY.bar} @ ${sep(infY.s)}`, size: 9, fill: "#5a2a2a", dy: 6 },
+        { text: `3 Ø ${supX.bar} @ ${sep(supX.s)}   ·   4 Ø ${supY.bar} @ ${sep(supY.s)}`, size: 9, fill: "#1a4473", dy: 18 },
+      ];
+      return lines.map((ln) => ({ x: p.x, y: p.y + ln.dy, text: ln.text, anchor: "middle" as const, fill: ln.fill, size: ln.size }));
     }),
     ...plan.cols.map((c) => {
       const p = xy(c.x, c.y);
@@ -378,10 +539,10 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
 
   return {
     title: "PLANTA — DESPIECE DE PLATEA DE CIMENTACIÓN · HOJA A1",
-    subtitle: "Mallas inf. continuas + sup. cortadas sobre ejes · paños, columnas y VC de la planta",
-    caption: `1 Ø ${infX.bar} @ ${infX.s.toFixed(1).replace(".", ",")} cm inf. X   ·   2 Ø ${infY.bar} @ ${infY.s.toFixed(1).replace(".", ",")} cm inf. Y   ·   3 Ø ${supX.bar} @ ${supX.s.toFixed(1).replace(".", ",")} cm sup. X   ·   4 Ø ${supY.bar} @ ${supY.s.toFixed(1).replace(".", ",")} cm sup. Y   ·   t = ${t.toFixed(2)} m   ·   ${plan.beams.length} VC   ·   ${plan.cols.length} col.`,
-    note: "Despiece fiel a la planta: solo paños pintados llevan acero. Inferior X/Y continuo de borde a borde con gancho 90° corto. Superior X/Y cortado sobre cada eje de columnas (L_teo 0,30 vano + ℓd, cota desde el eje al extremo). Vigas VC sobre los ejes que tocan concreto. Rec ≥ 7,5 cm (E.060 7.7.1).",
-    W, H, sheet: "a1", mode: "plan", pxPerM: sc, lineScale: 0.55, markBoxes: true,
+    subtitle: "Un despiece por paño · inferior cortado en el paño · superior en tramos L_teo+ℓd",
+    caption: `Cada paño: 1 Ø ${infX.bar} @ ${sep(infX.s)} cm inf. X   ·   2 Ø ${infY.bar} @ ${sep(infY.s)} cm inf. Y   ·   3 Ø ${supX.bar} @ ${sep(supX.s)} cm sup. X   ·   4 Ø ${supY.bar} @ ${sep(supY.s)} cm sup. Y   ·   t = ${t.toFixed(2)} m   ·   ${plan.cells.length} paños   ·   ${plan.cols.length} col.`,
+    note: "Solo los paños pintados llevan acero. El inferior de cada paño termina con gancho 90° en los ejes. El superior entra desde cada eje una longitud L_teo+ℓd; si esa longitud cubre el paño, la barra es corrida dentro del paño. El resumen de taller no duplica el negativo: los dos tramos de un eje interior son una sola barra.",
+    W, H, sheet: "a1", mode: "plan", pxPerM: sc, lineScale: 0.55, hideCallouts: true,
     outline: ptsStr((() => {
       const poly = orthoUnionOutline(cells);
       const use = poly.length >= 3 ? poly : [
@@ -394,10 +555,10 @@ export function buildPlateaDespieceSpec(values: Record<string, string>): SteelDr
     })()),
     regions, guides,
     dims: [
-      { x1: xy(plan.x0, plan.y0).x, y1: xy(plan.x0, plan.y0).y + 28, x2: xy(plan.x1, plan.y0).x, y2: xy(plan.x0, plan.y0).y + 28, label: `Lx = ${Lx.toFixed(2)} m`, side: "bottom" },
-      { x1: xy(plan.x0, plan.y0).x - 22, y1: xy(plan.x0, plan.y1).y, x2: xy(plan.x0, plan.y0).x - 22, y2: xy(plan.x0, plan.y0).y, label: `Ly = ${Ly.toFixed(2)} m`, side: "left" },
+      { x1: xy(plan.x0, plan.y0).x, y1: xy(plan.x0, plan.y0).y + 28, x2: xy(plan.x1, plan.y0).x, y2: xy(plan.x0, plan.y0).y + 28, label: `Lx = ${Lx.toFixed(2)} m`, side: "bottom" as const },
+      { x1: xy(plan.x0, plan.y0).x - 22, y1: xy(plan.x0, plan.y1).y, x2: xy(plan.x0, plan.y0).x - 22, y2: xy(plan.x0, plan.y0).y, label: `Ly = ${Ly.toFixed(2)} m`, side: "left" as const },
       ...axisDims,
     ],
-    layers, annos,
+    layers, annos, schedules,
   };
 }

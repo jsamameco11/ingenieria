@@ -1,4 +1,5 @@
 import { area, bbox, centroid, clipPoly, cross, dist, ensureCCW, lerp, norm, pointInPoly, sub, type V2 } from "./geom";
+import { armarPlazas } from "./plazas";
 import type { AjusteParque, CategoriaParque, EstiloParque, Parque, PiezaParque } from "./tipos";
 
 /**
@@ -8,12 +9,10 @@ import type { AjusteParque, CategoriaParque, EstiloParque, Parque, PiezaParque }
  */
 
 const CESPED = "#c5d6b6";
-const CESPED_LINEA = "#7d9a72";
-const SENDERO = "#e4dfd4";
-const SENDERO_EJE = "#b7b1a6";
+const SENDERO = "#d6d6d6";
+const SENDERO_EJE = "#8d8d8d";
 const PLAZA = "#d5cfc3";
 const ARENA = "#e6d3a4";
-const CANCHA = "#3c8f5c";
 const LINEA = "#f7f6f2";
 const BANCA = "#6d5140";
 const COPA = "#3d7a49";
@@ -26,10 +25,10 @@ const JUEGO2 = "#3d6d96";
 type Campo = { nombre: string; largo: number; ancho: number; arco: number; rCentro: number };
 
 const CAMPOS: Campo[] = [
-  { nombre: "Fútbol 7", largo: 50, ancho: 30, arco: 5, rCentro: 6 },
-  { nombre: "Fulbito", largo: 32, ancho: 18, arco: 3, rCentro: 3 },
-  { nombre: "Multiuso", largo: 20, ancho: 12, arco: 2, rCentro: 2 },
-  { nombre: "Básquet", largo: 15, ancho: 8, arco: 1.8, rCentro: 1.8 },
+  { nombre: "Fútbol 7", largo: 40, ancho: 22, arco: 4, rCentro: 4.5 },
+  { nombre: "Fulbito", largo: 28, ancho: 16, arco: 2.6, rCentro: 2.6 },
+  { nombre: "Multiuso", largo: 18, ancho: 10, arco: 1.8, rCentro: 1.8 },
+  { nombre: "Básquet", largo: 14, ancho: 8, arco: 1.6, rCentro: 1.6 },
 ];
 
 function pieza(capa: string, pts: V2[], fill: string, stroke: string, sw: number, cerrado: boolean): PiezaParque {
@@ -74,6 +73,7 @@ function esConvexo(poly: V2[]): boolean {
 
 function recortar(subject: V2[], park: V2[]): V2[] {
   if (subject.length < 3) return [];
+  if (Math.abs(area(subject)) >= 0.012 && subject.every((p) => pointInPoly(p, park))) return subject;
   if (esConvexo(park)) {
     const c = clipPoly(subject, ensureCCW(park));
     return area(c) > 0.35 ? c : [];
@@ -123,6 +123,46 @@ function bezier(a: V2, b: V2, c: V2, n = 8): V2[] {
   return pts;
 }
 
+function cubica(a: V2, c1: V2, c2: V2, b: V2, n = 12): V2[] {
+  const pts: V2[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const u = 1 - t;
+    pts.push({
+      x: u * u * u * a.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * b.x,
+      y: u * u * u * a.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * b.y,
+    });
+  }
+  return pts;
+}
+
+function meandro(a: V2, b: V2, signo = 1): V2[] {
+  const L = dist(a, b);
+  if (L < 2.2) return [a, b];
+  const e = norm(sub(b, a));
+  const n = { x: -e.y, y: e.x };
+  const amp = Math.min(L * 0.24, 10) * (signo >= 0 ? 1 : -1);
+  const c1 = { x: a.x + e.x * L * 0.3 + n.x * amp, y: a.y + e.y * L * 0.3 + n.y * amp };
+  const c2 = { x: a.x + e.x * L * 0.7 - n.x * amp * 0.72, y: a.y + e.y * L * 0.7 - n.y * amp * 0.72 };
+  return cubica(a, c1, c2, b, Math.max(8, Math.round(L / 2.4)));
+}
+
+function cinta(eje: V2[], ancho: number): V2[] {
+  if (eje.length < 2) return [];
+  const izq: V2[] = [];
+  const der: V2[] = [];
+  for (let i = 0; i < eje.length; i++) {
+    const prev = eje[Math.max(0, i - 1)];
+    const next = eje[Math.min(eje.length - 1, i + 1)];
+    const e = norm(sub(next, prev));
+    const nx = (-e.y * ancho) / 2;
+    const ny = (e.x * ancho) / 2;
+    izq.push({ x: eje[i].x + nx, y: eje[i].y + ny });
+    der.push({ x: eje[i].x - nx, y: eje[i].y - ny });
+  }
+  return [...izq, ...der.reverse()];
+}
+
 function cruce(a: V2, b: V2, c: V2, d: V2): V2 | null {
   const den = cross(sub(b, a), sub(d, c));
   if (Math.abs(den) < 1e-9) return null;
@@ -169,8 +209,8 @@ function accesos(poly: V2[], centro: V2): V2[] {
     const mid = lerp(a, b, 0.5);
     const e = norm(sub(b, a));
     const n = { x: -e.y, y: e.x };
-    const p1 = { x: mid.x + n.x * 2.4, y: mid.y + n.y * 2.4 };
-    const p2 = { x: mid.x - n.x * 2.4, y: mid.y - n.y * 2.4 };
+    const p1 = { x: mid.x + n.x * 0.06, y: mid.y + n.y * 0.06 };
+    const p2 = { x: mid.x - n.x * 0.06, y: mid.y - n.y * 0.06 };
     const p = pointInPoly(p1, poly) ? p1 : p2;
     if (pointInPoly(p, poly)) out.push({ p, L });
   }
@@ -184,11 +224,31 @@ function accesos(poly: V2[], centro: V2): V2[] {
   return elegidos;
 }
 
+function cruza(a: V2, b: V2, c: V2, d: V2): boolean {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const cdx = d.x - c.x;
+  const cdy = d.y - c.y;
+  const den = abx * cdy - aby * cdx;
+  if (Math.abs(den) < 1e-9) return false;
+  const t = ((c.x - a.x) * cdy - (c.y - a.y) * cdx) / den;
+  const u = ((c.x - a.x) * aby - (c.y - a.y) * abx) / den;
+  return t > 0.02 && t < 0.98 && u > 0.02 && u < 0.98;
+}
+
 function choca(pts: V2[], ocupados: { pts: V2[]; capa: string }[], salvo: string[] = []): boolean {
-  const c = pts.reduce((s, p) => ({ x: s.x + p.x, y: s.y + p.y }), { x: 0, y: 0 });
-  c.x /= pts.length;
-  c.y /= pts.length;
-  return ocupados.some((o) => !salvo.includes(o.capa) && o.pts.length >= 3 && pointInPoly(c, o.pts));
+  return ocupados.some((o) => {
+    if (salvo.includes(o.capa) || o.pts.length < 3) return false;
+    if (pts.some((p) => holgura(p, o.pts) > 0.2) || o.pts.some((p) => holgura(p, pts) > 0.2)) return true;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      for (let j = 0; j < o.pts.length; j++) {
+        if (cruza(a, b, o.pts[j], o.pts[(j + 1) % o.pts.length])) return true;
+      }
+    }
+    return false;
+  });
 }
 
 function dentro(pts: V2[], park: V2[], margen = 0.12): boolean {
@@ -260,7 +320,136 @@ export function unirPanos(polys: V2[][]): V2[][] {
   return loops;
 }
 
-function disenarUno(poly: V2[], categoria: CategoriaParque, estiloIn: EstiloParque | undefined, indice: number): Parque {
+function rumboLargo(poly: V2[]): number {
+  let best = 0;
+  let ang = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const L = dist(a, b);
+    if (L > best) {
+      best = L;
+      ang = Math.atan2(b.y - a.y, b.x - a.x);
+    }
+  }
+  return ang;
+}
+
+function ptLocal(c: V2, ang: number, x: number, y: number): V2 {
+  const u = Math.cos(ang);
+  const v = Math.sin(ang);
+  return { x: c.x + u * x - v * y, y: c.y + v * x + u * y };
+}
+
+function colocarCancha(
+  poly: V2[],
+  centro: V2,
+  ang0: number,
+  dentroFn: (pts: V2[], park: V2[], margen?: number) => boolean,
+  medida?: { largo?: number; ancho?: number },
+): { c: V2; ang: number; largo: number; ancho: number; campo: Campo } | null {
+  const caja = bbox(poly);
+  const pedido =
+    medida?.largo && medida.ancho && medida.largo >= 12 && medida.ancho >= 8 && medida.largo <= 70 && medida.ancho <= 45
+      ? [{ nombre: "Losa", largo: medida.largo, ancho: medida.ancho, arco: Math.min(4, medida.ancho * 0.18), rCentro: Math.min(4.5, medida.ancho * 0.18) }]
+      : [];
+  const lista = [...pedido, ...CAMPOS];
+  for (const ang of [ang0, ang0 + Math.PI / 2]) {
+    for (const campo of lista) {
+      let mejor: { c: V2; d: number } | null = null;
+      for (let x = caja.minX + 3; x < caja.maxX - 3; x += 4) {
+        for (let y = caja.minY + 3; y < caja.maxY - 3; y += 4) {
+          const c = { x, y };
+          const exterior = recto(c, campo.largo + 6.6, campo.ancho + 6.6, ang);
+          if (!dentroFn(exterior, poly, 0.15)) continue;
+          const d = dist(c, centro);
+          if (!mejor || d < mejor.d) mejor = { c, d };
+        }
+      }
+      if (mejor) return { c: mejor.c, ang, largo: campo.largo, ancho: campo.ancho, campo };
+    }
+  }
+  return null;
+}
+
+function equiparJuegos(
+  c: V2,
+  ang: number,
+  areaP: number,
+  poly: V2[],
+  textos: { p: V2; text: string; size: number; fill: string }[],
+  poner: (capa: string, pts: V2[], fill: string, stroke: string, sw: number, cerrado?: boolean, ocupa?: boolean, salvo?: string[]) => V2[] | null,
+  dentroFn: (pts: V2[], park: V2[], margen?: number) => boolean,
+  chocaFn: (pts: V2[], ocupados: { pts: V2[]; capa: string }[], salvo?: string[]) => boolean,
+  ocupados: { pts: V2[]; capa: string }[],
+): V2 | null {
+  const w = areaP > 700 ? 9.4 : 7.4;
+  const h = areaP > 700 ? 6.6 : 5.2;
+  const pad = recto(c, w, h, ang);
+  if (!dentroFn(pad, poly, 0.15) || chocaFn(pad, ocupados)) return null;
+  poner("MC-PARQUE-JUEGO", pad, ARENA, "#1a1a1a", 0.07, true, true);
+  const barra = (x: number, y: number, lw: number, lh: number, fill: string) => {
+    poner("MC-PARQUE-JUEGO", recto(ptLocal(c, ang, x, y), lw, lh, ang), fill, "#1a1a1a", 0.045, true, false);
+  };
+  barra(-2.3, -0.85, 0.1, 2.1, "#2c2c2c");
+  barra(-2.3, 0.85, 0.1, 2.1, "#2c2c2c");
+  barra(-0.5, -0.85, 0.1, 2.1, "#2c2c2c");
+  barra(-0.5, 0.85, 0.1, 2.1, "#2c2c2c");
+  barra(-1.4, 0, 2.05, 0.1, "#2c2c2c");
+  barra(-1.95, -0.2, 0.42, 0.14, JUEGO);
+  barra(-0.85, -0.2, 0.42, 0.14, JUEGO);
+  barra(1.15, 0.45, 0.85, 1.05, JUEGO2);
+  barra(2.15, -0.2, 1.45, 0.42, "#d5e6f2");
+  barra(0.7, -0.55, 0.08, 0.85, "#2c2c2c");
+  barra(1.05, -0.55, 0.08, 0.85, "#2c2c2c");
+  barra(0.2, 1.35, 1.2, 0.1, "#c47a2c");
+  barra(-0.3, 1.75, 0.1, 0.75, "#c47a2c");
+  barra(0.7, 1.75, 0.1, 0.75, "#c47a2c");
+  textos.push({ p: ptLocal(c, ang, 0, -h / 2 + 0.85), text: "JUEGOS", size: 1.15, fill: "#5c4630" });
+  return c;
+}
+
+function ponerPlazas(
+  poly: V2[],
+  categoria: CategoriaParque,
+  estilo: EstiloParque,
+  ocupados: { pts: V2[]; capa: string }[],
+  ancla: V2 | null,
+  recreo: V2 | null,
+  enlaces: V2[],
+  angulo: number,
+  poner: (capa: string, pts: V2[], fill: string, stroke: string, sw: number, cerrado?: boolean, ocupa?: boolean, salvo?: string[]) => V2[] | null,
+  soltarTramo: (a: V2, b: V2, ancho: number) => void,
+  base: Parque,
+): { centro: V2; lado: number } | null {
+  const obs = ocupados.filter((o) => o.capa === "MC-PARQUE-CANCHA" || o.capa === "MC-PARQUE-JUEGO").map((o) => o.pts);
+  const red = armarPlazas({ poly, categoria, estilo, obstaculos: obs, ancla, recreo, enlaces, angulo });
+  if (!red.plazas.length) return null;
+  for (const tr of red.senderos) soltarTramo(tr.a, tr.b, 2.2);
+  let mayor: { centro: V2; lado: number } | null = null;
+  for (const plaza of red.plazas) {
+    const dib = poner("MC-PARQUE-PLAZA", plaza.pts, PLAZA, "#1a1a1a", 0.07, true, true, ["MC-PARQUE-SENDERO"]);
+    if (!dib) continue;
+    const lado = Math.sqrt(Math.abs(area(dib)) / Math.PI) * 2;
+    if (!mayor || lado > mayor.lado) mayor = { centro: plaza.centro, lado };
+    if (plaza.centroPie.length >= 3) poner("MC-PARQUE-PLAZA", plaza.centroPie, "#c4b8a4", "#1a1a1a", 0.04, true, false);
+    for (const [a, b] of plaza.juntas) poner("MC-PARQUE-PLAZA", [a, b], "none", "#6e6a62", 0.045, false, false);
+    base.textos.push({ p: plaza.centro, text: "PLAZA", size: Math.min(1.5, lado * 0.16), fill: "#3c3832" });
+  }
+  for (const tr of red.senderos) {
+    poner("MC-PARQUE-EMPALME", disco(tr.a, 1.05, 16), SENDERO, SENDERO, 0.02, true, false);
+    poner("MC-PARQUE-EMPALME", disco(tr.b, 1.05, 16), SENDERO, SENDERO, 0.02, true, false);
+  }
+  return mayor;
+}
+
+function disenarUno(
+  poly: V2[],
+  categoria: CategoriaParque,
+  estiloIn: EstiloParque | undefined,
+  indice: number,
+  medida?: { largo?: number; ancho?: number },
+): Parque {
   const areaP = Math.abs(area(poly));
   const caja = bbox(poly);
   const aspecto = caja.w / Math.max(caja.h, 0.01);
@@ -295,7 +484,7 @@ function disenarUno(poly: V2[], categoria: CategoriaParque, estiloIn: EstiloParq
     return pts;
   };
 
-  base.piezas.push(pieza("MC-PARQUE-CESPED", poly, CESPED, CESPED_LINEA, 0.1, true));
+  base.piezas.push(pieza("MC-PARQUE-CESPED", poly, CESPED, "#1a1a1a", 0.08, true));
 
   const entradas = accesos(poly, centro);
   const anP = areaP > 2200 ? 3 : areaP > 900 ? 2.4 : 1.8;
@@ -304,119 +493,210 @@ function disenarUno(poly: V2[], categoria: CategoriaParque, estiloIn: EstiloParq
   let eje: V2[] = [];
 
   const soltarTramo = (a: V2, b: V2, ancho: number) => {
-    if (dist(a, b) < 0.8) return;
-    const rec = poner("MC-PARQUE-SENDERO", tramo(a, b, ancho), SENDERO, "#c9c2b4", 0.05, true, true);
+    if (dist(a, b) < 0.45) return;
+    const eje = estilo === "organico" ? meandro(a, b, Math.sin(a.x * 0.17 + b.y * 0.13) >= 0 ? 1 : -1) : [a, b];
+    const rec = poner("MC-PARQUE-SENDERO", estilo === "organico" ? cinta(eje, ancho) : tramo(a, b, ancho), SENDERO, SENDERO, 0.02, true, true, ["MC-PARQUE-SENDERO"]);
     if (!rec) return;
-    poner("MC-PARQUE-SENDERO", [lerp(a, b, 0.08), lerp(a, b, 0.92)], "none", SENDERO_EJE, 0.04, false, false);
+    if (eje.length >= 2) poner("MC-PARQUE-SENDERO", [eje[0], eje[eje.length - 1]], "none", SENDERO_EJE, 0.03, false, false);
   };
 
-  if (estilo === "geometrico" && esConvexo(poly)) {
-    const loop = inset(poly, Math.min(5, Math.min(caja.w, caja.h) * 0.16));
-    if (loop.length >= 4) {
-      eje = loop;
-      for (let i = 0; i < loop.length; i++) soltarTramo(loop[i], loop[(i + 1) % loop.length], anP);
-      const c = centroid(loop);
-      for (let i = 0; i < loop.length; i += Math.max(1, Math.floor(loop.length / 4))) {
-        soltarTramo(c, loop[i], anS);
+  const empalme = (c: V2, ancho: number) => {
+    poner("MC-PARQUE-EMPALME", disco(c, ancho * 0.46, 18), SENDERO, SENDERO, 0.02, true, false);
+  };
+
+  const paseoPerimetral = () => {
+    const d = anP / 2 + 0.06;
+    const loop = inset(poly, d);
+    const red: V2[] = [];
+    if (loop.length >= 3) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i];
+        const b = loop[(i + 1) % loop.length];
+        soltarTramo(a, b, anP);
+        empalme(a, anP);
+        red.push(a, lerp(a, b, 0.5));
       }
     }
-  }
+    return red;
+  };
 
-  if (eje.length < 2 && entradas.length >= 1) {
-    const a = entradas[0];
-    const b = entradas[Math.min(entradas.length - 1, 1)] ?? centro;
-    const lado = norm(sub(b, a));
-    const perp = { x: -lado.y, y: lado.x };
-    const desvio = estilo === "organico" ? Math.min(dist(a, b) * 0.22, 14) : estilo === "lineal" ? dist(a, b) * 0.04 : 0;
-    const control = {
-      x: (a.x + b.x) / 2 + perp.x * desvio,
-      y: (a.y + b.y) / 2 + perp.y * desvio,
-    };
-    const curva = (estilo === "geometrico" ? [a, centro, b] : bezier(a, b, control, 8)).map((p) => alejar(p, poly, anP / 2 + 0.35, centro));
-    eje = curva;
-    for (let i = 0; i < curva.length - 1; i++) soltarTramo(curva[i], curva[i + 1], anP);
-    if (entradas.length > 2) {
-      for (const extra of entradas.slice(2)) {
-        const cerca = eje.reduce((m, p) => (dist(p, extra) < dist(m, extra) ? p : m), eje[0]);
-        soltarTramo(cerca, alejar(extra, poly, anS / 2 + 0.3, centro), anS);
-      }
-    }
-  }
-
-  const nodo = eje.length ? eje[Math.floor(eje.length / 2)] : centro;
-  const angEje = eje.length >= 2 ? Math.atan2(eje[eje.length - 1].y - eje[0].y, eje[eje.length - 1].x - eje[0].x) : 0;
-  const ladoPlaza = Math.max(5.5, Math.min(estilo === "lineal" ? 14 : 18, Math.sqrt(Math.max(areaP, 1)) * 0.2));
-  const plaza =
-    estilo === "organico"
-      ? disco(nodo, ladoPlaza * 0.42, 22)
-      : estilo === "lineal"
-        ? recto(nodo, ladoPlaza * 1.3, ladoPlaza * 0.55, angEje)
-        : recto(nodo, ladoPlaza, ladoPlaza * 0.85, 0);
-  const plazaOk = poner("MC-PARQUE-PLAZA", plaza, PLAZA, "#9c968b", 0.08, true, true, ["MC-PARQUE-SENDERO"]);
-  if (plazaOk) base.textos.push({ p: nodo, text: "PLAZA", size: Math.min(2.2, ladoPlaza * 0.22), fill: "#3c3832" });
-
+  const rumbo = rumboLargo(poly);
+  const cancha = categoria === "activa" ? colocarCancha(poly, centro, rumbo, dentro, medida) : null;
+  let nodo = centro;
+  let angEje = rumbo;
+  let ladoPlaza = Math.max(6, Math.min(estilo === "lineal" ? 11 : 13, Math.sqrt(Math.max(areaP, 1)) * 0.16));
+  let plazaOk = false;
   let canchaNombre = "";
-  if (categoria === "activa") {
-    const dir = { x: Math.cos(angEje), y: Math.sin(angEje) };
-    for (const campo of CAMPOS) {
-      let puesto: V2 | null = null;
-      const paso = 3;
-      for (let x = caja.minX + 2; x < caja.maxX - 2 && !puesto; x += paso) {
-        for (let y = caja.minY + 2; y < caja.maxY - 2 && !puesto; y += paso) {
-          const c = { x, y };
-          if (dist(c, nodo) < ladoPlaza * 0.9) continue;
-          for (const giro of [false, true]) {
-            const w = giro ? campo.ancho : campo.largo;
-            const h = giro ? campo.largo : campo.ancho;
-            const box = recto(c, w, h, angEje);
-            if (!dentro(box, poly, 0.4) || choca(box, ocupados)) continue;
-            const losa = poner("MC-PARQUE-CANCHA", box, CANCHA, "#1e5a34", 0.1, true, true);
-            if (!losa) continue;
-            puesto = c;
-            const u = dir;
-            const v = { x: -u.y, y: u.x };
-            const linea = (p: V2, q: V2) => poner("MC-PARQUE-LINEA", [p, q], "none", LINEA, 0.1, false, false);
-            const extremo = (s: number) => ({ x: c.x + u.x * (w / 2) * s, y: c.y + u.y * (w / 2) * s });
-            const lado = (s: number, t: number) => ({
-              x: c.x + u.x * (w / 2) * s + v.x * (h / 2) * t,
-              y: c.y + u.y * (w / 2) * s + v.y * (h / 2) * t,
-            });
-            linea(lado(-1, -1), lado(1, -1));
-            linea(lado(1, -1), lado(1, 1));
-            linea(lado(1, 1), lado(-1, 1));
-            linea(lado(-1, 1), lado(-1, -1));
-            linea(lado(0, -1), lado(0, 1));
-            const cir = disco(c, Math.min(campo.rCentro, h * 0.28), 16);
-            if (dentro(cir, poly, 0.05)) poner("MC-PARQUE-LINEA", cir, "none", LINEA, 0.08, true, false);
-            linea(extremo(-1), { x: extremo(-1).x - u.x * campo.arco, y: extremo(-1).y - u.y * campo.arco });
-            canchaNombre = campo.nombre;
-            base.textos.push({ p: { x: c.x, y: c.y + 1.2 }, text: campo.nombre.toUpperCase(), size: 1.5, fill: LINEA });
-            break;
-          }
+  let juegosP: V2 | null = null;
+
+  const local = (c: V2, ang: number, x: number, y: number) => ptLocal(c, ang, x, y);
+  const lineaBlanca = (a: V2, b: V2) => poner("MC-PARQUE-LINEA", [a, b], "none", LINEA, 0.18, false, false);
+
+  if (cancha) {
+    const { c, ang, largo: L, ancho: A, campo } = cancha;
+    angEje = ang;
+    canchaNombre = campo.nombre;
+    const mitadA = recto(local(c, ang, -L / 4, 0), L / 2, A, ang);
+    const mitadB = recto(local(c, ang, L / 4, 0), L / 2, A, ang);
+    poner("MC-PARQUE-CANCHA", mitadA, "#2f8a4c", "#145c32", 0.06, true, true);
+    poner("MC-PARQUE-CANCHA", mitadB, "#277843", "#145c32", 0.06, true, true);
+    const P = (x: number, y: number) => local(c, ang, x, y);
+    const hl = L / 2;
+    const ha = A / 2;
+    lineaBlanca(P(-hl, -ha), P(hl, -ha));
+    lineaBlanca(P(hl, -ha), P(hl, ha));
+    lineaBlanca(P(hl, ha), P(-hl, ha));
+    lineaBlanca(P(-hl, ha), P(-hl, -ha));
+    lineaBlanca(P(0, -ha), P(0, ha));
+    const rCir = Math.min(campo.rCentro, A * 0.2);
+    poner("MC-PARQUE-LINEA", disco(c, rCir, 28), "none", LINEA, 0.16, true, false);
+    poner("MC-PARQUE-LINEA", disco(c, 0.18, 8), LINEA, LINEA, 0.04, true, false);
+    const penD = L * (16.5 / 105);
+    const penW = Math.min(A * 0.62, A * (40.32 / 68));
+    const areaD = L * (5.5 / 105);
+    const areaW = Math.min(penW * 0.55, A * (18.32 / 68));
+    const punto = L * (11 / 105);
+    for (const s of [-1, 1]) {
+      lineaBlanca(P(s * (hl - penD), -penW / 2), P(s * (hl - penD), penW / 2));
+      lineaBlanca(P(s * hl, -penW / 2), P(s * (hl - penD), -penW / 2));
+      lineaBlanca(P(s * hl, penW / 2), P(s * (hl - penD), penW / 2));
+      lineaBlanca(P(s * (hl - areaD), -areaW / 2), P(s * (hl - areaD), areaW / 2));
+      lineaBlanca(P(s * hl, -areaW / 2), P(s * (hl - areaD), -areaW / 2));
+      lineaBlanca(P(s * hl, areaW / 2), P(s * (hl - areaD), areaW / 2));
+      poner("MC-PARQUE-LINEA", disco(P(s * (hl - punto), 0), 0.16, 8), LINEA, LINEA, 0.03, true, false);
+      const arco = Math.min(campo.arco, A * 0.22);
+      lineaBlanca(P(s * hl, -arco / 2), P(s * (hl + 0.7), -arco / 2));
+      lineaBlanca(P(s * hl, arco / 2), P(s * (hl + 0.7), arco / 2));
+      lineaBlanca(P(s * (hl + 0.7), -arco / 2), P(s * (hl + 0.7), arco / 2));
+      const rEsq = Math.max(0.45, Math.min(1, A * 0.03));
+      for (const t of [-1, 1]) {
+        const esq = P(s * hl, t * ha);
+        const arcoE = disco(esq, rEsq, 8).filter((q) => {
+          const dx = (q.x - c.x) * Math.cos(ang) + (q.y - c.y) * Math.sin(ang);
+          const dy = -(q.x - c.x) * Math.sin(ang) + (q.y - c.y) * Math.cos(ang);
+          return Math.abs(dx) <= hl + 0.02 && Math.abs(dy) <= ha + 0.02;
+        });
+        if (arcoE.length >= 3) poner("MC-PARQUE-LINEA", arcoE, "none", LINEA, 0.12, false, false);
+      }
+    }
+    base.textos.push({ p: P(0, ha + 1.8), text: campo.nombre.toUpperCase(), size: 1.7, fill: "#143d24" });
+    const redPerimetral = paseoPerimetral();
+
+    const sep = 0.9;
+    const anCamino = Math.max(2.2, anS);
+    const offA = ha + sep + anCamino / 2;
+    const offL = hl + sep + anCamino / 2;
+    const ring = [P(-offL, -offA), P(offL, -offA), P(offL, offA), P(-offL, offA)];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % ring.length];
+      const e = norm(sub(b, a));
+      soltarTramo({ x: a.x - e.x * 0.35, y: a.y - e.y * 0.35 }, { x: b.x + e.x * 0.35, y: b.y + e.y * 0.35 }, anCamino);
+      empalme(a, anCamino);
+    }
+    const bordesCancha = ring.map((p, i) => lerp(p, ring[(i + 1) % ring.length], 0.5));
+    const perimetro = redPerimetral.length ? redPerimetral : bordesCancha;
+    for (const medio of bordesCancha) {
+      const meta = perimetro.reduce((m, p) => (dist(p, medio) < dist(m, medio) ? p : m), perimetro[0]);
+      if (dist(medio, meta) > 1.2 && dist(medio, meta) < 18) {
+        soltarTramo(medio, meta, anS);
+        empalme(medio, anCamino);
+        empalme(meta, anP);
+      }
+    }
+    eje = bordesCancha;
+    if (eje.length < 2) eje = [P(-offL, 0), P(offL, 0)];
+    const estancias = bordesCancha
+      .map((p) => ({ p, h: holgura(p, poly) }))
+      .filter((s) => s.h > 3.2)
+      .sort((a, b) => b.h - a.h);
+    const apartar = (p: V2, d: number) => {
+      const n = norm(sub(p, c));
+      return { x: p.x + n.x * d, y: p.y + n.y * d };
+    };
+    for (const sitio of estancias) {
+      if (plazaOk && dist(sitio.p, nodo) < ladoPlaza + 3) continue;
+      for (const d of [4, 6.5, 9]) {
+        const q = apartar(sitio.p, d);
+        if (!pointInPoly(q, poly)) continue;
+        juegosP = equiparJuegos(q, ang, areaP, poly, base.textos, poner, dentro, choca, ocupados);
+        if (juegosP) break;
+      }
+      if (juegosP) break;
+    }
+    if (!juegosP) {
+      for (let x = caja.minX + 5; x < caja.maxX - 5 && !juegosP; x += 7) {
+        for (let y = caja.minY + 5; y < caja.maxY - 5 && !juegosP; y += 7) {
+          const q = { x, y };
+          if (dist(q, c) < Math.hypot(hl, ha) + 3) continue;
+          if (plazaOk && dist(q, nodo) < ladoPlaza + 2) continue;
+          juegosP = equiparJuegos(q, ang, areaP, poly, base.textos, poner, dentro, choca, ocupados);
         }
       }
-      if (canchaNombre) break;
     }
-  }
-
-  const juegoAncho = areaP > 700 ? 7.2 : 5.2;
-  const juegoAlto = areaP > 700 ? 5.2 : 3.8;
-  const seg = 1.5;
-  let juegosP: V2 | null = null;
-  for (let k = 0; k < 24 && !juegosP; k++) {
-    const ang = (k / 24) * Math.PI * 2;
-    const radio = ladoPlaza * 0.85 + 6 + (k % 5);
-    const c = alejar({ x: nodo.x + Math.cos(ang) * radio, y: nodo.y + Math.sin(ang) * radio }, poly, 3, centro);
-    if (canchaNombre && dist(c, nodo) < ladoPlaza) continue;
-    const pad = recto(c, juegoAncho + seg * 2, juegoAlto + seg * 2, angEje);
-    if (!dentro(pad, poly, 0.25) || choca(pad, ocupados)) continue;
-    poner("MC-PARQUE-JUEGO", pad, ARENA, "#c4b48a", 0.06, true, true);
-    const columpio = recto({ x: c.x - 1.1, y: c.y }, 3.1, 0.16, angEje);
-    poner("MC-PARQUE-JUEGO", columpio, JUEGO, JUEGO, 0.05, true, false);
-    const tobogan = recto({ x: c.x + 1.6, y: c.y + 0.4 }, 2.2, 1.1, angEje + 0.4);
-    poner("MC-PARQUE-JUEGO", tobogan, JUEGO2, "#2a5274", 0.05, true, false);
-    base.textos.push({ p: { x: c.x, y: c.y - juegoAlto * 0.15 }, text: "JUEGOS", size: 1.35, fill: "#5c4630" });
-    juegosP = c;
+    const puesta = ponerPlazas(poly, categoria, estilo, ocupados, c, bordesCancha[0] ?? c, bordesCancha, ang, poner, soltarTramo, base);
+    if (puesta) {
+      plazaOk = true;
+      nodo = puesta.centro;
+      ladoPlaza = puesta.lado;
+    }
+  } else {
+    const redPasiva = paseoPerimetral();
+    if (redPasiva.length >= 4) {
+      const c = centroid(redPasiva);
+      const rLoop = Math.min(caja.w, caja.h) * (estilo === "organico" ? 0.18 : 0.12);
+      const nudos = estilo === "organico" ? 7 : 4;
+      const anillo: V2[] = [];
+      for (let i = 0; i < nudos; i++) {
+        const a = (i / nudos) * Math.PI * 2;
+        anillo.push(alejar({ x: c.x + Math.cos(a) * rLoop, y: c.y + Math.sin(a) * rLoop }, poly, anS / 2 + 0.4, c));
+      }
+      for (let i = 0; i < anillo.length; i++) {
+        soltarTramo(anillo[i], anillo[(i + 1) % anillo.length], anS);
+        empalme(anillo[i], anS);
+      }
+      for (let i = 0; i < redPasiva.length; i += Math.max(1, Math.floor(redPasiva.length / (estilo === "organico" ? 6 : 4)))) {
+        const meta = anillo.reduce((m, p) => (dist(p, redPasiva[i]) < dist(m, redPasiva[i]) ? p : m), anillo[0]);
+        soltarTramo(meta, redPasiva[i], anS);
+        empalme(redPasiva[i], anP);
+      }
+      for (const extra of entradas) {
+        const meta = anillo.reduce((m, p) => (dist(p, extra) < dist(m, extra) ? p : m), anillo[0]);
+        if (dist(meta, extra) > 2) soltarTramo(meta, extra, anT);
+      }
+      eje = anillo;
+    }
+    if (eje.length < 2 && entradas.length >= 1) {
+      const a = entradas[0];
+      const b = entradas[Math.min(entradas.length - 1, 1)] ?? centro;
+      const lado = norm(sub(b, a));
+      const perp = { x: -lado.y, y: lado.x };
+      const desvio = estilo === "organico" ? Math.min(dist(a, b) * 0.22, 14) : estilo === "lineal" ? dist(a, b) * 0.04 : 0;
+      const control = { x: (a.x + b.x) / 2 + perp.x * desvio, y: (a.y + b.y) / 2 + perp.y * desvio };
+      const curva = (estilo === "geometrico" ? [a, centro, b] : bezier(a, b, control, 8)).map((p) => alejar(p, poly, anP / 2 + 0.35, centro));
+      eje = curva;
+      for (let i = 0; i < curva.length - 1; i++) soltarTramo(curva[i], curva[i + 1], anP);
+      if (entradas.length > 2) {
+        for (const extra of entradas.slice(2)) {
+          const cerca = eje.reduce((m, p) => (dist(p, extra) < dist(m, extra) ? p : m), eje[0]);
+          soltarTramo(cerca, alejar(extra, poly, anS / 2 + 0.3, centro), anS);
+        }
+      }
+    }
+    nodo = eje.length ? eje[Math.floor(eje.length / 2)] : centro;
+    angEje = eje.length >= 2 ? Math.atan2(eje[eje.length - 1].y - eje[0].y, eje[eje.length - 1].x - eje[0].x) : rumbo;
+    const puesta = ponerPlazas(poly, categoria, estilo, ocupados, null, nodo, eje, angEje, poner, soltarTramo, base);
+    if (puesta) {
+      plazaOk = true;
+      nodo = puesta.centro;
+      ladoPlaza = puesta.lado;
+    }
+    for (let k = 0; k < 16 && !juegosP; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const q = alejar({ x: nodo.x + Math.cos(a) * (ladoPlaza + 7), y: nodo.y + Math.sin(a) * (ladoPlaza + 7) }, poly, 3.5, centro);
+      if (holgura(q, poly) < 3.5) continue;
+      juegosP = equiparJuegos(q, angEje, areaP, poly, base.textos, poner, dentro, choca, ocupados);
+    }
   }
 
   const descansos: V2[] = [];
@@ -552,18 +832,19 @@ function disenarUno(poly: V2[], categoria: CategoriaParque, estiloIn: EstiloParq
     "arbustos",
     "luminarias sobre el recorrido",
   ].filter(Boolean);
-  base.nota = `Estilo ${estiloTxt}, ${categoria === "activa" ? "recreación activa" : "recreación pasiva"}. El perímetro manda: primero accesos y recorridos (principal ${anP.toFixed(2)} m, secundario ${anS.toFixed(2)} m, terciario ${anT.toFixed(2)} m, todos ≥ 1.20 m y continuos), después ${zonas.join(", ")}. El césped es el área que dejan los recorridos.`;
+  base.nota = `Estilo ${estiloTxt}, ${categoria === "activa" ? "recreación activa" : "recreación pasiva"}. Una sola vereda perimetral. Los recorridos internos empalman en curva con esa vereda. ${zonas.join(", ")}. ${canchaNombre ? `Losa ${canchaNombre.toLowerCase()} con anillo que empalma a la vereda.` : "El césped es el área que dejan los recorridos."}`;
   return base;
 }
 
-export function disenarParques(polys: V2[][], ajustes: AjusteParque[]): Parque[] {
+export function disenarParques(polys: V2[][], ajustes: AjusteParque[], traza: "recta" | "curva" = "recta"): Parque[] {
   const panos = unirPanos(polys);
   return panos.map((poly, i) => {
     const clave = claveDe(poly);
     const aj = ajustes.find((a) => a.clave === clave) ?? (panos.length === 1 ? ajustes[0] : undefined);
     const cabeCancha = esConvexo(poly) && Math.abs(area(poly)) > 280 && Math.min(bbox(poly).w, bbox(poly).h) > 16;
     const categoria: CategoriaParque = aj?.categoria ?? (cabeCancha ? "activa" : "pasiva");
-    const parque = disenarUno(poly, categoria, aj?.estilo, i);
+    const estilo = aj?.estilo ?? (traza === "curva" ? "organico" : undefined);
+    const parque = disenarUno(poly, categoria, estilo, i, { largo: aj?.largoCancha, ancho: aj?.anchoCancha });
     parque.clave = clave;
     return parque;
   });

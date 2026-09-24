@@ -148,7 +148,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
 
   return out(
     `Viga de cimentación ${t} m/cm  ·  ${cols.length} col.  ·  M− ${fmt(Msoil, 2)} / M+ ${fmt(Mtop, 2)} t·m`,
-    `Inf. ${asVCInf} (corrido)  ·  sup. ${asVCSup} (cortes L_teo+ℓd)  ·  est. ${nRamas}Ø ${estBar.name} ${sh.arregloPlano}  ·  V ${fmt(Vmax, 1)} t.`,
+    `Inf. ${asVCInf} (corrido, mín. 2 Ø)  ·  sup. 2 Ø corridos + resto de ${asVCSup} en apoyos  ·  est. ${nRamas}Ø ${estBar.name} ${sh.arregloPlano}  ·  V ${fmt(Vmax, 1)} t.`,
     [
       step(
         "01",
@@ -173,8 +173,8 @@ export const calcVigaCimentacion: Engine = (raw) => {
         "V(x)=∫q−ΣPu    ·    M(x)=∫V    ·    M(0)=M(L)=0 verifica equilibrio",
         "V(x)=\\int_0^x q-\\sum P_u\\qquad M(x)=\\int_0^x V",
         `Estaciones: ${beam.pts.length}    ·    Vmáx = ${fmt(Vmax, 1)} t    ·    M+ = ${fmt(beam.Mmax, 2)}    M− = ${fmt(beam.Mmin, 2)} t·m`,
-        `M− suelo = ${fmt(Msoil, 2)} t·m (inf. continuo)    ·    M+ vuelos = ${fmt(Mtop, 2)} t·m (sup. cortado)    ·    cierre V(L) = ${fmt(Vend, 2)} t, M(L) = ${fmt(Mend, 2)} t·m`,
-        "Entre apoyos el momento tracciona la cara del suelo (M−, acero inferior continuo). En vuelos tracciona arriba (M+, superior cortado L_teo+ℓd). Si V(L) o M(L) no cierran ≈0, el tramo está mal asignado.",
+        `M− suelo = ${fmt(Msoil, 2)} t·m (inf. continuo)    ·    M+ vuelos = ${fmt(Mtop, 2)} t·m (2 Ø sup. corridos + adicional cortado)    ·    cierre V(L) = ${fmt(Vend, 2)} t, M(L) = ${fmt(Mend, 2)} t·m`,
+        "Entre apoyos el momento tracciona la cara del suelo (M−, acero inferior continuo, mínimo 2 Ø). En apoyos y vuelos tracciona arriba: 2 Ø superiores corridos y el resto cortado a L_teo+ℓd. Si V(L) o M(L) no cierran ≈0, el tramo está mal asignado.",
         {
           ok: Math.abs(Vend) < Math.max(2, wLine * L * 0.05) && Math.abs(Mend) < Math.max(1, Msoil * 0.1 + 0.5),
           desarrollo: [
@@ -191,7 +191,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
         "R_n=\\dfrac{M_u}{\\phi b d^2}\\qquad A_s=\\max(\\rho bd,\\tfrac{14}{f_y}bd)",
         `b = ${bCm} cm    ·    h = ${hCm} cm    ·    d = ${fmt(d, 1)} cm    ·    f'c = ${fmt(fc, 0)}    fy = ${fmt(fy, 0)}`,
         `Inf. As = ${fmt(AsInfNeed, 2)} cm² → ${asVCInf}    ·    sup. As = ${fmt(AsSupNeed, 2)} cm² → ${asVCSup}`,
-        "Inferior corrido de extremo a extremo (M− entre apoyos). Superior cortado en cada apoyo/extremo: L_teo ≈ 0.30ℓn + ℓd con extensión máx(d, 12db, ℓn/16).",
+        "Inferior corrido de extremo a extremo (M− entre apoyos), mínimo 2 Ø. Superior: 2 Ø corridos en todo el lecho; el resto del As de apoyo se corta a L_teo ≈ 0.30ℓn + ℓd, con extensión máx(d, 12db, ℓn/16).",
         {
           desarrollo: [
             `d = h − rec − Øest − Ø/2 ≈ ${hCm} − ${fmt(rec, 1)} − ${fmt(estBar.db, 2)} − 1.0 = ${fmt(d, 1)} cm.`,
@@ -225,7 +225,7 @@ export const calcVigaCimentacion: Engine = (raw) => {
         "\\ell_d=0.075\\,f_y d_b/\\sqrt{f'_c}",
         `db inf. ${fmt(dbInfGuess, 2)} / sup. ${fmt(dbSupGuess, 2)} cm`,
         `ℓd inf. = ${fmt(ldInf, 1)} cm    ℓd sup. = ${fmt(ldSup, 1)} cm    gancho ≥ ${fmt(12 * dbInfGuess, 1)} cm    rec = ${fmt(rec, 1)} cm`,
-        "Inferior continuo anclado con gancho 90° en bordes libres. Superior: L_teo desde la cara + ℓd. Rec ≥ 7.5 cm contra suelo.",
+        "Inferior continuo anclado con gancho 90° en bordes libres. Superior: las 2 barras corridas también, con gancho 90°; el adicional de apoyo mide L_teo desde la cara + ℓd. Rec ≥ 7.5 cm contra suelo.",
         {},
       ),
     ],

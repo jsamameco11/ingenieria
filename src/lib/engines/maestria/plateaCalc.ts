@@ -515,7 +515,7 @@ export const calcPlatea: Engine = (raw) => {
         "M(x)=\\dfrac{w x^2}{2}-\\sum P_u(x-x_i)",
         `b = ${fmt(bIntX, 2)} m    ·    w = ${fmt(sum(lIntX) / Math.max(LxUse, 0.2), 2)} t/m    ·    ${lIntX.length} columnas en la fila    ·    amp = ${fmt(amp, 2)}`,
         `M+ = ${fmt(frIntX.Mmax, 1)} t·m    ·    M− = ${fmt(frIntX.Mmin, 1)} t·m    ·    Vmáx = ${fmt(frIntX.Vmax, 1)} t    ·    con amp: Msuelo = ${fmt(amp * Math.max(-frIntX.Mmin, 0), 1)} t·m`,
-        "Motor FEM de viga invertida (extremos libres, q lineal de equilibrio). M− = lecho inferior continuo (cara del suelo). M+ = lecho superior cortado L_teo+ℓd en bandas de columna. V(L) ≈ 0 cierra el equilibrio de la fila.",
+        "Motor FEM de viga invertida (extremos libres, q lineal de equilibrio). M− = lecho inferior, cortado en cada paño con gancho en los ejes. M+ = lecho superior en tramos L_teo+ℓd desde el eje. V(L) ≈ 0 cierra el equilibrio de la fila.",
         {
           desarrollo: [
             `Ancho tributario interior = Sy = ${fmt(bIntX, 2)} m.`,
@@ -533,7 +533,7 @@ export const calcPlatea: Engine = (raw) => {
         "M(x)=\\dfrac{w x^2}{2}-\\sum P_u(x-x_i)",
         `b = ${fmt(bEdgX, 2)} m    ·    w = ${fmt(sum(lEdgX) / Math.max(LxUse, 0.2), 2)} t/m    ·    ${lEdgX.length} columnas`,
         `M+ = ${fmt(frEdgX.Mmax, 1)} t·m    ·    M− = ${fmt(frEdgX.Mmin, 1)} t·m    ·    Vmáx = ${fmt(frEdgX.Vmax, 1)} t`,
-        "El vuelo de borde suele gobernar el lecho superior (cortes L_teo+ℓd). El lecho inferior sigue corrido de borde a borde.",
+        "El vuelo de borde suele gobernar el lecho superior (tramos L_teo+ℓd). El inferior de cada paño se corta en sus ejes.",
         {
           desarrollo: [
             `Ancho de borde ≈ Sy/2 = ${fmt(bEdgX, 2)} m. Motor FEM independiente de la franja interior.`,
@@ -564,7 +564,7 @@ export const calcPlatea: Engine = (raw) => {
         "A_s=\\max\\left(\\dfrac{M_u}{\\phi f_y j d},0.0018 t\\right)",
         `d = ${fmt(d, 1)} cm    ·    Mu suelo X = ${fmt(MsoilX / Math.max(bIntX, 1), 2)} t·m/m    ·    Mu vuelo X = ${fmt(MtopX / Math.max(bIntX, 1), 2)} t·m/m`,
         `Inf. X ${fmtBar(sPos)} (As ${fmt(flexPos.As, 2)} cm²/m)    ·    Inf. Y ${fmtBar(sPosY)}    ·    Sup. X ${fmtBar(sNeg)}    ·    Sup. Y ${fmtBar(sNegY)}`,
-        "En bandas de columna se puede densificar; en el centro del paño no bajar de Asmín. Un Ø representativo por lecho en la planta A1.",
+        "En bandas de columna se puede densificar; en el centro del paño no bajar de Asmín. El Ø gobernante se repite en cada paño; el cuadro da n y L de ese paño.",
         {
           desarrollo: [
             `Mu/b suelo X = ${fmt(MsoilX, 1)} / ${fmt(bIntX, 2)} = ${fmt(MsoilX / Math.max(bIntX, 1), 2)} t·m/m → As inf. X = ${fmt(flexPos.As, 2)} cm²/m → ${fmtBar(sPos)}.`,
@@ -625,7 +625,7 @@ export const calcPlatea: Engine = (raw) => {
           desarrollo: [
             `ℓd = 0.075 × ${fmt(fy, 0)} × ${fmt(sPos.db, 2)} / √${fmt(fc, 0)} = ${fmt(ldInf, 1)} cm para ${fmtBar(sPos)}.`,
             `Recubrimiento de cimentación ${fmt(rec, 1)} cm ≥ 7.5 cm (E.060 7.7.1).`,
-            `Lecho inf. continuo: L_barra = L − 2 rec, gancho 90° ≥ 12 db. Lecho sup.: L_barra = L_teo + ℓd desde el eje (L_teo ≈ 0,30 ℓn, L_ext ≥ máx(d, 12 db, ℓn/16)).`,
+            `Lecho inf. por paño: L = luz del paño − 2 rec + 2 ganchos de 12 db. Lecho sup.: cada tramo mide L_teo + ℓd desde el eje; la barra de taller del eje interior es la suma de los dos tramos.`,
           ],
         },
       ),
@@ -711,6 +711,10 @@ export const calcPlatea: Engine = (raw) => {
       asPos: fmtBar(sPos),
       asNeg: fmtBar(sNeg),
       AsPos: flexPos.As.toFixed(2),
+      AsInfX: flexPos.As.toFixed(2),
+      AsInfY: flexPosY.As.toFixed(2),
+      AsSupX: flexNeg.As.toFixed(2),
+      AsSupY: flexNegY.As.toFixed(2),
       punchVu: worst.Vu.toFixed(2),
       punchPhi: worst.phiVn.toFixed(2),
       punchOk: worst.ok ? "1" : "0",

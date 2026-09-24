@@ -8,6 +8,7 @@ import { FullSelect } from "../ui/FullSelect";
 import { CalcDirtyNote, CalcularButton, MemoriaPendiente, useMemoriaOnCalcular } from "../ui/calcular";
 import { Paper } from "../ui/Paper";
 import { Diagram, ColumnaPM } from "../components/Diagram";
+import { PlateaEsfuerzos } from "../components/MomentoZona";
 import { MaeCatalogHost } from "../components/maestria/MaeCanvas";
 import { dumpBoth } from "../lib/engines/maestria/drawCommon";
 import { exampleModel } from "../lib/engines/maestria/types";
@@ -582,6 +583,7 @@ function CroquisBoard({
         onChange={onChange}
       />
       {mod.diagram === "estribo" && sketch.asPant ? <SteelSectionFig spec={specEstriboPantalla(sketch)} /> : null}
+      {mod.diagram === "platea" && sketch.mPtsIntX ? <PlateaEsfuerzos values={sketch} /> : null}
       <aside className="ficha">
         <div className="ficha-head">
           <span>Datos del elemento</span>
@@ -966,7 +968,10 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
           blocks.push({ type: "figure", part: "vEdgY" });
         }
         if (s.n === "10") blocks.push({ type: "figure", part: "mPunch" });
-        if (s.n === "09") blocks.push({ type: "figure", part: "mSteel" });
+        if (s.n === "09") {
+          blocks.push({ type: "figure", part: "mFem" });
+          blocks.push({ type: "figure", part: "mSteel" });
+        }
         if (s.n === "13") {
           blocks.push({ type: "figure", part: "mBeamM" });
           blocks.push({ type: "figure", part: "mBeamV" });
@@ -1072,9 +1077,6 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.diagram === "tanqueElevadoColumnas" && /Motor FEM de la torre/.test(s.title)) {
         blocks.push({ type: "figure", part: "esfuerzos" });
       }
-      if (mod.diagram === "tanqueElevadoColumnas" && s.n === "14") {
-        blocks.push({ type: "figure", part: "mTorre3D" });
-      }
       if (mod.diagram === "tanqueElevadoColumnas" && s.n === "16") {
         blocks.push({ type: "figure", part: "mColumna" });
       }
@@ -1090,7 +1092,7 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       if (mod.diagram === "tanqueElevadoFuste" && /Motor FEM del fuste/.test(s.title)) {
         blocks.push({ type: "figure", part: "esfuerzos" });
       }
-      if (mod.diagram === "tanqueElevadoFuste" && (s.n === "14" || s.n === "14d" || s.n === "15")) {
+      if (mod.diagram === "tanqueElevadoFuste" && (s.n === "14d" || s.n === "15")) {
         blocks.push({ type: "figure", part: "mSecFuste" });
       }
       if (mod.diagram === "tanqueElevadoFuste" && s.n === "16") {

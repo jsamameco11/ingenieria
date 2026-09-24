@@ -149,8 +149,12 @@ function BarCut({ x, y, r, color }: { x: number; y: number; r: number; color: st
   );
 }
 
-function RebarLine({ pts, color, width }: { pts: { x: number; y: number }[]; color: string; width: number }) {
+function RebarLine({ pts, color, width, hair = false }: { pts: { x: number; y: number }[]; color: string; width: number; hair?: boolean }) {
   if (pts.length < 2) return null;
+  if (hair) {
+    const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+    return <path d={d} fill="none" stroke={color} strokeWidth={width} strokeLinecap="butt" strokeLinejoin="miter" />;
+  }
   const d = polyD(pts, width);
   const cap = Math.max(0.7, width * 0.42);
   const first = pts[0];
@@ -298,6 +302,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   const clipWall = `steel-clip-${uid}`;
   const a1 = spec.sheet === "a1";
   const plan = spec.mode === "plan";
+  const strip = spec.layout === "elevation";
   const showGround = !plan && (Boolean(spec.soil) || Boolean(spec.soilFront) || spec.groundY != null);
   const scale = spec.barScale ?? 1;
   const thin = spec.lineScale ?? 1;
@@ -307,7 +312,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
   const longLayers = spec.layers.filter((l) => Boolean(l.barPaths?.length || (l.draw === "bar" && l.barPath?.length)));
   const cutLayers = spec.layers.filter((l) => !l.barPaths?.length && !(l.draw === "bar" && l.barPath?.length));
   return (
-    <div className={`croquis croquis-steel${a1 ? " croquis-a1" : ""}`} data-fig-part="momento">
+    <div className={`croquis croquis-steel${a1 ? " croquis-a1" : ""}${strip ? " croquis-strip" : ""}`} data-fig-part="momento">
       <div className="croquis-head">
         <p>{spec.title}</p>
       </div>
@@ -382,7 +387,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
             return (
               <g key={`rb-${layer.mark}`}>
                 {paths.map((pts, i) => (
-                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM, a1, thin)} />
+                  <RebarLine key={`${layer.mark}-${i}`} pts={pts} color={layer.color} width={barWidthOf(layer, scale, spec.pxPerM, a1, thin)} hair={layer.hair} />
                 ))}
               </g>
             );
@@ -446,7 +451,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
               x={a.x}
               y={a.y}
               textAnchor={a.anchor ?? "middle"}
-              fontSize={a1 ? 13 : 10.5}
+              fontSize={a.size ?? (a1 ? 13 : 10.5)}
               fontWeight="700"
               fill={a.fill ?? "#163a63"}
               stroke="#f4efe4"
@@ -472,7 +477,7 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
                 {plan ? "PLANTA · HOJA A1" : "CORTE A-A · HOJA A1"}
               </text>
               <text x={spec.W / 2 - 108} y={spec.H - 17} fontSize="11" fill="#163a63" fontFamily="IBM Plex Sans, sans-serif" fontWeight="700">
-                {plan ? "Despiece en planta · Ø en pulgadas" : "Despiece de aceros · 1,00 m"}
+                {plan ? "Despiece en planta · Ø en pulgadas" : (spec.footer ?? "Despiece de aceros · 1,00 m")}
               </text>
             </g>
           ) : (
@@ -485,42 +490,69 @@ export function SteelSectionFig({ spec }: { spec: SteelDraftSpec }) {
           )}
         </svg>
       </div>
-      <table className="steel-schedule">
-        <thead>
-          <tr>
-            <th>Marca</th>
-            <th>Lecho</th>
-            <th>Cara</th>
-            <th>Ø</th>
-            <th>db</th>
-            <th>@</th>
-            <th>n / ml</th>
-            <th>As req</th>
-            <th>As disp</th>
-            <th>ℓd</th>
-            <th>rec</th>
-          </tr>
-        </thead>
-        <tbody>
-          {spec.layers.map((l) => (
-            <tr key={l.mark}>
-              <td>{l.mark}</td>
-              <td>{l.name}</td>
-              <td>{l.face}</td>
-              <td>Ø {l.bar}</td>
-              <td>{l.dbCm.toFixed(2)} cm</td>
-              <td>{fmtSep(l.sCm)} cm</td>
-              <td>{l.nReal}</td>
-              <td>{l.asReq != null ? `${l.asReq.toFixed(2)} ${l.asUnit}` : "—"}</td>
-              <td>
-                {l.asProv.toFixed(2)} {l.asUnit}
-              </td>
-              <td>{l.ldCm != null ? `${l.ldCm.toFixed(0)} cm` : "—"}</td>
-              <td>{l.recCm != null ? `${l.recCm.toFixed(1)} cm` : "—"}</td>
+      {spec.schedules?.length ? (
+        spec.schedules.map((sch) => (
+          <div key={sch.caption}>
+            <p className="steel-sch-cap">{sch.caption}</p>
+            <table className="steel-schedule">
+              <thead>
+                <tr>
+                  {sch.headers.map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sch.rows.map((row, i) => (
+                  <tr key={`${sch.caption}-${i}`}>
+                    {row.map((cell, j) => (
+                      <td key={j}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sch.note ? <p className="steel-sch-note">{sch.note}</p> : null}
+          </div>
+        ))
+      ) : (
+        <table className="steel-schedule">
+          <thead>
+            <tr>
+              <th>Marca</th>
+              <th>Lecho</th>
+              <th>Cara</th>
+              <th>Ø</th>
+              <th>db</th>
+              <th>@</th>
+              <th>n / ml</th>
+              <th>As req</th>
+              <th>As disp</th>
+              <th>ℓd</th>
+              <th>rec</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {spec.layers.map((l) => (
+              <tr key={l.mark}>
+                <td>{l.mark}</td>
+                <td>{l.name}</td>
+                <td>{l.face}</td>
+                <td>Ø {l.bar}</td>
+                <td>{l.dbCm.toFixed(2)} cm</td>
+                <td>{fmtSep(l.sCm)} cm</td>
+                <td>{l.nReal}</td>
+                <td>{l.asReq != null ? `${l.asReq.toFixed(2)} ${l.asUnit}` : "—"}</td>
+                <td>
+                  {l.asProv.toFixed(2)} {l.asUnit}
+                </td>
+                <td>{l.ldCm != null ? `${l.ldCm.toFixed(0)} cm` : "—"}</td>
+                <td>{l.recCm != null ? `${l.recCm.toFixed(1)} cm` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <p className="croquis-cap">{spec.caption}</p>
     </div>
   );
@@ -536,6 +568,10 @@ function barRadiusOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = fa
 
 function barWidthOf(layer: SteelLayer, _scale: number, pxPerM?: number, a1 = false, lineScale = 1) {
   const dbM = layer.dbCm / 100;
+  if (layer.hair) {
+    const w = pxPerM ? dbM * pxPerM * 1.05 * lineScale : layer.dbCm * 0.22 * lineScale;
+    return Math.max(1.15, Math.min(a1 ? 1.65 : 1.25, w));
+  }
   const lo = (a1 ? 3.4 : 2.2) * lineScale;
   const hi = (a1 ? 9.2 : 5.0) * lineScale;
   if (pxPerM) return Math.max(lo, Math.min(hi, dbM * pxPerM * (a1 ? 2.35 : 1.45) * lineScale));

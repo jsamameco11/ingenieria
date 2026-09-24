@@ -14,6 +14,36 @@ import { parseGrid } from "../lib/layoutGrid";
 import { CorridaIsoFig } from "./CorridaColumnas";
 import { MaeMomentStrip, MaePunchFromDims } from "./maestria/MaeFigs";
 
+export function PlateaEsfuerzos({ values }: { values: Record<string, string> }) {
+  const Lx = nv(values, "Lx", 16);
+  const Ly = nv(values, "Ly", 16);
+  const rows: { title: string; pts: string; L: number; pos: number; neg?: number; kind: "M" | "V"; unidad: string; formula: string }[] = [
+    { title: "Franja interior X — momento", pts: sv(values, "mPtsIntX"), L: Lx, pos: nv(values, "mIntXMpos"), neg: nv(values, "mIntXMneg"), kind: "M", unidad: "t·m", formula: "Motor FEM · M(x) de la viga invertida" },
+    { title: "Franja interior X — cortante", pts: sv(values, "vPtsIntX"), L: Lx, pos: nv(values, "vIntXVmax"), kind: "V", unidad: "t", formula: "Motor FEM · V(x) = ∫q − ΣPu" },
+    { title: "Franja de borde X — momento", pts: sv(values, "mPtsEdgX"), L: Lx, pos: nv(values, "mEdgXMpos"), neg: nv(values, "mEdgXMneg"), kind: "M", unidad: "t·m", formula: "Motor FEM · M(x) de la viga invertida" },
+    { title: "Franja de borde X — cortante", pts: sv(values, "vPtsEdgX"), L: Lx, pos: nv(values, "vEdgXVmax"), kind: "V", unidad: "t", formula: "Motor FEM · V(x) = ∫q − ΣPu" },
+    { title: "Franja interior Y — momento", pts: sv(values, "mPtsIntY"), L: Ly, pos: nv(values, "mIntYMpos"), neg: nv(values, "mIntYMneg"), kind: "M", unidad: "t·m", formula: "Motor FEM · M(y) de la viga invertida" },
+    { title: "Franja interior Y — cortante", pts: sv(values, "vPtsIntY"), L: Ly, pos: nv(values, "vIntYVmax"), kind: "V", unidad: "t", formula: "Motor FEM · V(y) = ∫q − ΣPu" },
+    { title: "Franja de borde Y — momento", pts: sv(values, "mPtsEdgY"), L: Ly, pos: nv(values, "mEdgYMpos"), neg: nv(values, "mEdgYMneg"), kind: "M", unidad: "t·m", formula: "Motor FEM · M(y) de la viga invertida" },
+    { title: "Franja de borde Y — cortante", pts: sv(values, "vPtsEdgY"), L: Ly, pos: nv(values, "vEdgYVmax"), kind: "V", unidad: "t", formula: "Motor FEM · V(y) = ∫q − ΣPu" },
+  ];
+  return (
+    <div className="croquis croquis-compact" data-fig-part="mFem">
+      <div className="croquis-head">
+        <p>Diagramas de esfuerzos — motor FEM de franjas (viga invertida)</p>
+      </div>
+      <div className="platea-fem-grid">
+        {rows.map((r) => (
+          <MaeMomentStrip key={r.title} title={r.title} formula={r.formula} ptsRaw={r.pts} L={r.L} MuPos={r.pos} MuNeg={r.neg} unidad={r.unidad} kind={r.kind} />
+        ))}
+      </div>
+      <p className="croquis-cap">
+        M− (abajo del eje) es el lecho inferior, cara del suelo. M+ (arriba) es el lecho superior, cortado L_teo+ℓd. Los saltos de cortante coinciden con las columnas de la franja. V(L) cierra en cero.
+      </p>
+    </div>
+  );
+}
+
 export function unpackMomentos(s: string) {
   return String(s || "")
     .split(";")
@@ -491,6 +521,7 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
   }
   if (kind === "platea") {
+    if (part === "mFem") return <PlateaEsfuerzos values={values} />;
     const map: Record<string, { zona: string; key: string; b: string }> = {
       mIntX: { zona: "Platea — franja interior eje X · momentos inf/sup", key: "mPtsIntX", b: "bIntX" },
       mEdgX: { zona: "Platea — franja de borde eje X · momentos inf/sup", key: "mPtsEdgX", b: "bEdgX" },
@@ -516,7 +547,7 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
           unidad="t·m"
           leftLabel="Vuelo / borde"
           rightLabel="Vuelo / borde"
-          note="Cada franja tiene motor propio. Inferior corrido de extremo a extremo. Superior cortado sobre ejes de columna: L_teo (0,30 ℓn) + ℓd, medido desde el eje al extremo de la barra."
+          note="Cada franja tiene motor propio. El inferior se corta en cada paño, con gancho 90° en los ejes. El superior entra L_teo (0,30 ℓn) + ℓd desde el eje."
         />
       );
     }
