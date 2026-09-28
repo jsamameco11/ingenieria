@@ -686,8 +686,8 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
             ? "Esta memoria determina la potencia instalada (PI), la máxima demanda (MD) y el alimentador de la vivienda según el CNE Utilización: área techada a considerar, alumbrado por tramos, cargas especiales con su factor de demanda, cargas adicionales, corriente nominal, sección THW-90 y caída de tensión."
             : mod.specialty === "mezclas"
               ? `Esta memoria desarrolla el ${nombreProcedimiento(mod.title)} según ${mod.norma}. Cada paso reproduce la hoja de cálculo: fórmula, desarrollo numérico, tabla intermedia y dosificación en peso.`
-            : mod.slug === "muro-contencion-sismo"
-              ? "Esta memoria desarrolla el muro de contención en voladizo por metro lineal: geometría de la pantalla y de la zapata (pata, alma y talón), empujes Rankine y de agua, sobrecarga de franja, estabilidad estática y sísmica (Mononobe–Okabe) y el diseño estructural E.060 de cada parte."
+            : mod.engine === "muroSostenimiento"
+              ? "Esta memoria desarrolla el muro de contención / sostenimiento en voladizo: perfil geotécnico, empujes Rankine o Coulomb, sobrecarga, estabilidad estática y sísmica (E.050 y Mononobe–Okabe) y el diseño E.060. El análisis estructural se calcula por voladizos y, en paralelo, con un motor propio de elementos finitos (láminas MITC4 sobre resortes de Winkler, sin tracción, envolvente de Wood & Armer). El selector de método decide qué vía gobierna el armado. Los diagramas de esfuerzos del modelo finito se publican junto con la malla y el despiece."
             : mod.slug === "losa-2dir"
               ? "Esta memoria desarrolla la losa en dos direcciones como expediente técnico: identificación de cada paño (ℓx, ℓy, bordes y huecos), Unir/separar que elimina la viga interior, peso propio de losa maciza o aligerada, combinación 1,4 D + 1,7 L, momentos ACI-3 y Marcus por paño, pórtico equivalente por cada franja real y una malla de acero (positivo continuo, negativo solo en viga/muro) según E.060 / ACI 318."
             : mod.slug === "zapata-corrida"
@@ -729,6 +729,14 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
                   : []),
                 ...(mod.engine === "columnaEsbeltez" || mod.engine === "predColumnas"
                   ? ["Tras el acero longitudinal se detallan estribos de confinamiento (ℓo, Ash, s) según E.060 21.4, con primer estribo a 5 cm del nudo."]
+                  : []),
+                ...(mod.engine === "muroSostenimiento"
+                  ? [
+                      "Las dos vías —analítica y elementos finitos— se calculan siempre y se contrastan. El acero lo dimensiona la vía elegida en «Análisis estructural que gobierna el armado».",
+                      "El modelo finito es una lámina MITC4 del fuste y de la zapata, apoyada en Winkler vertical y horizontal, con despegue del suelo si la reacción es de tracción.",
+                      "En la memoria se grafican la malla, el mapa de esfuerzos y los diagramas de momento y cortante del fuste, la puntera y el talón, con el acero E.060 que los cubre.",
+                      "El despiece A1 acota el fuste, la puntera y el talón en las unidades del expediente (Tnf·m, kN·m o kip-pie).",
+                    ]
                   : []),
                 ...(mod.engine === "muroContencionSismo"
                   ? [
@@ -1097,6 +1105,9 @@ export function ExcelCalcModule({ mod }: { mod: ModuleDef }) {
       }
       if (mod.diagram === "tanqueElevadoFuste" && s.n === "16") {
         blocks.push({ type: "figure", part: "mSecFustePared" });
+      }
+      if (mod.diagram === "tanqueElevadoFuste" && s.n === "16b") {
+        blocks.push({ type: "figure", part: "mSecAnilloFuste" });
       }
     });
     const restExtras = (result.extras ?? []).filter((ex) => !shownTables.has(ex.title));

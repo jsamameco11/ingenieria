@@ -1,8 +1,9 @@
 import { DiagramaCuerpoLibreFig, ElementoDiagramaFig, TorreMatricial3D, type DiagramaSpec } from "./DiagramTanques";
 import { DclMuroVoladizo } from "./DclMuroVoladizo";
+import { AceroJaulaFig } from "./AceroJaula";
 import { SteelSectionFig } from "./SteelSectionFig";
 import { DentellonMuroFig, SismoEstriboFig, SismoMuroFig } from "./MuroDidactica";
-import { specAnilloViga, specCascaron1m, specColumnaCircular, specFranja1m, specFustePared, specMuroVoladizo, specVigaRect } from "../lib/steelDraft";
+import { specFranja1m, specMuroVoladizo, specVigaRect } from "../lib/steelDraft";
 import {
   specEstriboPantalla,
   specLosaFromValues,
@@ -849,122 +850,117 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecMuro") {
       return (
-        <SteelSectionFig
-          spec={specFranja1m({
-            title: "Pared de la cuba — franja 1,00 m (un Ø por cálculo)",
-            hCm: nv(values, "tMuro", 0.25) * 100,
-            recCm: nv(values, "rec", 4),
-            infText: sv(values, "asHoriz", 'Ø 1/2" @ 15'),
-            supText: sv(values, "asHoriz", 'Ø 1/2" @ 15'),
-            distText: sv(values, "asVert", 'Ø 1/2" @ 15'),
-            infName: "Anillo intradós",
-            infFace: "cara húmeda",
-            supName: "Anillo extradós",
-            supFace: "cara seca",
-            distName: "Vertical (flexión)",
-            distFace: "altura de la cuba",
-          })}
+        <AceroJaulaFig
+          titulo="Pared de la cuba — armado en las dos caras"
+          kind="malla"
+          bCm={nv(values, "tMuro", 0.25) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asVert", 'Ø 1/2" @ 15')}
+          supText={sv(values, "asVert", 'Ø 1/2" @ 15')}
+          estText={sv(values, "asHoriz", 'Ø 1/2" @ 15')}
+          nombreLong="Vertical"
+          nombreTrans="Horizontal (anillo)"
         />
       );
     }
     if (part === "mSecDomo") {
       return (
-        <SteelSectionFig
-          spec={specCascaron1m({
-            title: kind === "reservorioApoyado" ? "Cúpula de techo — franja meridional 1,00 m" : "Cúpula superior (techo) — franja meridional 1,00 m",
-            hCm: nv(values, kind === "reservorioApoyado" ? "tDomo" : "tDomoSup", 0.08) * 100,
-            recCm: nv(values, "rec", 4),
-            intraText: sv(values, "asVert", 'Ø 3/8" @ 20'),
-            extraText: sv(values, "asVert", 'Ø 3/8" @ 20'),
-            distText: sv(values, "asHoriz", 'Ø 3/8" @ 20'),
-          })}
+        <AceroJaulaFig
+          titulo={kind === "reservorioApoyado" ? "Cúpula de techo — meridional y paralelo" : "Cúpula superior — meridional y paralelo"}
+          kind="malla"
+          bCm={nv(values, kind === "reservorioApoyado" ? "tDomo" : "tDomoSup", 0.08) * 100}
+          recCm={nv(values, "rec", 3)}
+          longText={sv(values, "asVert", 'Ø 3/8" @ 20')}
+          estText={sv(values, "asHoriz", 'Ø 3/8" @ 20')}
+          nombreLong="Meridional"
+          nombreTrans="Paralelo"
         />
       );
     }
     if (part === "mSecAnillo" && kind === "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specAnilloViga({
-            title: "Viga collarín de coronación",
-            bCm: nv(values, "bRing", 30),
-            hCm: nv(values, "hRing", 30),
-            recCm: nv(values, "rec", 4),
-            longText: sv(values, "asRingN", sv(values, "asRing", '6 Ø 1/2"')),
-            estText: 'Ø 3/8" @ 15',
-          })}
+        <AceroJaulaFig
+          titulo="Viga collarín de coronación"
+          kind="viga"
+          bCm={nv(values, "bRing", 30)}
+          hCm={nv(values, "hRing", 40)}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asRingN", '6 Ø 5/8" (3 sup. + 3 inf.)')}
+          estText={'estribos Ø 3/8" @ 15 cm'}
+          nombreLong="Longitudinal del anillo"
+          nombreTrans="Estribo cerrado"
         />
       );
     }
     if (part === "mSecLosa" && kind === "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specFranja1m({
-            title: "Losa de fondo — franja 1,00 m",
-            hCm: nv(values, "tLosa", 0.2) * 100,
-            recCm: nv(values, "rec", 4),
-            infText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
-            supText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
-            infName: "Lecho inferior",
-            infFace: "cara del suelo",
-            supName: "Lecho superior",
-            supFace: "cara del líquido",
-          })}
+        <AceroJaulaFig
+          titulo="Losa de fondo — lecho inferior y superior"
+          kind="malla"
+          bCm={nv(values, "tLosa", 0.2) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asLosa", 'Ø 1/2" @ 20')}
+          estText={sv(values, "asLosa", 'Ø 1/2" @ 20')}
+          nombreLong="Lecho principal"
+          nombreTrans="Dirección perpendicular"
         />
       );
     }
     if (part === "mSecDomoInf" && kind !== "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specCascaron1m({
-            title: "Cúpula inferior (fondo) — franja meridional 1,00 m",
-            hCm: nv(values, "tDomoInf", 0.12) * 100,
-            recCm: nv(values, "rec", 4),
-            intraText: sv(values, "asVert", 'Ø 1/2" @ 20'),
-            extraText: sv(values, "asVert", 'Ø 1/2" @ 20'),
-            distText: sv(values, "asHoriz", 'Ø 1/2" @ 20'),
-          })}
+        <AceroJaulaFig
+          titulo="Cúpula inferior — meridional y paralelo"
+          kind="malla"
+          bCm={nv(values, "tDomoInf", 0.12) * 100}
+          recCm={nv(values, "rec", 3)}
+          longText={sv(values, "asVert", 'Ø 1/2" @ 20')}
+          estText={sv(values, "asHoriz", 'Ø 1/2" @ 20')}
+          nombreLong="Meridional"
+          nombreTrans="Paralelo"
         />
       );
     }
     if (part === "mSecCono" && kind !== "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specCascaron1m({
-            title: "Fondo cónico — franja meridional 1,00 m",
-            hCm: nv(values, "tMuro", 0.25) * 100,
-            recCm: nv(values, "rec", 4),
-            intraText: sv(values, "asVert", 'Ø 1/2" @ 15'),
-            extraText: sv(values, "asVert", 'Ø 1/2" @ 15'),
-            distText: sv(values, "asHoriz", 'Ø 1/2" @ 15'),
-          })}
+        <AceroJaulaFig
+          titulo="Fondo cónico — meridional y paralelo"
+          kind="malla"
+          bCm={nv(values, "tMuro", 0.25) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asVert", 'Ø 1/2" @ 15')}
+          estText={sv(values, "asHoriz", 'Ø 1/2" @ 15')}
+          nombreLong="Meridional"
+          nombreTrans="Paralelo"
         />
       );
     }
     if (part === "mSecAnilloSup" && kind !== "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specAnilloViga({
-            title: "Anillo superior (collarín de techo)",
-            bCm: nv(values, "bRingSup", 30),
-            hCm: nv(values, "hRingSup", 30),
-            recCm: nv(values, "rec", 4),
-            longText: sv(values, "asRingSupN", sv(values, "asRingSup", '6 Ø 5/8"')),
-            estText: 'Ø 3/8" @ 15',
-          })}
+        <AceroJaulaFig
+          titulo="Anillo superior — la mitad arriba y la mitad abajo"
+          kind="viga"
+          bCm={nv(values, "bRingSup", 30)}
+          hCm={nv(values, "hRingSup", 40)}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asRingSupN", '6 Ø 5/8" (3 sup. + 3 inf.)')}
+          estText={'estribos Ø 3/8" @ 15 cm'}
+          nombreLong="Longitudinal del anillo"
+          nombreTrans="Estribo cerrado"
         />
       );
     }
     if (part === "mSecAnilloInf" && kind !== "reservorioApoyado") {
       return (
-        <SteelSectionFig
-          spec={specAnilloViga({
-            title: "Anillo inferior (nudo de inflexión)",
-            bCm: nv(values, "bRingInf", 30),
-            hCm: nv(values, "hRingInf", 40),
-            recCm: nv(values, "rec", 4),
-            longText: sv(values, "asRingInfN", sv(values, "asRingInf", '6 Ø 5/8"')),
-            estText: 'Ø 3/8" @ 12',
-          })}
+        <AceroJaulaFig
+          titulo="Anillo inferior — la mitad arriba y la mitad abajo"
+          kind="viga"
+          bCm={nv(values, "bRingInf", 30)}
+          hCm={nv(values, "hRingInf", 45)}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asRingInfN", '6 Ø 5/8" (3 sup. + 3 inf.)')}
+          estText={'estribos Ø 3/8" @ 15 cm'}
+          nombreLong="Longitudinal del anillo"
+          nombreTrans="Estribo cerrado"
         />
       );
     }
@@ -1031,21 +1027,15 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecMuro") {
       return (
-        <SteelSectionFig
-          spec={specFranja1m({
-            title: "Muro rectangular — franja 1,00 m (un Ø por cálculo)",
-            hCm: nv(values, "tMuro", 0.25) * 100,
-            recCm: nv(values, "rec", 4),
-            infText: sv(values, "asVert", 'Ø 1/2" @ 15'),
-            supText: sv(values, "asVert", 'Ø 1/2" @ 15'),
-            distText: sv(values, "asHorVano", sv(values, "asHoriz", 'Ø 1/2" @ 15')),
-            infName: "Vertical intradós",
-            infFace: "cara húmeda",
-            supName: "Vertical extradós",
-            supFace: "cara seca",
-            distName: "Horizontal (vano)",
-            distFace: "luz entre esquinas",
-          })}
+        <AceroJaulaFig
+          titulo="Muro del reservorio — vertical y horizontal en las dos caras"
+          kind="malla"
+          bCm={nv(values, "tMuro", 0.25) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asVert", 'Ø 1/2" @ 15')}
+          estText={sv(values, "asHorVano", sv(values, "asHoriz", 'Ø 1/2" @ 15'))}
+          nombreLong="Vertical"
+          nombreTrans="Horizontal"
         />
       );
     }
@@ -1071,35 +1061,30 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecLosa") {
       return (
-        <SteelSectionFig
-          spec={specFranja1m({
-            title: "Losa de fondo — franja 1,00 m",
-            hCm: nv(values, "tLosa", 0.2) * 100,
-            recCm: nv(values, "rec", 4),
-            infText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
-            supText: sv(values, "asLosa", 'Ø 1/2" @ 20'),
-            infName: "Lecho inferior",
-            infFace: "cara del suelo",
-            supName: "Lecho superior",
-            supFace: "cara del líquido",
-          })}
+        <AceroJaulaFig
+          titulo="Losa de fondo — lecho inferior y superior"
+          kind="malla"
+          bCm={nv(values, "tLosa", 0.2) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asLosa", 'Ø 1/2" @ 20')}
+          estText={sv(values, "asLosa", 'Ø 1/2" @ 20')}
+          nombreLong="Lecho principal"
+          nombreTrans="Dirección perpendicular"
         />
       );
     }
     if (part === "mSecTecho") {
       return (
-        <SteelSectionFig
-          spec={specFranja1m({
-            title: "Losa de techo — franja 1,00 m (luz corta)",
-            hCm: nv(values, "tTecho", 0.15) * 100,
-            recCm: nv(values, "rec", 4),
-            infText: sv(values, "asTechoVano", 'Ø 3/8" @ 20'),
-            supText: sv(values, "asTechoEsq", 'Ø 1/2" @ 15'),
-            infName: "Lecho inferior (vano)",
-            infFace: "cara interior",
-            supName: "Lecho superior (apoyo)",
-            supFace: "cara exterior",
-          })}
+        <AceroJaulaFig
+          titulo="Losa de techo — vano y apoyo"
+          kind="malla"
+          bCm={nv(values, "tTecho", 0.15) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asTechoVano", 'Ø 3/8" @ 20')}
+          supText={sv(values, "asTechoEsq", 'Ø 1/2" @ 15')}
+          estText={sv(values, "asTechoVano", 'Ø 3/8" @ 20')}
+          nombreLong="Lecho del vano"
+          nombreTrans="Dirección perpendicular"
         />
       );
     }
@@ -1129,17 +1114,20 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
       );
     }
     if (part === "mSecColumna") {
+      const nLong = Math.max(6, Math.round(nv(values, "nColLong", 8)));
+      const barLong = sv(values, "barCol", '3/4"');
+      const barEst = sv(values, "estColBar", '3/8"');
+      const sEst = nv(values, "estColS", 10);
       return (
-        <SteelSectionFig
-          spec={specColumnaCircular({
-            title: "Columna de la torre — sección circular",
-            dCm: nv(values, "dCol", 0.5) * 100,
-            recCm: nv(values, "rec", 4),
-            nLong: Math.max(6, Math.round(nv(values, "nColLong", 8))),
-            barLong: sv(values, "barCol", '3/4"'),
-            barEst: sv(values, "estColBar", '3/8"'),
-            sEstCm: nv(values, "estColS", 10),
-          })}
+        <AceroJaulaFig
+          titulo="Columna de la torre — longitudinales y estribo"
+          kind="circulo"
+          dCm={nv(values, "dCol", 0.5) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={`${nLong} Ø ${barLong}`}
+          estText={`estribos Ø ${barEst} @ ${sEst.toFixed(0)} cm`}
+          nombreLong="Longitudinal"
+          nombreTrans="Estribo"
         />
       );
     }
@@ -1165,15 +1153,16 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
     }
     if (part === "mSecViga") {
       return (
-        <SteelSectionFig
-          spec={specAnilloViga({
-            title: "Viga de arriostre — sección rectangular",
-            bCm: nv(values, "bArr", 0.3) * 100,
-            hCm: nv(values, "dArr", 0.4) * 100,
-            recCm: nv(values, "rec", 4),
-            longText: sv(values, "asViga", '4 Ø 5/8"'),
-            estText: 'Ø 3/8" @ 15',
-          })}
+        <AceroJaulaFig
+          titulo="Viga de arriostre — longitudinales y estribos"
+          kind="viga"
+          bCm={nv(values, "bArr", 0.3) * 100}
+          hCm={nv(values, "dArr", 0.4) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asViga", '6 Ø 5/8" (3 sup. + 3 inf.)')}
+          estText={'estribos Ø 3/8" @ 15 cm'}
+          nombreLong="Longitudinal"
+          nombreTrans="Estribo"
         />
       );
     }
@@ -1201,16 +1190,32 @@ export function figuraMomento(kind: string, part: string | undefined, values: Re
         />
       );
     }
+    if (part === "mSecAnilloFuste") {
+      return (
+        <AceroJaulaFig
+          titulo="Anillo de arriostre del fuste — la mitad arriba y la mitad abajo"
+          kind="viga"
+          bCm={nv(values, "bAnilloF", 40)}
+          hCm={nv(values, "hAnilloF", 60)}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asAnilloF", '6 Ø 5/8" (3 sup. + 3 inf.)')}
+          estText={sv(values, "estriboAnilloF", 'estribos Ø 3/8" @ 15 cm')}
+          nombreLong="Longitudinal del anillo"
+          nombreTrans="Estribo cerrado"
+        />
+      );
+    }
     if (part === "mSecFustePared") {
       return (
-        <SteelSectionFig
-          spec={specFustePared({
-            title: "Fuste — franja de 1,00 m (cara interior y exterior)",
-            eCm: nv(values, "eFuste", 0.25) * 100,
-            recCm: nv(values, "rec", 4),
-            vertText: sv(values, "asFusteV", 'Ø 5/8" @ 15'),
-            horText: sv(values, "asFusteH", 'Ø 3/8" @ 15'),
-          })}
+        <AceroJaulaFig
+          titulo="Pared del fuste — verticales y horizontales en las dos caras"
+          kind="malla"
+          bCm={nv(values, "eFuste", 0.25) * 100}
+          recCm={nv(values, "rec", 4)}
+          longText={sv(values, "asFusteV", 'Ø 1/2" @ 20')}
+          estText={sv(values, "asFusteH", 'Ø 1/2" @ 20')}
+          nombreLong="Vertical"
+          nombreTrans="Horizontal"
         />
       );
     }

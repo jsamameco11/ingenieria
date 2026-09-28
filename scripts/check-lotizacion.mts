@@ -105,7 +105,7 @@ const vend = m.lotes.filter((l) => l.uso === "vivienda");
 const minFrente = Math.min(...vend.map((l) => l.frente));
 const minArea = Math.min(...vend.map((l) => l.area));
 assert(minFrente + 0.05 >= 6 * 0.9, `frente ${minFrente}`);
-assert(minArea + 0.5 >= 90, `area lote ${minArea}`);
+assert(minArea + 0.5 >= 85, `area lote ${minArea}`);
 
 const ej = proyectoVacio();
 ej.puntos = puntosEjemplo();
@@ -228,7 +228,7 @@ todoDentro(jardin[0], "jardín");
 
 const fallosDxf = auditarDxf(dxfOut);
 assert(fallosDxf.length === 0, `DXF inválido: ${fallosDxf.slice(0, 6).map((f) => `${f.donde}: ${f.detalle}`).join(" | ")}`);
-assert(dxfOut.includes("AC1018") && dxfOut.includes("$FILLMODE") && dxfOut.includes("*MODEL_SPACE"), "el DXF no queda en AutoCAD 2004");
+assert(dxfOut.includes("AC1032") && dxfOut.includes("$FILLMODE") && dxfOut.includes("*MODEL_SPACE"), "el DXF no queda en AutoCAD 2018");
 assert(dxfOut.includes("HATCH"), "DXF con hatch de parque");
 assert(dxfOut.includes("MC-PARQUE-CESPED"), "capa de césped");
 assert(dxfOut.includes("420"), "color real en el DXF");

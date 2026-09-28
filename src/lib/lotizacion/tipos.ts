@@ -293,6 +293,8 @@ export type Trazo = {
   sw: number;
   dash?: string;
   size?: number;
+  /** Grados, en sentido antihorario, desde el Este. */
+  ang?: number;
   /** Centra el texto en la vertical, para la letra dentro de la burbuja de corte. */
   medio?: boolean;
   /** Se recorta al perímetro del predio (calzadas, veredas, ejes). */

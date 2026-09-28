@@ -119,6 +119,7 @@ const TOPO = [
 
 const URBANO = [
   { id: "lotizacion", code: "GH.020", title: "Lotización urbana", blurb: "Perímetro por CSV, DXF o vértices; habilitación cercada o abierta; empalme de vías e ingresos; trazado GH.020 con plano A1 y DXF." },
+  { id: "lotizacion-agua", code: "GH.020", title: "Agua y desagüe", blurb: "Caudal, impulsión, potencia, cámara de bombeo, Hazen–Williams y golpe de ariete con los lotes del plano." },
 ] as const;
 
 type Page = "home" | (typeof HIDROLOGIA)[number]["id"] | (typeof HIDRO)[number]["id"] | (typeof POTABLE)[number]["id"] | (typeof TOPO)[number]["id"] | string;
@@ -172,7 +173,7 @@ const HOME_FAMILIES: {
     slug: "habilitacion",
     title: "Habilitación urbana",
     kicker: "GH.020 · D.S. 006-2011-VIVIENDA",
-    blurb: "Lotización sobre el perímetro del terreno: vías, manzanas, lotes, aportes e ingresos, con plano de trazado.",
+    blurb: "Lotización sobre el perímetro del terreno y memoria de agua y desagüe con el número de lotes del plano.",
     children: URBANO.map((m) => ({ id: m.id, code: m.code, title: m.title, blurb: m.blurb })),
   },
   {
@@ -294,6 +295,7 @@ export default function App() {
     page === "ap-red" ||
     page === "edificio-3d" ||
     page === "lotizacion" ||
+    page === "lotizacion-agua" ||
     plaza;
   const inModule = page !== "home" && !fullPage;
   const drawerOpen = navOpen || panelOpen;
@@ -368,7 +370,7 @@ export default function App() {
       setOpen("hidraulica");
     }
     if (next === "taquimetro" || next === "libreta-topo") setOpen("topografia");
-    if (next === "lotizacion") setOpen("habilitacion");
+    if (next === "lotizacion" || next === "lotizacion-agua") setOpen("habilitacion");
     if (next === "compras" || next === "compras-publicar" || next === "compras-mios") setOpen("compras");
     if (next === "presupuesto-pdf" || next === "vincular-revit" || next === "presupuestos" || next === "mis-presupuestos" || next === "formula-polinomica" || next === "cronograma" || next === "valorizaciones" || next === "especificaciones" || next === "mano-obra") {
       setOpen("presupuestos");
@@ -800,6 +802,7 @@ export default function App() {
           {page === "taquimetro" && <TopoModule modo="taqui" />}
           {page === "libreta-topo" && <TopoModule modo="libreta" />}
           {page === "lotizacion" && <LotizacionModule />}
+          {page === "lotizacion-agua" && <LotizacionModule inicio="agua" />}
           {page === "tasacion-inmueble" && <TasacionModule modo="vivienda" />}
           {page === "tasacion-terreno" && <TasacionModule modo="terreno" />}
           {current && page !== "tasacion-inmueble" && page !== "tasacion-terreno" && page !== "acb-caminos" && page !== "edificio-3d" && (

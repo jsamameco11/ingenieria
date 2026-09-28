@@ -37,7 +37,12 @@ export function writeLocalEpoch(n: number) {
 
 export function isDeviceLockMissing(err: unknown) {
   const raw = err instanceof Error ? err.message : String(err ?? "");
+  if (isDeviceLimitMessage(raw)) return false;
   return /does not exist|schema cache|42P01|PGRST|memorcalc_claim_device|memorcalc_device_lock|memorcalc_revoke|Debe iniciar sesión/i.test(raw);
+}
+
+export function isDeviceLimitMessage(raw: string) {
+  return /equipos con sesión activa|device_limit|máximo \d+/i.test(raw);
 }
 
 export async function claimThisDevice() {

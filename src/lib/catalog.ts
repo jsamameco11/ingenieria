@@ -103,7 +103,7 @@ function camposAlmacenHunterBomba(publico = false): FieldDef[] {
     kind: "select",
     options: [
       { value: "tanque", label: "Tanque (inodoro 3 UH)" },
-      { value: "valvula", label: "Válvula (inodoro 5 UH)" },
+      { value: "valvula", label: "Válvula (inodoro 6 UH)" },
     ],
   });
   return [
@@ -3486,7 +3486,7 @@ export const MODULES: ModuleDef[] = [
         kind: "select",
         options: [
           { value: "tanque", label: "Tanque (inodoro 3 UH)" },
-          { value: "valvula", label: "Válvula (inodoro 5 UH)" },
+          { value: "valvula", label: "Válvula (inodoro 6 UH)" },
         ],
       },
       { key: "He", label: "Elevación He (cisterna → TE)", unit: "m", group: "Bombeo", step: 0.01 },
@@ -3575,7 +3575,7 @@ export const MODULES: ModuleDef[] = [
         kind: "select",
         options: [
           { value: "tanque", label: "Tanque (inodoro 3 UH)" },
-          { value: "valvula", label: "Válvula (inodoro 5 UH)" },
+          { value: "valvula", label: "Válvula (inodoro 6 UH)" },
         ],
       },
       { key: "He", label: "Elevación He (cisterna → TE)", unit: "m", group: "Bombeo", step: 0.01 },

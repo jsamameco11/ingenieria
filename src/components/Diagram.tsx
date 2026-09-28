@@ -11,7 +11,6 @@ import {
   FemEsfuerzosFuste,
   FemEsfuerzosPlaca,
   FemEsfuerzosTorre,
-  TanqueFemBoard,
 } from "./DiagramTanquesFem";
 import { CrossCroquisAny } from "./DiagramCross";
 import { MuroSostenimientoFig } from "./MuroSostenimientoFig";
@@ -308,43 +307,18 @@ export function Diagram({
       return <MuroSostenimientoFig values={values} part={part} />;
     case "reservorioApoyado":
       if (part === "esfuerzos") return <FemEsfuerzosCilindro values={values} />;
-      return (
-        <TanqueFemBoard
-          kind="reservorioApoyado"
-          values={values}
-          geom={<ReservorioApoyadoCroquis values={values} />}
-        />
-      );
+      return <ReservorioApoyadoCroquis values={values} />;
     case "reservorioCuadrado":
-      if (part === "esfuerzos") return <FemEsfuerzosPlaca values={values} />;
-      if (part === "malla") return <FemEsfuerzosPlaca values={values} />;
-      return (
-        <TanqueFemBoard
-          kind="reservorioCuadrado"
-          values={values}
-          geom={<ReservorioCuadradoCroquis values={values} />}
-        />
-      );
+      if (part === "esfuerzos" || part === "malla") return <FemEsfuerzosPlaca values={values} />;
+      return <ReservorioCuadradoCroquis values={values} />;
     case "tanqueElevadoColumnas":
       if (part === "esfuerzos") return <FemEsfuerzosTorre values={values} />;
       if (part === "esfuerzosCuba") return <FemEsfuerzosCilindro values={values} />;
-      return (
-        <TanqueFemBoard
-          kind="tanqueElevadoColumnas"
-          values={values}
-          geom={<TanqueElevadoColumnasCroquis values={values} />}
-        />
-      );
+      return <TanqueElevadoColumnasCroquis values={values} />;
     case "tanqueElevadoFuste":
       if (part === "esfuerzos") return <FemEsfuerzosFuste values={values} />;
       if (part === "esfuerzosCuba") return <FemEsfuerzosCilindro values={values} />;
-      return (
-        <TanqueFemBoard
-          kind="tanqueElevadoFuste"
-          values={values}
-          geom={<TanqueElevadoFusteCroquis values={values} />}
-        />
-      );
+      return <TanqueElevadoFusteCroquis values={values} />;
     case "cajon":
       return <Cajon values={values} {...p} />;
     case "septico":
@@ -5298,6 +5272,51 @@ function DotacionLote({
   );
 }
 
+function BarrasUso({
+  rows,
+  total,
+  heading,
+  caption,
+}: {
+  rows: { k: string; n: number; c: number; fill: string }[];
+  total: number;
+  heading: string;
+  caption: string;
+}) {
+  const maxC = Math.max(total, ...rows.map((r) => r.c), 1);
+  const labelW = Math.min(240, Math.max(96, ...rows.map((r) => r.k.length * 6.6), 0));
+  const L = labelW + 10;
+  const plot = 250;
+  const vbW = L + plot + 108;
+  const rowH = rows.length > 8 ? 28 : 34;
+  const top = 20;
+  const vbH = Math.max(160, top + rows.length * rowH + 42);
+  return (
+    <SvgFrame heading={heading} viewBox={`0 0 ${vbW} ${vbH}`} caption={caption}>
+      {rows.map((r, i) => {
+        const y = top + i * rowH;
+        const w = (plot * Math.max(r.c, 0)) / maxC;
+        const texto = `${r.n > 0 ? `${r.n} × ` : ""}${r.c.toFixed(0)} L/d`;
+        const dentro = w > 92;
+        return (
+          <g key={`${r.k}-${i}`}>
+            <text x={L - 8} y={y + 16} textAnchor="end" fontSize="11" fill="#1a4473">
+              {r.k}
+            </text>
+            <rect x={L} y={y + 3} width={Math.max(3, w)} height={18} fill={r.fill || "#4a90c8"} />
+            <text x={dentro ? L + 6 : L + Math.max(3, w) + 6} y={y + 16} fontSize="11" fill={dentro ? "#f7f4ee" : "#1a4473"}>
+              {texto}
+            </text>
+          </g>
+        );
+      })}
+      <text x={L} y={top + rows.length * rowH + 24} fontSize="12" fill="#8b1e1e">
+        Total Cpd = {total.toFixed(0)} L/d
+      </text>
+    </SvgFrame>
+  );
+}
+
 function DotacionOcupacion({ values }: { values: Record<string, string> }) {
   const Cpd = n(values, "Cpd", 1700);
   type Bar = { k: string; n: number; c: number; fill: string };
@@ -5312,35 +5331,13 @@ function DotacionOcupacion({ values }: { values: Record<string, string> }) {
   }
   if (parsed) {
     const rows = parsed.filter((r) => r.c > 0 || r.n > 0);
-    const maxC = Math.max(Cpd, ...rows.map((r) => r.c), 1);
-    const L = 70;
-    const R = 470;
-    const top = 36;
-    const rowH = Math.min(36, 240 / Math.max(rows.length, 1));
-    const vbH = Math.max(320, top + rows.length * rowH + 56);
     return (
-      <SvgFrame heading={values.ocupHeading || "Dotación por uso"} viewBox={`0 0 520 ${vbH}`} caption={values.ocupCaption || `Cpd = ${Cpd.toFixed(0)} L/d.`}>
-        {rows.map((r, i) => {
-          const y = top + i * rowH;
-          const w = ((R - L - 8) * r.c) / maxC;
-          return (
-            <g key={`${r.k}-${i}`}>
-              <text x={L - 6} y={y + 16} textAnchor="end" fontSize="10" fill="#1a4473">
-                {r.k}
-              </text>
-              <rect x={L} y={y + 4} width={Math.max(4, w)} height={20} fill={r.fill || "#4a90c8"} opacity="0.88" />
-              <text x={L + Math.max(8, w) + 6} y={y + 18} fontSize="10" fill="#1a4473">
-                {r.n > 0 ? `${r.n} × ` : ""}
-                {r.c.toFixed(0)} L/d
-              </text>
-            </g>
-          );
-        })}
-        <line x1={L} y1={top + rows.length * rowH + 8} x2={R} y2={top + rows.length * rowH + 8} stroke="#1a4473" />
-        <text x={260} y={top + rows.length * rowH + 28} textAnchor="middle" fontSize="12" fill="#8b1e1e">
-          Total Cpd = {Cpd.toFixed(0)} L/d
-        </text>
-      </SvgFrame>
+      <BarrasUso
+        rows={rows}
+        total={Cpd}
+        heading={values.ocupHeading || "Dotación por uso"}
+        caption={values.ocupCaption || `Cpd = ${Cpd.toFixed(0)} L/d.`}
+      />
     );
   }
   const modo = String(values.modo ?? "uni");
@@ -5363,35 +5360,13 @@ function DotacionOcupacion({ values }: { values: Record<string, string> }) {
       { k: "jardín", n: 0, c: Cj, fill: "#6b9e6e" },
       { k: "común", n: 0, c: Cc, fill: "#8a7a5a" },
     ].filter((r) => r.c > 0 || r.n > 0);
-    const maxC = Math.max(Cpd, ...rows.map((r) => r.c), 1);
-    const L = 70;
-    const R = 470;
-    const top = 36;
-    const rowH = Math.min(36, 240 / Math.max(rows.length, 1));
-    const vbH = Math.max(320, top + rows.length * rowH + 56);
     return (
-      <SvgFrame heading="Dotación por departamento" viewBox={`0 0 520 ${vbH}`} caption={`IS.010 2.2.b: 500 / 850 / 1 200 / 1 350 / 1 500 L/d según dormitorios. Cpd = ${Cpd.toFixed(0)} L/d.`}>
-        {rows.map((r, i) => {
-          const y = top + i * rowH;
-          const w = ((R - L - 8) * r.c) / maxC;
-          return (
-            <g key={r.k}>
-              <text x={L - 6} y={y + 16} textAnchor="end" fontSize="10" fill="#1a4473">
-                {r.k}
-              </text>
-              <rect x={L} y={y + 4} width={Math.max(4, w)} height={20} fill={r.fill} opacity="0.88" />
-              <text x={L + Math.max(8, w) + 6} y={y + 18} fontSize="10" fill="#1a4473">
-                {r.n > 0 ? `${r.n} × ` : ""}
-                {r.c.toFixed(0)} L/d
-              </text>
-            </g>
-          );
-        })}
-        <line x1={L} y1={top + rows.length * rowH + 8} x2={R} y2={top + rows.length * rowH + 8} stroke="#1a4473" />
-        <text x={260} y={top + rows.length * rowH + 28} textAnchor="middle" fontSize="12" fill="#8b1e1e">
-          Total Cpd = {Cpd.toFixed(0)} L/d
-        </text>
-      </SvgFrame>
+      <BarrasUso
+        rows={rows}
+        total={Cpd}
+        heading="Dotación por departamento"
+        caption={`IS.010 2.2.b: 500 / 850 / 1 200 / 1 350 / 1 500 L/d según dormitorios. Cpd = ${Cpd.toFixed(0)} L/d.`}
+      />
     );
   }
   const Clote = n(values, "C_lote", 1500);

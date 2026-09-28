@@ -1,4 +1,4 @@
-import { FOLIO_GOOGLE_WEB_CLIENT_ID, folio, folioHeaders } from "../folio";
+import { FOLIO_GOOGLE_WEB_CLIENT_ID, GOOGLE_SESSION_URL, folio, folioHeaders } from "../folio";
 
 type GisId = {
   initialize: (cfg: Record<string, unknown>) => void;
@@ -123,7 +123,7 @@ export function initGooglePicker(opts: {
     context: "signin",
     ux_mode: "popup",
     itp_support: true,
-    use_fedcm_for_prompt: false,
+    use_fedcm_for_prompt: true,
     callback: (resp: { credential?: string }) => {
       if (!resp.credential) {
         opts.onError("Google no entregó una cuenta. Elija otra e inténtelo de nuevo.");
@@ -255,13 +255,10 @@ export async function exchangeGoogleSession(identity: GoogleIdentity, installId:
     install_id: installId,
     app: "memorcalc",
   };
-  const sameOrigin =
-    typeof window !== "undefined" && window.location?.origin
-      ? `${window.location.origin}/api/google-session`
-      : "https://ingenieria.miacademiapreu.com/api/google-session";
+  const endpoint = GOOGLE_SESSION_URL;
 
   try {
-    return await exchangeAt(sameOrigin, payload);
+    return await exchangeAt(endpoint, payload);
   } catch (err) {
     throw new Error(err instanceof Error ? publicSessionError(err.message) : "No se pudo abrir la sesión con Google.");
   }

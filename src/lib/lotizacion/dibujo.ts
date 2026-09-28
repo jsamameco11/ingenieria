@@ -12,7 +12,7 @@ const LOTE: Record<UsoLote, { fill: string; stroke: string }> = {
 
 const FRANJA: Record<string, { fill: string; stroke: string }> = {
   vereda: { fill: "#d6d6d6", stroke: "#8d8d8d" },
-  rampa: { fill: "#a3534a", stroke: "#6e312b" },
+  rampa: { fill: "#ececec", stroke: "#1a1a1a" },
   estacionamiento: { fill: "#5e5e5e", stroke: "#3a3a3a" },
   jardin: { fill: "#3dcf3a", stroke: "#1f8a1c" },
   calzada: { fill: "#b9b9b9", stroke: "#8a8a8a" },
@@ -39,8 +39,8 @@ function linea(a: V2, b: V2, stroke: string, sw: number, dash?: string, clip = f
   return { t: "line", a, b, fill: "none", stroke, sw, dash, clip };
 }
 
-function texto(p: V2, text: string, size: number, fill = "#1c1c1c", medio = false): Trazo {
-  return { t: "text", p, text, size, fill, stroke: "none", sw: 0, medio };
+function texto(p: V2, text: string, size: number, fill = "#1c1c1c", medio = false, ang = 0): Trazo {
+  return { t: "text", p, text, size, fill, stroke: "none", sw: 0, medio, ang };
 }
 
 function corona(c: V2, r: number, n = 28): V2[] {
@@ -259,6 +259,138 @@ export function grafismosPlanta(m: Modelo): { capa: string; pts: V2[]; fill: str
   return out;
 }
 
+function cajaPts(pts: V2[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function distACorte(p: V2, a: V2, b: V2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2));
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+function anguloLectura(a: V2, b: V2): number {
+  let g = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  if (g > 90) g -= 180;
+  if (g < -90) g += 180;
+  return g;
+}
+
+/** El nombre de la calle queda dentro de una manzana, lejos del cruce y del corte. */
+export function nombresEnManzana(m: Modelo): Trazo[] {
+  const manzanas = new Map<string, V2[]>();
+  for (const lote of m.lotes) {
+    if (lote.uso !== "vivienda" || !lote.manzana) continue;
+    const prev = manzanas.get(lote.manzana) ?? [];
+    prev.push(...lote.poly);
+    manzanas.set(lote.manzana, prev);
+  }
+  const bloques = [...manzanas.entries()].map(([id, pts]) => ({ id, box: cajaPts(pts) }));
+  const cortes = m.cortes ?? [];
+  const out: Trazo[] = [];
+  for (const via of m.viasInternas ?? []) {
+    if (!via.nombre || via.hit.length < 3) continue;
+    const calle = cajaPts(via.hit);
+    const horizontal = via.orientacion === "h";
+    let mejor: { p: V2; ang: number; holgura: number } | null = null;
+    for (const mz of bloques) {
+      const solape = horizontal
+        ? Math.min(mz.box.maxX, calle.maxX) - Math.max(mz.box.minX, calle.minX)
+        : Math.min(mz.box.maxY, calle.maxY) - Math.max(mz.box.minY, calle.minY);
+      if (solape < 18) continue;
+      const encima = horizontal ? mz.box.minY >= (calle.minY + calle.maxY) / 2 - 1 : mz.box.minX >= (calle.minX + calle.maxX) / 2 - 1;
+      const toca = horizontal
+        ? mz.box.minY <= calle.maxY + 2 && mz.box.maxY >= calle.minY - 2
+        : mz.box.minX <= calle.maxX + 2 && mz.box.maxX >= calle.minX - 2;
+      if (!toca) continue;
+      const largo = horizontal ? mz.box.maxX - mz.box.minX : mz.box.maxY - mz.box.minY;
+      const fracciones = [0.34, 0.66];
+      for (const f of fracciones) {
+        const p = horizontal
+          ? {
+              x: mz.box.minX + largo * f,
+              y: encima ? mz.box.minY + 3.4 : mz.box.maxY - 3.4,
+            }
+          : {
+              x: encima ? mz.box.minX + 3.4 : mz.box.maxX - 3.4,
+              y: mz.box.minY + largo * f,
+            };
+        const holgura = cortes.reduce((d, c) => Math.min(d, distACorte(p, c.a, c.b)), 80);
+        if (!mejor || holgura > mejor.holgura) mejor = { p, ang: horizontal ? 0 : 90, holgura };
+      }
+    }
+    if (mejor && mejor.holgura > 6) out.push(texto(mejor.p, via.nombre, 2.35, "#3a3a3a", false, mejor.ang));
+  }
+  return out;
+}
+
+/** Frente y fondo de cada lote, sobre el lado que les corresponde. */
+export function cotasDeLotes(m: Modelo): Trazo[] {
+  const out: Trazo[] = [];
+  for (const lote of m.lotes) {
+    if (lote.uso !== "vivienda" || lote.poly.length < 4) continue;
+    if (!(lote.frente > 0.5) || !(lote.profundidad > 0.5)) continue;
+    const lados: { a: V2; b: V2; len: number; mid: V2 }[] = [];
+    for (let i = 0; i < lote.poly.length; i++) {
+      const a = lote.poly[i];
+      const b = lote.poly[(i + 1) % lote.poly.length];
+      const len = dist(a, b);
+      if (len < 1.5) continue;
+      lados.push({ a, b, len, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } });
+    }
+    const tomar = (meta: number, usados: Set<number>) => {
+      let best = -1;
+      let err = Infinity;
+      lados.forEach((lado, i) => {
+        if (usados.has(i)) return;
+        const e = Math.abs(lado.len - meta);
+        if (e < err) {
+          err = e;
+          best = i;
+        }
+      });
+      return best;
+    };
+    const usados = new Set<number>();
+    const iFrente = tomar(lote.frente, usados);
+    if (iFrente >= 0) usados.add(iFrente);
+    const iFondo = tomar(lote.profundidad, usados);
+    const poner = (i: number, valor: number) => {
+      if (i < 0) return;
+      const lado = lados[i];
+      const dx = lote.centro.x - lado.mid.x;
+      const dy = lote.centro.y - lado.mid.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const paso = Math.min(1.45, d * 0.42);
+      out.push(
+        texto(
+          { x: lado.mid.x + (dx / d) * paso, y: lado.mid.y + (dy / d) * paso },
+          valor.toFixed(2),
+          1.05,
+          "#5c564c",
+          false,
+          anguloLectura(lado.a, lado.b),
+        ),
+      );
+    };
+    poner(iFrente, lote.frente);
+    poner(iFondo, lote.profundidad);
+  }
+  return out;
+}
+
 export function trazosDe(m: Modelo): Trazo[] {
   const out: Trazo[] = [];
   for (const f of m.viasExistentes.flatMap((v) => v.franjas)) {
@@ -266,12 +398,12 @@ export function trazosDe(m: Modelo): Trazo[] {
     out.push(poly(f.poly, c.fill, "#1a1a1a", 0.08, undefined, true));
   }
   for (const f of m.franjas) {
-    if (f.soloVista || f.tipo === "vereda") continue;
+    if (f.soloVista || f.tipo === "vereda" || f.tipo === "rampa") continue;
     const c = FRANJA[f.tipo] ?? FRANJA.vereda;
     const costura = f.tipo === "calzada" || f.tipo === "estacionamiento" || f.tipo === "jardin";
     out.push(poly(f.poly, c.fill, costura ? c.fill : "#1a1a1a", costura ? 0.02 : 0.07, undefined, true));
     for (const ln of f.lineas ?? []) {
-      if (ln.length >= 2) out.push(linea(ln[0], ln[1], f.tipo === "rampa" ? "#f2f2f2" : "#5c574e", 0.04, undefined, true));
+      if (ln.length >= 2) out.push(linea(ln[0], ln[1], "#5c574e", 0.04, undefined, true));
     }
   }
   const orden: UsoLote[] = ["residual", "parque-zonal", "otros", "educacion", "recreacion", "vivienda"];
@@ -292,6 +424,13 @@ export function trazosDe(m: Modelo): Trazo[] {
     if (!f.soloVista) continue;
     for (const ln of f.lineas ?? []) {
       if (ln.length >= 2) out.push(linea(ln[0], ln[1], "#1a1a1a", 0.06));
+    }
+  }
+  for (const f of m.franjas) {
+    if (f.tipo !== "rampa" || f.poly.length < 3) continue;
+    out.push(poly(f.poly, FRANJA.rampa.fill, FRANJA.rampa.stroke, 0.07, undefined, true));
+    for (const ln of f.lineas ?? []) {
+      if (ln.length >= 2) out.push(linea(ln[0], ln[1], "#1a1a1a", 0.07, undefined, true));
     }
   }
   for (const lote of m.lotes) {
@@ -317,21 +456,15 @@ export function trazosDe(m: Modelo): Trazo[] {
     out.push(poly([...m.lindero, m.lindero[0]], "none", "#1a1a1a", m.cerco.length ? 0.28 : 0.42));
   }
   for (const tramo of m.cerco) out.push(poly(tramo, "none", "#1a1a1a", 1.35));
-  for (const eje of m.ejes) {
-    const seg = eje.partes[0];
-    if (seg && seg.length >= 2) {
-      const mid = { x: (seg[0].x + seg[1].x) / 2, y: (seg[0].y + seg[1].y) / 2 };
-      out.push(texto(mid, eje.nombre, 2.2, "#3a3a3a"));
-    }
-  }
+  out.push(...nombresEnManzana(m));
   for (const sim of grafismosPlanta(m)) {
     out.push(poly(sim.pts, sim.fill, sim.stroke, sim.sw));
   }
   for (const lot of m.lotes.filter((l) => l.uso === "vivienda")) {
     const size = Math.max(1.6, Math.min(3.1, Math.sqrt(Math.max(lot.area, 1)) * 0.18));
     out.push(texto(lot.centro, lot.id, size));
-    out.push(texto({ x: lot.centro.x, y: lot.centro.y - size * 1.15 }, fmtM(lot.area, 1), size * 0.72, "#5c564c"));
   }
+  out.push(...cotasDeLotes(m));
   for (const ing of m.ingresos) {
     const tang = { x: -ing.hacia.y, y: ing.hacia.x };
     const a = { x: ing.pt.x + tang.x * (ing.ancho / 2), y: ing.pt.y + tang.y * (ing.ancho / 2) };
@@ -423,7 +556,10 @@ export function svgDeTrazos(trazos: Trazo[], extra = "", predio?: V2[]): string 
         }
         if (tr.t === "text" && tr.p && tr.text) {
           const medio = tr.medio ? ` dominant-baseline="central" font-weight="700"` : "";
-          return `<text x="${tr.p.x.toFixed(3)}" y="${(-tr.p.y).toFixed(3)}" font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle"${medio} fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
+          const x = tr.p.x.toFixed(3);
+          const y = (-tr.p.y).toFixed(3);
+          const giro = tr.ang ? ` transform="rotate(${(-tr.ang).toFixed(2)} ${x} ${y})"` : "";
+          return `<text x="${x}" y="${y}"${giro} font-size="${(tr.size ?? 2).toFixed(2)}" text-anchor="middle"${medio} fill="${tr.fill}" font-family="Arial, Helvetica, sans-serif">${escapeXml(tr.text)}</text>`;
         }
         return "";
       })

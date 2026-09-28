@@ -15,6 +15,12 @@ import type { AjusteVia, Franja, LateralVia, Polilinea, PuntoPl, Seccion, TipoVi
 const PASOS_ARCO = 16;
 /** Longitud mínima del ochavo sobre cada frente de la manzana, en metros. */
 export const OCHAVO_MIN = 3;
+/** Ancho libre de la rampa. Las alas laterales quedan fuera de estos 0.90 m. */
+export const RAMPA_ANCHO = 0.9;
+/** La rampa se detiene a 0.90 m desde el borde de la vereda, hacia la calzada. */
+export const RAMPA_DESARROLLO = 0.9;
+/** Pendiente lateral a cada lado, adicional al ancho libre. */
+export const RAMPA_ALA = 0.45;
 
 export type ParteVia = { tipo: Franja["tipo"]; a: number; b: number };
 
@@ -67,8 +73,9 @@ export type Esquina = {
   vereda: V2[];
   /** Cuña de pista entre el sardinel y la calzada rectangular. */
   pista: V2[];
-  /** Dos losetas, una por acceso, entre el sardinel y el estacionamiento o el jardín. */
+  /** Rampa de 0.90 m más las alas, una por acceso. */
   rampas: V2[][];
+  /** Quiebre entre la rampa y cada ala lateral. */
   pendientes: V2[][];
 };
 
@@ -268,6 +275,45 @@ function arco(c: V2, a: V2, b: V2, r: number): { pts: V2[]; bulge: number } {
   return { pts, bulge: Math.tan(d / 4) };
 }
 
+function rampaTrapecio(origen: V2, aLoLargo: V2, haciaCalle: V2, desarrollo: number): { poly: V2[]; lineas: V2[][] } {
+  const ala = RAMPA_ALA;
+  const libre = RAMPA_ANCHO;
+  const largo = libre + ala * 2;
+  const p = (u: number, v: number): V2 => ({
+    x: origen.x + aLoLargo.x * u + haciaCalle.x * v,
+    y: origen.y + aLoLargo.y * u + haciaCalle.y * v,
+  });
+  const arriba0 = p(0, 0);
+  const arriba1 = p(largo, 0);
+  const abajo0 = p(ala, desarrollo);
+  const abajo1 = p(ala + libre, desarrollo);
+  return {
+    poly: [arriba0, arriba1, abajo1, abajo0],
+    lineas: [
+      [arriba0, abajo0],
+      [arriba1, abajo1],
+    ],
+  };
+}
+
+function rampasDeEsquina(p: V2, sx: 1 | -1, sy: 1 | -1, L: number, wH: number, wV: number, vH: number, vV: number) {
+  const desH = Math.min(RAMPA_DESARROLLO, Math.max(0.35, wH - vH));
+  const desV = Math.min(RAMPA_DESARROLLO, Math.max(0.35, wV - vV));
+  const a = rampaTrapecio(
+    { x: p.x - sx * L, y: p.y + sy * vH },
+    { x: -sx, y: 0 },
+    { x: 0, y: sy },
+    desH,
+  );
+  const b = rampaTrapecio(
+    { x: p.x + sx * vV, y: p.y - sy * L },
+    { x: 0, y: -sy },
+    { x: sx, y: 0 },
+    desV,
+  );
+  return { polys: [a.poly, b.poly], lineas: [...a.lineas, ...b.lineas] };
+}
+
 export function hacerEsquina(p: V2, sx: 1 | -1, sy: 1 | -1, wH: number, wV: number, R: number, vH = 1.2, vV = 1.2): Esquina | null {
   if (wH < 0.15 || wV < 0.15 || R < 0.5) return null;
   const L = Math.max(OCHAVO_MIN, R - Math.min(wH, wV));
@@ -288,33 +334,7 @@ export function hacerEsquina(p: V2, sx: 1 | -1, sy: 1 | -1, wH: number, wV: numb
   for (const q of primero.pts) meter(q);
   meter(cruzB);
   meter(propB);
-  const largo = 1.2;
-  const parkH = Math.max(0.9, wH - vH);
-  const parkV = Math.max(0.9, wV - vV);
-  const loseta = (a: V2, b: V2, c: V2, d: V2): V2[] => [a, b, c, d];
-  const padA = loseta(
-    { x: p.x - sx * L, y: p.y + sy * vH },
-    { x: p.x - sx * (L + largo), y: p.y + sy * vH },
-    { x: p.x - sx * (L + largo), y: p.y + sy * (vH + parkH) },
-    { x: p.x - sx * L, y: p.y + sy * (vH + parkH) },
-  );
-  const padB = loseta(
-    { x: p.x + sx * vV, y: p.y - sy * L },
-    { x: p.x + sx * (vV + parkV), y: p.y - sy * L },
-    { x: p.x + sx * (vV + parkV), y: p.y - sy * (L + largo) },
-    { x: p.x + sx * vV, y: p.y - sy * (L + largo) },
-  );
-  const surcos = (pad: V2[]): V2[][] => {
-    const out: V2[][] = [];
-    for (let i = 1; i <= 3; i++) {
-      const t = i / 4;
-      const a = { x: pad[0].x + (pad[1].x - pad[0].x) * t, y: pad[0].y + (pad[1].y - pad[0].y) * t };
-      const b = { x: pad[3].x + (pad[2].x - pad[3].x) * t, y: pad[3].y + (pad[2].y - pad[3].y) * t };
-      out.push([a, { x: a.x + (b.x - a.x) * 0.82, y: a.y + (b.y - a.y) * 0.82 }]);
-    }
-    return out;
-  };
-  const pendientes = [...surcos(padA), ...surcos(padB)];
+  const { polys: rampas, lineas: pendientes } = rampasDeEsquina(p, sx, sy, L, wH, wV, vH, vV);
   const esquinaPista = { x: p.x + sx * wV, y: p.y + sy * wH };
   const pista: V2[] = [];
   const meterPista = (q: V2) => {
@@ -332,7 +352,7 @@ export function hacerEsquina(p: V2, sx: 1 | -1, sy: 1 | -1, wH: number, wV: numb
     muestraSard: primero.pts,
     vereda,
     pista,
-    rampas: [padA, padB],
+    rampas,
     pendientes,
   };
 }

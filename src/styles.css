@@ -1454,6 +1454,13 @@ button.nav-label.nav-label-white {
   height: auto;
   min-width: 0;
 }
+.croquis-jaula .croquis-stage svg,
+.paper .croquis-jaula .croquis-stage svg,
+.fig-inline .croquis-jaula .croquis-stage svg {
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
 .croquis-steel.croquis-a1 .croquis-stage svg,
 .paper .croquis-steel.croquis-a1 .croquis-stage svg,
 .fig-inline .croquis-steel.croquis-a1 .croquis-stage svg,
@@ -2201,17 +2208,17 @@ html.is-printing .sd-props {
    medio del blanco. En pantalla la ficha se desplaza; al imprimir sale entera. */
 .croquis-board.croquis-board-tanque-fem {
   min-height: 0;
-  align-items: stretch;
+  align-items: start;
 }
 .croquis-board.croquis-board-tanque-fem .ficha {
-  max-height: 560px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 .croquis-board.croquis-board-tanque-fem > .fig-host,
 .croquis-board.croquis-board-tanque-fem > .fig-stack-tanque {
   min-height: 0;
-  max-height: min(780px, 82vh);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 .croquis-board-tanque-fem .fig-stack-tanque {
   display: flex;
@@ -11836,8 +11843,22 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   display: grid;
   grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
 }
-.lz-body:has(.lz-cortes-lamina) {
-  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr) minmax(240px, 340px);
+.lz-vista {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.lz-vista > .lz-board { flex: 1 1 auto; min-height: 320px; }
+.lz-cortes {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 22px;
+  background: #f7f4ee;
+  border-top: 1px solid var(--line);
 }
 .lz-cortes-lamina {
   overflow: auto;
@@ -11913,6 +11934,41 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
 .lz-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
 .lz-table th { text-align: left; font-weight: 560; color: var(--muted); font-size: 11px; letter-spacing: 0.04em; }
 .lz-table td, .lz-table th { border-bottom: 1px solid var(--line); padding: 4px 4px; }
+.lz-body.is-memoria { grid-template-columns: minmax(0, 920px); grid-template-rows: minmax(0, 1fr); justify-content: center; }
+.lz-body.is-memoria .lz-vista { display: none; }
+.lz-pestanas { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+.lz-pestanas button {
+  border: 1px solid #cfc6b6;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.lz-pestanas button.is-on { background: #1a4473; color: #fff; border-color: #1a4473; }
+@media (max-width: 640px) {
+  .lz-hid-grid { grid-template-columns: 1fr; }
+  .lz-pestanas button { min-height: 40px; }
+}
+.lz-hid h4 { margin: 22px 0 6px; font-family: var(--serif); }
+.lz-hid-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 8px 0; }
+.lz-hid-grid label { display: grid; gap: 3px; font-size: 12px; }
+.lz-hid-grid input, .lz-hid-tab input { width: 100%; }
+.lz-formula { font-family: "Times New Roman", serif; font-size: 13px; margin: 6px 0; }
+.lz-pasos { margin: 8px 0 12px; padding-left: 22px; }
+.lz-pasos li { margin: 0 0 8px; font-size: 13px; line-height: 1.45; }
+.lz-ver { list-style: none; margin: 8px 0 14px; padding: 0; }
+.lz-ver li { font-size: 13px; line-height: 1.4; padding: 4px 0 4px 14px; border-left: 3px solid var(--line); margin: 0 0 4px; }
+.lz-ver li.ok { border-color: var(--ok); color: var(--ok); }
+.lz-ver li.bad { border-color: var(--bad); color: var(--bad); }
+.lz-hid-tab { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; }
+.lz-hid-tab th, .lz-hid-tab td { border-bottom: 1px solid var(--line); padding: 3px 4px; text-align: right; }
+.lz-hid-tab th:first-child, .lz-hid-tab td:first-child { text-align: left; }
+.lz-hid-tab tr.is-on td { background: #e7efe4; font-weight: 650; }
+.lz-hid-res { margin: 8px 0 12px; padding-left: 18px; }
+.lz-hid-fig { width: 100%; max-width: 520px; height: auto; background: #f7f4ee; border: 1px solid #d9d1c3; }
+.lz-hid details { margin: 6px 0 10px; font-size: 13px; }
 .lz-x {
   border: 0;
   background: transparent;
@@ -12031,7 +12087,7 @@ table.xls .n { text-align: right; font-family: var(--mono); font-size: 11.5px; }
   font-family: var(--mono);
 }
 @media (max-width: 980px) {
-  .lz-body, .lz-body:has(.lz-cortes-lamina) { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 38vh) minmax(0, 1fr) auto; }
+  .lz-body { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 38vh) minmax(0, 1fr) auto; }
   .lz-cortes-lamina { max-height: 42vh; border-left: 0; border-top: 1px solid var(--line); }
   .lz-board { order: -1; }
   .lz-side { border-right: 0; border-top: 1px solid var(--line); }

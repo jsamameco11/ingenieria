@@ -1,7 +1,7 @@
 /**
- * DXF ASCII AutoCAD 2004 (AC1018).
- * El grupo 420 (color real) existe desde esta versión. AC1015 lo rechaza
- * y el archivo no abre. Cada objeto lleva asa, subclase y capa declarada.
+ * DXF ASCII AutoCAD 2018 (AC1032).
+ * Lo abren AutoCAD 2018 y las versiones posteriores, hasta 2026.
+ * El color real (grupo 420) y el estilo de ploteo van en ese formato.
  */
 
 export type PuntoDxf = { x: number; y: number; bulge?: number };
@@ -67,6 +67,11 @@ export class DxfDoc {
   private readonly paper: string;
   private readonly dict: string;
   private readonly grupos: string;
+  private readonly layerTable: string;
+  private readonly plotDict: string;
+  private readonly plotNormal: string;
+  private readonly dimTable: string;
+  private readonly dimStd: string;
 
   constructor(capas: { name: string; color: number }[]) {
     const tiene0 = capas.some((c) => c.name === "0");
@@ -75,6 +80,11 @@ export class DxfDoc {
     this.paper = this.asa();
     this.dict = this.asa();
     this.grupos = this.asa();
+    this.layerTable = this.asa();
+    this.plotDict = this.asa();
+    this.plotNormal = this.asa();
+    this.dimTable = this.asa();
+    this.dimStd = this.asa();
   }
 
   private asa(): string {
@@ -130,10 +140,11 @@ export class DxfDoc {
     this.ent("CIRCLE", capa, "", "AcDbCircle", ["10", n(c.x), "20", n(c.y), "30", "0.0", "40", n(r)]);
   }
 
-  texto(capa: string, x: number, y: number, h: number, value: string, hex = ""): void {
+  texto(capa: string, x: number, y: number, h: number, value: string, hex = "", ang = 0): void {
     const t = dxfTexto(value);
     if (!t.trim()) return;
     const alt = Math.max(h, 0.05);
+    const giro = Math.abs(ang) > 0.05 ? ["50", n(ang, 3)] : [];
     this.ent("TEXT", capa, hex, "AcDbText", [
       "10",
       n(x),
@@ -145,8 +156,20 @@ export class DxfDoc {
       n(alt, 3),
       "1",
       t,
+      "50",
+      giro[1] ?? "0.0",
+      "72",
+      "1",
+      "11",
+      n(x),
+      "21",
+      n(y),
+      "31",
+      "0.0",
       "100",
       "AcDbText",
+      "73",
+      "2",
     ]);
   }
 
@@ -185,19 +208,26 @@ export class DxfDoc {
   serializar(ext: { minX: number; minY: number; maxX: number; maxY: number }): string {
     const capas = this.capas
       .map((c) =>
-        this.par(["0", "LAYER", "5", this.asa(), "100", "AcDbSymbolTableRecord", "100", "AcDbLayerTableRecord", "2", c.name, "70", "0", "62", String(c.color), "6", "CONTINUOUS"]),
+        this.par([
+          "0", "LAYER", "5", this.asa(), "330", this.layerTable,
+          "100", "AcDbSymbolTableRecord", "100", "AcDbLayerTableRecord",
+          "2", c.name, "70", "0", "62", String(c.color), "6", "CONTINUOUS",
+          "370", "-3", "390", this.plotNormal,
+        ]),
       )
       .join("");
     const h = (pairs: string[]) => this.par(pairs);
     const head = [
       "0", "SECTION", "2", "HEADER",
-      "9", "$ACADVER", "1", "AC1018",
+      "9", "$ACADVER", "1", "AC1032",
+      "9", "$ACADMAINTVER", "90", "0",
       "9", "$HANDSEED", "5", "HANDSEED",
       "9", "$DWGCODEPAGE", "3", "ANSI_1252",
       "9", "$INSBASE", "10", "0.0", "20", "0.0", "30", "0.0",
       "9", "$INSUNITS", "70", "6",
       "9", "$MEASUREMENT", "70", "1",
       "9", "$FILLMODE", "70", "1",
+      "9", "$PSTYLEMODE", "290", "1",
       "9", "$CLAYER", "8", "0",
       "9", "$EXTMIN", "10", n(ext.minX), "20", n(ext.minY), "30", "0.0",
       "9", "$EXTMAX", "10", n(ext.maxX), "20", n(ext.maxY), "30", "0.0",
@@ -229,7 +259,7 @@ export class DxfDoc {
       "0", "LTYPE", "5", this.asa(), "100", "AcDbSymbolTableRecord", "100", "AcDbLinetypeTableRecord",
       "2", "CONTINUOUS", "70", "0", "3", "Solid line", "72", "65", "73", "0", "40", "0.0",
       "0", "ENDTAB",
-      "0", "TABLE", "2", "LAYER", "5", this.asa(), "100", "AcDbSymbolTable", "70", String(this.capas.length),
+      "0", "TABLE", "2", "LAYER", "5", this.layerTable, "100", "AcDbSymbolTable", "70", String(this.capas.length),
     ];
     const style = [
       "0", "ENDTAB",
@@ -237,11 +267,23 @@ export class DxfDoc {
       "0", "STYLE", "5", this.asa(), "100", "AcDbSymbolTableRecord", "100", "AcDbTextStyleTableRecord",
       "2", "STANDARD", "70", "0", "40", "0.0", "41", "1.0", "50", "0.0", "71", "0", "42", "2.5", "3", "txt.shx", "4", "",
       "0", "ENDTAB",
+      "0", "TABLE", "2", "VIEW", "5", this.asa(), "100", "AcDbSymbolTable", "70", "0",
+      "0", "ENDTAB",
+      "0", "TABLE", "2", "UCS", "5", this.asa(), "100", "AcDbSymbolTable", "70", "0",
+      "0", "ENDTAB",
       "0", "TABLE", "2", "APPID", "5", this.asa(), "100", "AcDbSymbolTable", "70", "1",
       "0", "APPID", "5", this.asa(), "100", "AcDbSymbolTableRecord", "100", "AcDbRegAppTableRecord", "2", "ACAD", "70", "0",
       "0", "ENDTAB",
-      "0", "TABLE", "2", "DIMSTYLE", "5", this.asa(), "100", "AcDbSymbolTable", "70", "1", "100", "AcDbDimStyleTable", "71", "0",
-      "0", "DIMSTYLE", "5", this.asa(), "100", "AcDbSymbolTableRecord", "100", "AcDbDimStyleTableRecord", "2", "STANDARD", "70", "0",
+      "0", "TABLE", "2", "DIMSTYLE", "5", this.dimTable, "100", "AcDbSymbolTable", "70", "1", "100", "AcDbDimStyleTable",
+      "0", "DIMSTYLE", "105", this.dimStd, "330", this.dimTable, "100", "AcDbSymbolTableRecord", "100", "AcDbDimStyleTableRecord",
+      "2", "STANDARD", "70", "0",
+      "40", "1.0", "41", "2.5", "42", "0.625", "43", "3.75", "44", "1.25", "45", "0.0", "46", "0.0", "47", "0.0", "48", "0.0", "49", "2.5",
+      "140", "2.5", "141", "2.5", "142", "0.0", "143", "0.03937007874", "144", "1.0", "145", "0.0", "146", "1.0", "147", "0.625", "148", "0.0",
+      "69", "0", "70", "0", "71", "0", "72", "0", "73", "0", "74", "0", "75", "0", "76", "0", "77", "1", "78", "8", "79", "3",
+      "170", "0", "171", "3", "172", "1", "173", "0", "174", "0", "175", "0", "176", "0", "177", "0", "178", "0", "179", "2",
+      "271", "2", "272", "2", "273", "2", "274", "3", "275", "0", "276", "0", "277", "2", "278", "44", "279", "0",
+      "280", "0", "281", "0", "282", "0", "283", "0", "284", "8", "285", "0", "286", "0", "288", "0", "289", "3", "290", "0",
+      "371", "-2", "372", "-2",
       "0", "ENDTAB",
       "0", "TABLE", "2", "BLOCK_RECORD", "5", this.asa(), "100", "AcDbSymbolTable", "70", "2",
       "0", "BLOCK_RECORD", "5", this.model, "100", "AcDbSymbolTableRecord", "100", "AcDbBlockTableRecord", "2", "*MODEL_SPACE",
@@ -261,7 +303,12 @@ export class DxfDoc {
       "0", "SECTION", "2", "OBJECTS",
       "0", "DICTIONARY", "5", this.dict, "330", "0", "100", "AcDbDictionary", "281", "1",
       "3", "ACAD_GROUP", "350", this.grupos,
+      "3", "ACAD_PLOTSTYLENAME", "350", this.plotDict,
       "0", "DICTIONARY", "5", this.grupos, "330", this.dict, "100", "AcDbDictionary", "281", "1",
+      "0", "ACDBDICTIONARYWDFLT", "5", this.plotDict, "330", this.dict, "100", "AcDbDictionary", "281", "1",
+      "3", "Normal", "350", this.plotNormal,
+      "100", "AcDbDictionaryWithDefault", "340", this.plotNormal,
+      "0", "ACDBPLACEHOLDER", "5", this.plotNormal, "330", this.plotDict,
       "0", "ENDSEC",
       "0", "EOF",
     ];
@@ -285,13 +332,16 @@ export function auditarDxf(texto: string): FalloDxf[] {
   const fin = pares[pares.length - 1];
   if (!fin || fin.c !== "0" || fin.v.trim() !== "EOF") fallos.push({ donde: "fin", detalle: "no termina en EOF" });
   const ver = pares.find((_, i) => pares[i - 1]?.v.trim() === "$ACADVER");
-  if (!ver || ver.v.trim() < "AC1018") fallos.push({ donde: "HEADER", detalle: `versión ${ver?.v.trim() ?? "ausente"}: el color real exige AC1018 o posterior` });
+  const nVer = Number(/^AC(\d+)$/.exec(ver?.v.trim() ?? "")?.[1] ?? 0);
+  if (nVer < 1032) fallos.push({ donde: "HEADER", detalle: `versión ${ver?.v.trim() ?? "ausente"}: el archivo debe ser AutoCAD 2018 (AC1032) o posterior` });
   const capas = new Set<string>();
   const asas = new Set<string>();
   for (let i = 0; i < pares.length; i++) {
     if (pares[i].c === "0" && pares[i].v.trim() === "LAYER") {
-      const nom = pares.slice(i, i + 16).find((p) => p.c === "2");
+      const rec = pares.slice(i, i + 24);
+      const nom = rec.find((p) => p.c === "2");
       if (nom) capas.add(nom.v.trim());
+      if (!rec.some((p) => p.c === "390")) fallos.push({ donde: "LAYER", detalle: `la capa ${nom?.v.trim() ?? "?"} no trae estilo de ploteo` });
     }
     if (pares[i].c === "5" && pares[i - 1]?.v.trim() !== "$HANDSEED") {
       const a = pares[i].v.trim();

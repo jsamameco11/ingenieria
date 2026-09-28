@@ -114,53 +114,57 @@ function cotaV(out: Prim[], x: number, y0: number, y1: number, label: string) {
 
 function persona(ox: number, pies: number, out: Prim[]) {
   const y = (h: number) => pies + h;
+  const piel = "#e6c2a6";
+  const ropa = "#3d4f66";
+  out.push({ k: "circ", c: { x: ox, y: y(1.62) }, r: 0.11, fill: piel, stroke: INK, sw: 0.012 });
+  line(out, { x: ox, y: y(1.5) }, { x: ox, y: y(1.42) }, 0.02, piel);
   poly(out, [
-    { x: ox - 0.11, y: y(0) },
-    { x: ox - 0.04, y: y(0.72) },
-    { x: ox + 0.04, y: y(0.72) },
-    { x: ox + 0.13, y: y(0) },
-    { x: ox + 0.05, y: y(0) },
-    { x: ox + 0.02, y: y(0.62) },
-    { x: ox - 0.03, y: y(0.62) },
-    { x: ox - 0.04, y: y(0) },
-  ], "#f4f1ea", 0.016);
-  poly(out, [
-    { x: ox - 0.16, y: y(0.95) },
-    { x: ox - 0.05, y: y(1.22) },
-    { x: ox + 0.05, y: y(1.22) },
-    { x: ox + 0.18, y: y(0.92) },
-    { x: ox + 0.08, y: y(0.78) },
-    { x: ox - 0.08, y: y(0.78) },
-  ], "#f4f1ea", 0.016);
-  out.push({ k: "circ", c: { x: ox, y: y(1.38) }, r: 0.11, fill: "#f4f1ea", stroke: INK, sw: 0.016 });
-  line(out, { x: ox - 0.02, y: y(1.18) }, { x: ox - 0.22, y: y(0.82) }, 0.016);
-  line(out, { x: ox + 0.04, y: y(1.16) }, { x: ox + 0.2, y: y(0.86) }, 0.016);
+    { x: ox - 0.16, y: y(1.42) },
+    { x: ox + 0.16, y: y(1.42) },
+    { x: ox + 0.12, y: y(0.82) },
+    { x: ox - 0.12, y: y(0.82) },
+  ], ropa, 0.012);
+  line(out, { x: ox - 0.16, y: y(1.36) }, { x: ox - 0.28, y: y(1.02) }, 0.06, ropa);
+  line(out, { x: ox + 0.16, y: y(1.36) }, { x: ox + 0.28, y: y(1.02) }, 0.06, ropa);
+  line(out, { x: ox - 0.28, y: y(1.02) }, { x: ox - 0.24, y: y(0.9) }, 0.045, piel);
+  line(out, { x: ox + 0.28, y: y(1.02) }, { x: ox + 0.24, y: y(0.9) }, 0.045, piel);
+  line(out, { x: ox - 0.05, y: y(0.82) }, { x: ox - 0.07, y: y(0.04) }, 0.07, "#2c3340");
+  line(out, { x: ox + 0.05, y: y(0.82) }, { x: ox + 0.08, y: y(0.04) }, 0.07, "#2c3340");
+  line(out, { x: ox - 0.14, y: y(0.035) }, { x: ox - 0.01, y: y(0.035) }, 0.04, "#1c1c1c");
+  line(out, { x: ox + 0.02, y: y(0.035) }, { x: ox + 0.16, y: y(0.035) }, 0.04, "#1c1c1c");
 }
 
 function carroFrente(cx: number, rasante: number, anchoCarril: number, out: Prim[]) {
-  const w = Math.min(1.65, Math.max(1.05, anchoCarril * 0.62));
-  const h = 1.15 * (w / 1.65);
-  const r = 0.22 * (w / 1.65);
+  const w = Math.min(1.72, Math.max(1.35, anchoCarril * 0.48));
+  const h = 1.45;
   const x0 = cx - w / 2;
   const y0 = rasante;
   poly(out, [
-    { x: x0 + w * 0.06, y: y0 + r * 0.85 },
-    { x: x0 + w * 0.06, y: y0 + h * 0.48 },
-    { x: x0 + w * 0.22, y: y0 + h * 0.78 },
-    { x: x0 + w * 0.78, y: y0 + h * 0.78 },
-    { x: x0 + w * 0.94, y: y0 + h * 0.48 },
-    { x: x0 + w * 0.94, y: y0 + r * 0.85 },
-  ], "#f7f7f7", 0.02);
+    { x: x0, y: y0 + 0.28 },
+    { x: x0, y: y0 + h * 0.55 },
+    { x: x0 + w * 0.08, y: y0 + h * 0.92 },
+    { x: x0 + w * 0.92, y: y0 + h * 0.92 },
+    { x: x0 + w, y: y0 + h * 0.55 },
+    { x: x0 + w, y: y0 + 0.28 },
+  ], "#f4f4f4", 0.016);
   poly(out, [
-    { x: x0 + w * 0.28, y: y0 + h * 0.5 },
-    { x: x0 + w * 0.36, y: y0 + h * 0.72 },
-    { x: x0 + w * 0.64, y: y0 + h * 0.72 },
-    { x: x0 + w * 0.72, y: y0 + h * 0.5 },
-  ], "#d5dde6", 0.012);
-  out.push({ k: "circ", c: { x: x0 + w * 0.24, y: y0 + r }, r, fill: "#2a2a2a", stroke: INK, sw: 0.016 });
-  out.push({ k: "circ", c: { x: x0 + w * 0.76, y: y0 + r }, r, fill: "#2a2a2a", stroke: INK, sw: 0.016 });
-  out.push({ k: "circ", c: { x: x0 + w * 0.24, y: y0 + r }, r: r * 0.45, fill: "#cfcfcf", stroke: INK, sw: 0.01 });
-  out.push({ k: "circ", c: { x: x0 + w * 0.76, y: y0 + r }, r: r * 0.45, fill: "#cfcfcf", stroke: INK, sw: 0.01 });
+    { x: x0 + w * 0.18, y: y0 + h * 0.58 },
+    { x: x0 + w * 0.22, y: y0 + h * 0.86 },
+    { x: x0 + w * 0.78, y: y0 + h * 0.86 },
+    { x: x0 + w * 0.82, y: y0 + h * 0.58 },
+  ], "#c5d0dc", 0.01);
+  out.push({ k: "circ", c: { x: x0 + w * 0.22, y: y0 + h * 0.42 }, r: 0.06, fill: "#f2e7b0", stroke: INK, sw: 0.008 });
+  out.push({ k: "circ", c: { x: x0 + w * 0.78, y: y0 + h * 0.42 }, r: 0.06, fill: "#f2e7b0", stroke: INK, sw: 0.008 });
+  poly(out, [
+    { x: x0 + w * 0.08, y: y0 + 0.22 },
+    { x: x0 + w * 0.92, y: y0 + 0.22 },
+    { x: x0 + w * 0.92, y: y0 + 0.34 },
+    { x: x0 + w * 0.08, y: y0 + 0.34 },
+  ], "#d0d0d0", 0.01);
+  out.push({ k: "circ", c: { x: x0 + w * 0.2, y: y0 + 0.22 }, r: 0.2, fill: "#2a2a2a", stroke: INK, sw: 0.012 });
+  out.push({ k: "circ", c: { x: x0 + w * 0.8, y: y0 + 0.22 }, r: 0.2, fill: "#2a2a2a", stroke: INK, sw: 0.012 });
+  out.push({ k: "circ", c: { x: x0 + w * 0.2, y: y0 + 0.22 }, r: 0.08, fill: "#bdbdbd", stroke: INK, sw: 0.008 });
+  out.push({ k: "circ", c: { x: x0 + w * 0.8, y: y0 + 0.22 }, r: 0.08, fill: "#bdbdbd", stroke: INK, sw: 0.008 });
 }
 
 function pendiente(out: Prim[], x0: number, x1: number, y: number) {
@@ -187,7 +191,7 @@ export function construirSeccion(sec: Seccion, pavIn: Pavimento, titulo: string,
   const ml = 2.15;
   const mr = 0.45;
   const baseCotas = prof + tierra + 0.35;
-  const techo = hSard + 1.85;
+  const techo = hSard + 2.85;
   const ancho = ml + W + mr;
   const out: Prim[] = [];
   const x0 = ml;
@@ -205,7 +209,8 @@ export function construirSeccion(sec: Seccion, pavIn: Pavimento, titulo: string,
 
   let x = x0;
   let cotaPavimento = false;
-  for (const parte of partes) {
+  for (let pi = 0; pi < partes.length; pi++) {
+    const parte = partes[pi];
     const w = parte.ancho;
     if (parte.tipo === "vereda") {
       poly(out, [
@@ -240,59 +245,72 @@ export function construirSeccion(sec: Seccion, pavIn: Pavimento, titulo: string,
       txt(out, x + w / 2, 0.28, "SEPARADOR", 0.12);
     } else {
       const esCalzada = parte.tipo === "calzada";
-      const corona = esCalzada ? Math.max(w * BOMBEO * VE, 0.1) : Math.max(w * BOMBEO * VE * 0.5, 0.06);
-      const yL = 0;
-      const yR = 0;
-      const yC = corona;
-      poly(out, [
-        { x, y: yL },
-        { x: x + w / 2, y: yC },
-        { x: x + w, y: yR },
-        { x: x + w, y: yR - eCar },
-        { x: x + w / 2, y: yC - eCar },
-        { x, y: yL - eCar },
-      ], "#3d3d3d", 0.014);
-      poly(out, [
-        { x, y: -eCar },
-        { x: x + w, y: -eCar },
-        { x: x + w, y: -eCar - eBas },
-        { x, y: -eCar - eBas },
-      ], "#b7b1a6", 0.012);
-      trama(out, x, -eCar - eBas, w, eBas, 0.14, -50);
-      poly(out, [
-        { x, y: -eCar - eBas },
-        { x: x + w, y: -eCar - eBas },
-        { x: x + w, y: -prof },
-        { x, y: -prof },
-      ], "#c8b48a", 0.012);
-      trama(out, x, -prof, w, eSub, 0.18, 25);
-      const n = Math.max(1, Math.round(w / Math.max(sec.moduloCalzada, 0.5)));
+      const n = esCalzada ? Math.max(1, Math.round(w / Math.max(sec.moduloCalzada, 0.5))) : 1;
       const carril = w / n;
-      for (let i = 0; i < n; i++) carroFrente(x + carril * (i + 0.5), corona * 0.35, carril, out);
+      const sup: Pt[] = [];
+      if (esCalzada) {
+        const cortes = new Set<number>([w / 2]);
+        for (let i = 0; i <= n; i++) cortes.add(i * carril);
+        for (const dx of [...cortes].sort((a, b) => a - b)) {
+          sup.push({ x: x + dx, y: Math.max(0, w / 2 - Math.abs(dx - w / 2)) * BOMBEO * VE });
+        }
+      } else {
+        const prev = String(partes[pi - 1]?.tipo ?? "");
+        const next = String(partes[pi + 1]?.tipo ?? "");
+        const caeALaDerecha = next === "calzada" || prev !== "calzada";
+        const drop = w * BOMBEO * VE;
+        sup.push({ x, y: caeALaDerecha ? drop : 0 }, { x: x + w, y: caeALaDerecha ? 0 : drop });
+      }
+      const bajo = (dy: number) => sup.map((p) => ({ x: p.x, y: p.y - dy }));
+      poly(out, [...sup, ...bajo(eCar).reverse()], "#3d3d3d", 0.014);
+      poly(out, [...bajo(eCar), ...bajo(eCar + eBas).reverse()], "#b7b1a6", 0.012);
+      poly(out, [...bajo(eCar + eBas), ...bajo(prof).reverse()], "#c8b48a", 0.012);
+      const corona = sup.reduce((m, p) => Math.max(m, p.y), 0);
+      const cotaEn = (xx: number) => (w / 2 - Math.abs(xx - (x + w / 2))) * BOMBEO * VE;
+      if (esCalzada) {
+        for (let i = 0; i < n; i++) {
+          const xL = x + i * carril;
+          const xR = xL + carril;
+          const yL = cotaEn(xL);
+          const yR = cotaEn(xR);
+          const yM = cotaEn((xL + xR) / 2);
+          carroFrente((xL + xR) / 2, yM, carril, out);
+          const yFlecha = yM + 1.42;
+          if (yM > yL + 0.001 && yM > yR + 0.001) {
+            pendiente(out, (xL + xR) / 2, xL + 0.15, yFlecha);
+            pendiente(out, (xL + xR) / 2, xR - 0.15, yFlecha);
+          } else if (yL >= yR) pendiente(out, xL + 0.12, xR - 0.12, yFlecha);
+          else pendiente(out, xR - 0.12, xL + 0.12, yFlecha);
+        }
+      } else {
+        const a = sup[0];
+        const b = sup[sup.length - 1];
+        carroFrente((a.x + b.x) / 2, (a.y + b.y) / 2, w, out);
+      }
       if (esCalzada) {
         line(out, { x: x + w / 2, y: corona + 0.05 }, { x: x + w / 2, y: -prof }, 0.01, "#8a8a8a");
-        pendiente(out, x + w / 2, x + 0.35, corona);
-        pendiente(out, x + w / 2, x + w - 0.35, corona);
-        txt(out, x + w / 2, corona + 1.35, "CALZADA", 0.14);
       } else {
-        txt(out, x + w / 2, corona + 1.35, "ESTAC.", 0.13);
+        const a = sup[0];
+        const b = sup[sup.length - 1];
+        pendiente(out, a.y >= b.y ? a.x : b.x, a.y >= b.y ? b.x : a.x, Math.max(a.y, b.y) + 1.42);
       }
       if (!cotaPavimento) {
         cotaPavimento = true;
-        let y = 0;
-        const filas: [string, number, number][] = [
-          [`e=${fmt(pav.carpeta)}`, eCar, 0],
-          [`e=${fmt(pav.base)}`, eBas, eCar],
-          [`e=${fmt(pav.subbase)}`, eSub, eCar + eBas],
+        let y = sup[0]?.y ?? 0;
+        const rasante = y;
+        const filas: [string, number][] = [
+          [`e=${fmt(pav.carpeta)}`, eCar],
+          [`e=${fmt(pav.base)}`, eBas],
+          [`e=${fmt(pav.subbase)}`, eSub],
         ];
         for (const [label, h] of filas) {
           if (h < 0.03) continue;
           cotaV(out, x - 0.35, y, y - h, label);
           y -= h;
         }
-        txt(out, x - 1.55, -eCar / 2, "Carpeta", 0.12, "start");
-        txt(out, x - 1.55, -eCar - eBas / 2, "Base", 0.12, "start");
-        txt(out, x - 1.55, -eCar - eBas - eSub / 2, "Subbase", 0.12, "start");
+        txt(out, x - 1.55, rasante - eCar / 2, "Carpeta", 0.12, "start");
+        txt(out, x - 1.55, rasante - eCar - eBas / 2, "Base", 0.12, "start");
+        txt(out, x - 1.55, rasante - eCar - eBas - eSub / 2, "Subbase", 0.12, "start");
       }
     }
     x += w;

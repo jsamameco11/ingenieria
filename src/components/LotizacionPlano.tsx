@@ -213,7 +213,7 @@ export function LotizacionPlano({ modelo, trazos, arista, borrador, emitir, viaS
           </text>
         ) : null}
       </svg>
-      {borde.length < 3 ? <p className="lz-empty">Cargue o digite el perímetro para ver la planta.</p> : null}
+      {borde.length < 3 ? <p className="lz-empty">Pulse Dibujar para generar la planta.</p> : null}
       <div className="lz-float">
         <button type="button" className="btn secondary" onClick={() => setVista(null)}>
           Encuadrar

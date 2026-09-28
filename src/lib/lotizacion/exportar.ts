@@ -1,4 +1,4 @@
-import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta, cartelaSvg, simboloCorte } from "./dibujo";
+import { svgDeTrazos, trazosDe, cajaModelo, fmtM, grafismosPlanta, cartelaSvg, simboloCorte, nombresEnManzana, cotasDeLotes } from "./dibujo";
 import { DxfDoc } from "./dxf";
 import { dxfDeSeccion, svgSeccion } from "./seccionVia";
 import type { Meta, Modelo, Trazo } from "./tipos";
@@ -25,6 +25,7 @@ const CAPAS: { name: string; color: number }[] = [
   { name: "MC-INGRESO", color: 2 },
   { name: "MC-VIA-EXISTENTE", color: 5 },
   { name: "MC-CAJETIN", color: 7 },
+  { name: "MC-GRILLA", color: 8 },
   { name: "MC-CORTE", color: 7 },
   { name: "MC-SECCION", color: 7 },
   { name: "MC-VEHICULO", color: 7 },
@@ -71,13 +72,16 @@ function capaFranja(tipo: string): string {
   return "MC-VEREDA";
 }
 
-export function dxfDe(m: Modelo, meta: Meta): string {
+export function dxfDe(m: Modelo, meta: Meta, grilla = 0): string {
   const doc = new DxfDoc(CAPAS);
   if (m.lindero.length >= 3) doc.polilinea("MC-PERIMETRO", m.lindero, true);
   for (const tr of m.cerco) doc.polilinea("MC-CERCO", tr, false);
   for (const f of m.franjas) {
     if (f.soloVista) continue;
     doc.polilinea(capaFranja(f.tipo), f.poly, true);
+    for (const ln of f.lineas ?? []) {
+      if (ln.length >= 2) doc.linea(capaFranja(f.tipo), ln[0], ln[1]);
+    }
   }
   for (const pl of m.polilineas ?? []) doc.polilinea(pl.capa, pl.pts, pl.cerrada);
   for (const v of m.viasExistentes) {
@@ -89,17 +93,15 @@ export function dxfDe(m: Modelo, meta: Meta): string {
   }
   for (const eje of m.ejes) {
     for (const seg of eje.partes) doc.polilinea("MC-EJE", seg, false);
-    const seg = eje.partes[0];
-    if (seg && seg.length >= 2) {
-      doc.texto("MC-EJE", (seg[0].x + seg[1].x) / 2, (seg[0].y + seg[1].y) / 2, 2.2, eje.nombre);
-    }
+  }
+  for (const tr of nombresEnManzana(m)) {
+    if (tr.p && tr.text) doc.texto("MC-EJE", tr.p.x, tr.p.y, tr.size ?? 2.2, tr.text, "", tr.ang ?? 0);
   }
   for (const lot of m.lotes) {
     const capa = capaDeUso(lot.uso);
     if (lot.poly.length >= 3) doc.polilinea(capa, lot.poly, true);
     if (lot.uso === "vivienda") {
       doc.texto("MC-LOTE-TXT", lot.centro.x, lot.centro.y, 1.8, lot.id);
-      doc.texto("MC-LOTE-TXT", lot.centro.x, lot.centro.y - 2.2, 1.2, `${lot.area.toFixed(2)} m2`);
     } else if (lot.uso !== "residual") {
       const nombre = lot.uso === "recreacion" ? "RECREACION PUBLICA" : lot.uso === "educacion" ? "EDUCACION" : lot.uso === "otros" ? "OTROS FINES" : lot.uso.toUpperCase();
       doc.texto(capa, lot.centro.x, lot.centro.y, 2.2, nombre);
@@ -116,6 +118,9 @@ export function dxfDe(m: Modelo, meta: Meta): string {
     }
     for (const t of pk.textos) doc.texto("MC-PARQUE-TXT", t.p.x, t.p.y, t.size, t.text, t.fill);
   }
+  for (const tr of cotasDeLotes(m)) {
+    if (tr.p && tr.text) doc.texto("MC-LOTE-TXT", tr.p.x, tr.p.y, tr.size ?? 1.05, tr.text, "", tr.ang ?? 0);
+  }
   for (const ing of m.ingresos) {
     doc.texto("MC-INGRESO", ing.pt.x, ing.pt.y, 2.4, `${ing.nombre} E=${ing.pt.x.toFixed(3)} N=${ing.pt.y.toFixed(3)}`);
   }
@@ -126,6 +131,7 @@ export function dxfDe(m: Modelo, meta: Meta): string {
     `Lamina ${meta.lamina}`,
   ];
   const caja = cajaModelo(m);
+  dibujarGrilla(doc, caja, grilla);
   for (const corte of m.cortes ?? []) {
     for (const tr of simboloCorte(corte.a, corte.b, corte.letra)) {
       if (tr.t === "poly" && tr.pts && tr.pts.length >= 3) doc.polilinea("MC-CORTE", tr.pts, true);
@@ -195,18 +201,54 @@ export function dxfDe(m: Modelo, meta: Meta): string {
   return doc.serializar({ minX: ox, minY: oy, maxX: ox + hojaW, maxY: oy + hojaH });
 }
 
+function svgGrilla(caja: { minX: number; minY: number; maxX: number; maxY: number }, paso: number): string {
+  if (!(paso >= 50)) return "";
+  const x0 = Math.ceil(caja.minX / paso) * paso;
+  const x1 = Math.floor(caja.maxX / paso) * paso;
+  const y0 = Math.ceil(caja.minY / paso) * paso;
+  const y1 = Math.floor(caja.maxY / paso) * paso;
+  if (x1 < x0 || y1 < y0) return "";
+  const partes: string[] = [];
+  for (let x = x0; x <= x1 + 0.01; x += paso) {
+    partes.push(`<line x1="${x.toFixed(2)}" y1="${(-caja.minY).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(-caja.maxY).toFixed(2)}" stroke="#8a8a8a" stroke-width="0.4" />`);
+    partes.push(`<text x="${x.toFixed(2)}" y="${(-caja.maxY + paso * 0.12).toFixed(2)}" font-size="${Math.max(1.6, paso * 0.08).toFixed(2)}" text-anchor="middle" fill="#333">E ${x.toFixed(0)}</text>`);
+  }
+  for (let y = y0; y <= y1 + 0.01; y += paso) {
+    partes.push(`<line x1="${caja.minX.toFixed(2)}" y1="${(-y).toFixed(2)}" x2="${caja.maxX.toFixed(2)}" y2="${(-y).toFixed(2)}" stroke="#8a8a8a" stroke-width="0.4" />`);
+    partes.push(`<text x="${(caja.minX + paso * 0.08).toFixed(2)}" y="${(-y).toFixed(2)}" font-size="${Math.max(1.6, paso * 0.08).toFixed(2)}" fill="#333">N ${y.toFixed(0)}</text>`);
+  }
+  return partes.join("");
+}
+
+function dibujarGrilla(doc: DxfDoc, caja: { minX: number; minY: number; maxX: number; maxY: number }, paso: number) {
+  if (!(paso >= 50)) return;
+  const x0 = Math.ceil(caja.minX / paso) * paso;
+  const x1 = Math.floor(caja.maxX / paso) * paso;
+  const y0 = Math.ceil(caja.minY / paso) * paso;
+  const y1 = Math.floor(caja.maxY / paso) * paso;
+  if (x1 < x0 || y1 < y0 || (x1 - x0) / paso > 80 || (y1 - y0) / paso > 80) return;
+  for (let x = x0; x <= x1 + 0.01; x += paso) {
+    doc.linea("MC-GRILLA", { x, y: caja.minY }, { x, y: caja.maxY });
+    doc.texto("MC-GRILLA", x, caja.maxY - paso * 0.12, Math.max(1.2, paso * 0.08), `E ${x.toFixed(0)}`);
+  }
+  for (let y = y0; y <= y1 + 0.01; y += paso) {
+    doc.linea("MC-GRILLA", { x: caja.minX, y }, { x: caja.maxX, y });
+    doc.texto("MC-GRILLA", caja.minX + paso * 0.08, y, Math.max(1.2, paso * 0.08), `N ${y.toFixed(0)}`);
+  }
+}
+
 function escalaA1(w: number, h: number): number {
   const raw = Math.max(w / 0.7, h / 0.48) * 1.08;
   const opts = [100, 200, 250, 500, 750, 1000, 1250, 1500, 2000, 2500, 5000, 10000];
   return opts.find((s) => s >= raw) ?? Math.ceil(raw / 500) * 500;
 }
 
-export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[]): string {
+export function htmlA1(m: Modelo, meta: Meta, trazos: Trazo[], grilla = 0): string {
   const caja = cajaModelo(m);
   const esc = escalaA1(caja.w, caja.h);
   const pad = Math.max(caja.w, caja.h) * 0.08;
   const vb = `${(caja.minX - pad).toFixed(3)} ${(-(caja.maxY + pad)).toFixed(3)} ${(caja.w + pad * 2).toFixed(3)} ${(caja.h + pad * 2).toFixed(3)}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgDeTrazos(trazos, "", m.lindero)}${cartelaSvg({ minE: caja.minX, minN: caja.minY, w: caja.w, h: caja.h })}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">${svgGrilla(caja, grilla)}${svgDeTrazos(trazos, "", m.lindero)}${cartelaSvg({ minE: caja.minX, minN: caja.minY, w: caja.w, h: caja.h })}</svg>`;
   const filasArea = [
     ["Área bruta", m.areaBruta],
     ["Vías locales", m.areaVias],
@@ -334,8 +376,8 @@ export function descargarTexto(nombre: string, texto: string, mime: string) {
   URL.revokeObjectURL(a.href);
 }
 
-export function imprimirA1(m: Modelo, meta: Meta) {
-  const html = htmlA1(m, meta, trazosDe(m));
+export function imprimirA1(m: Modelo, meta: Meta, grilla = 0) {
+  const html = htmlA1(m, meta, trazosDe(m), grilla);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";

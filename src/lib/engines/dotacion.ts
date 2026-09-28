@@ -1026,7 +1026,7 @@ function calcDotacion(raw: Record<string, string>, modo: UsoDot): CalcOutput {
   const hCis = VcAdopL > 0 ? VcAdopL / 1000 / (Lc * Bc) : 0;
   const VolCisGeom = Lc * Bc * hCis;
 
-  const uhInod = descarga === "valvula" ? 5 : 3;
+  const uhInod = descarga === "valvula" ? 6 : 3;
   const uhTina = descarga === "valvula" ? 3 : 2;
   const uhUrin = descarga === "valvula" ? 5 : 3;
   const UH =
@@ -1117,7 +1117,7 @@ function calcDotacion(raw: Record<string, string>, modo: UsoDot): CalcOutput {
     n: "08",
     title: "Unidades Hunter de los aparatos — IS.010 2.3",
     formula: descarga === "valvula"
-      ? "UH = 5·inod + 1·lav + 2·ducha + 3·tina + 3·freg + 3·ropa + 3·riego + 5·urin + 0,5·bebedero"
+      ? "UH = 6·inod + 1·lav + 2·ducha + 3·tina + 3·freg + 3·ropa + 3·riego + 5·urin + 0,5·bebedero"
       : "UH = 3·inod + 1·lav + 2·ducha + 2·tina + 3·freg + 3·ropa + 3·riego + 3·urin + 0,5·bebedero",
     substitution: `${fmt(nInod, 0)} inod + ${fmt(nLav, 0)} lav + ${fmt(nDucha, 0)} ducha + ${fmt(nTina, 0)} tina + ${fmt(nFreg, 0)} freg + ${fmt(nRopa, 0)} ropa + ${fmt(nRiego, 0)} riego + ${fmt(nUrin, 0)} urin + ${fmt(nBebedero, 0)} bebedero   (${descarga})`,
     result: `Σ UH = ${fmt(UH, 1)}`,

@@ -17,6 +17,7 @@ import {
   startGoogleOAuthRedirect,
 } from "../lib/auth/google";
 import { roleLabel } from "../lib/auth/engine";
+import { isDeviceLimitMessage } from "../lib/auth/deviceLock";
 import { SOPORTE_LABEL, SOPORTE_WA } from "../lib/support";
 import { useAuth } from "./AuthProvider";
 import { INGENIERIA_BUY_CATS, INGENIERIA_TOOLS } from "../lib/siteTaste/questionnaires";
@@ -34,7 +35,7 @@ function GoogleMark() {
 }
 
 function GoogleModal() {
-  const { completeGoogle, closeModal, busy, error, session, setError, plansLive } = useAuth();
+  const { completeGoogle, closeModal, busy, error, session, setError, plansLive, useThisDevice } = useAuth();
   const btnRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
 
@@ -112,6 +113,11 @@ function GoogleModal() {
           )}
         </div>
         {error ? <p className="auth-error">{error}</p> : null}
+        {session && isDeviceLimitMessage(error) ? (
+          <button type="button" className="btn" disabled={busy} onClick={() => void useThisDevice()}>
+            Entrar en este equipo
+          </button>
+        ) : null}
         {error && /977|otro equipo|sesiones/i.test(error) ? (
           <p className="auth-fine">
             <a href={SOPORTE_WA} target="_blank" rel="noreferrer">

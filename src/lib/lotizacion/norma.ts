@@ -215,7 +215,7 @@ export function pavimentoVacio(): Pavimento {
 }
 
 export function proyectoVacio(): ProyectoLot {
-  const criteriosBase = criteriosDeNorma("vivienda", 3, "local-secundaria");
+  const criteriosBase = criteriosDeNorma("vivienda", 4, "local-secundaria");
   return {
     meta: {
       proyecto: "Habilitación urbana",
@@ -250,14 +250,18 @@ export function proyectoVacio(): ProyectoLot {
   };
 }
 
-/** Polígono de trabajo, unos 250 m × 170 m, levemente irregular. */
+/**
+ * Rectángulo de ejemplo para el módulo 6 × 15 m.
+ * Alto 170.40 m = 4 bandas de 15 m a cada lado de la calle y 4 secciones de 12.60 m.
+ * Ancho 252.60 m = 2 manzanas de 120 m y una calle de 12.60 m.
+ * La manzana doble mide 30 m: 15 m + 15 m.
+ */
 export function puntosEjemplo() {
   return [
     { num: "1", e: 1000, n: 5000 },
-    { num: "2", e: 1248.5, n: 5014.2 },
-    { num: "3", e: 1262.4, n: 5176.8 },
-    { num: "4", e: 1088.0, n: 5194.5 },
-    { num: "5", e: 986.6, n: 5092.0 },
+    { num: "2", e: 1252.6, n: 5000 },
+    { num: "3", e: 1252.6, n: 5170.4 },
+    { num: "4", e: 1000, n: 5170.4 },
   ];
 }
 

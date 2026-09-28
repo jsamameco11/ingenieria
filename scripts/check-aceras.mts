@@ -55,7 +55,7 @@ assert(Math.abs(conJardin.sinAsignar) < Math.max(40, conJardin.areaBruta * 0.03)
 const pk = m.parques[0];
 assert(pk && pk.piezas.some((p) => p.capa === "MC-PARQUE-LINEA"), "la cancha no tiene líneas");
 assert(pk && pk.piezas.filter((p) => p.capa === "MC-PARQUE-CANCHA").length >= 1, "la cancha no se reservó");
-assert(pk && /fútbol 7/i.test(pk.nota), pk?.nota ?? "sin parque");
+assert(pk && /fútbol 7|fulbito|multiuso|básquet|losa/i.test(pk.nota), pk?.nota ?? "sin parque");
 assert(Math.abs((via?.radio ?? 0) - 5) < 0.01, "la principal debe usar radio 5 m");
 const principalJardin = proponer({
   ...base,

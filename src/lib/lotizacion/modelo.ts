@@ -117,17 +117,21 @@ function frenteSobre(rect: Rect, face: Face, poly: V2[]): number {
   return acc;
 }
 
-function fitDepth(span: number, target: number, dMin: number, dMax: number, W: number): { n: number; depth: number } {
-  if (!(span > W + 10)) return { n: 0, depth: span };
-  let best = { n: 0, depth: span, score: Infinity };
+/** El fondo del lote no se estira. Las manzanas dobles quedan en 2 × fondo y el sobrante cae en la banda de borde. */
+function fitDepth(span: number, fondo: number, W: number): { n: number; depth: number } {
+  if (!(span > W + fondo)) return { n: 0, depth: fondo };
+  let bestN = 0;
+  let best = Infinity;
   for (let n = 1; n <= 24; n++) {
-    const depth = (span / n - W) / 2;
-    if (depth < 6) break;
-    const inRange = depth >= dMin * 0.98 && depth <= dMax * 1.02;
-    const score = Math.abs(depth - target) + (inRange ? 0 : 2500) + (depth + 0.05 < dMin ? 1800 : 0);
-    if (score < best.score) best = { n, depth, score };
+    const borde = span - n * W - fondo * (2 * n - 1);
+    if (borde < fondo * 0.92) break;
+    const extra = Math.abs(borde - fondo);
+    if (extra < best) {
+      best = extra;
+      bestN = n;
+    }
   }
-  return best.n > 0 ? { n: best.n, depth: best.depth } : { n: 0, depth: span };
+  return { n: Math.max(1, bestN), depth: fondo };
 }
 
 function fitLength(span: number, target: number, minL: number, maxL: number, W: number): { n: number; length: number } {
@@ -528,12 +532,9 @@ export function proponer(p: ProyectoLot): Modelo {
   const largoMin = Math.max(10, c.profundidad > 1 ? c.profundidad : 10);
   const fondo = Math.max(largoMin, areaPiso / anchoMin);
   const frenteDiseno = anchoMin;
-  const dObjetivo = fondo;
-  const dMin = Math.max(6, fondo * 0.96);
-  const dMax = Math.max(dMin, fondo * 1.06);
   const tope = maxManzana(c);
   const objetivoL = Math.min(Math.max(c.largoManzana || 120, 40), tope);
-  const depthFit = fitDepth(bb.h, dObjetivo, dMin, dMax, W);
+  const depthFit = fitDepth(bb.h, fondo, W);
   const lenFit = fitLength(bb.w, objetivoL, c.tipoHab === "industrial" ? 40 : 40, tope, W);
 
   const ingresos = ingresosDe(p, world, centro);
@@ -1001,6 +1002,11 @@ export function proponer(p: ProyectoLot): Modelo {
     if (esq.pista.length >= 3) {
       franjas.push({ tipo: "calzada", poly: esq.pista.map(toWorld), soloVista: true });
     }
+    esq.rampas.forEach((poly, i) => {
+      if (poly.length < 3) return;
+      const lineas = esq.pendientes.slice(i * 2, i * 2 + 2).map((ln) => ln.map(toWorld));
+      franjas.push({ tipo: "rampa", poly: poly.map(toWorld), lineas });
+    });
   }
   const hitVia = (rect: Rect): V2[] => {
     const clipped = clipRect(local, rect);
@@ -1037,6 +1043,27 @@ export function proponer(p: ProyectoLot): Modelo {
     lote.area = area(next);
     lote.centro = centroid(next);
     areaOchavo += Math.max(0, antes - lote.area);
+  }
+  for (let guard = 0; guard < 40; guard++) {
+    const chico = lotes.find((l) => l.uso === "vivienda" && l.area + 0.5 < MIN_LOTE);
+    if (!chico) break;
+    const bordes = new Set<string>();
+    for (let i = 0; i < chico.poly.length; i++) bordes.add(aristaKey(chico.poly[i], chico.poly[(i + 1) % chico.poly.length]));
+    const vecino = lotes.find((l) => {
+      if (l === chico || l.uso !== "vivienda") return false;
+      for (let i = 0; i < l.poly.length; i++) {
+        if (bordes.has(aristaKey(l.poly[i], l.poly[(i + 1) % l.poly.length]))) return true;
+      }
+      return false;
+    });
+    const unidos = vecino ? unirPanos([vecino.poly, chico.poly]) : [];
+    if (!vecino || unidos.length !== 1) break;
+    vecino.poly = unidos[0];
+    vecino.area = Math.abs(area(unidos[0]));
+    vecino.centro = centroid(unidos[0]);
+    vecino.frente = Math.max(vecino.frente, chico.frente);
+    vecino.profundidad = vecino.frente > 0.5 ? vecino.area / vecino.frente : vecino.profundidad;
+    lotes.splice(lotes.indexOf(chico), 1);
   }
   areaVias += areaOchavo;
   for (const ap of aportes) {

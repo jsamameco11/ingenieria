@@ -12,7 +12,7 @@ import { currentPageSlug, currentSpecialtySlug, isQuotaAction, quotaEngineFromPa
 import { emptyProfile, profileComplete, type UsageEvent, type UserInsight, type UserProfile } from "../lib/auth/types";
 import { fetchPlan, isProNow, type PlanInfo } from "../lib/billing";
 import { COURTESY_LAUNCH, fetchBillingLaunch, isOwnerEmail, type BillingLaunch } from "../lib/billingLaunch";
-import { claimThisDevice, isControlSurface, isDeviceLockMissing, thisDeviceIsActive } from "../lib/auth/deviceLock";
+import { claimThisDevice, isControlSurface, isDeviceLimitMessage, isDeviceLockMissing, revokeUserSessions, thisDeviceIsActive } from "../lib/auth/deviceLock";
 import { MSG_EQUIPO_OCUPADO, MSG_SESION_CERRADA } from "../lib/support";
 import { ingestObservedEvent } from "../lib/perfil/pipeline";
 
@@ -37,6 +37,7 @@ type AuthApi = {
   saveProfile: (next: UserProfile) => Promise<void>;
   skipProfile: () => Promise<void>;
   signOut: () => Promise<void>;
+  useThisDevice: () => Promise<void>;
   track: (ev: UsageEvent) => void;
   setError: (msg: string) => void;
   plan: PlanInfo | null;
@@ -78,8 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [paywallEngine, setPaywallEngine] = useState("");
   const pendingEdit = useRef(false);
   const sessionStartSent = useRef(false);
+  const deviceReady = useRef(false);
+  const [deviceWatch, setDeviceWatch] = useState(0);
 
   const hydrate = useCallback(async (user: User | null) => {
+    deviceReady.current = false;
     if (!user) {
       setProfile(null);
       setPlan(null);
@@ -115,12 +119,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       await claimThisDevice();
+      deviceReady.current = true;
+      setDeviceWatch((n) => n + 1);
     } catch (err) {
-      if (!isDeviceLockMissing(err)) {
+      const message = err instanceof Error ? err.message : MSG_EQUIPO_OCUPADO;
+      if (isDeviceLockMissing(err)) {
+        deviceReady.current = true;
+        setDeviceWatch((n) => n + 1);
+      } else if (isDeviceLimitMessage(message)) {
+        setError(message);
+        setModal("google");
+        return;
+      } else {
         await folio.auth.signOut();
         setProfile(null);
         setPlan(null);
-        setError(err instanceof Error ? err.message : MSG_EQUIPO_OCUPADO);
+        setError(message);
         setModal("google");
         return;
       }
@@ -133,13 +147,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    folio.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      setSession(data.session);
-      void hydrate(data.session?.user ?? null).finally(() => {
+    const arm = window.setTimeout(() => {
+      if (alive) setReady(true);
+    }, 8000);
+    folio.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!alive) return;
+        setSession(data.session);
+        void hydrate(data.session?.user ?? null).finally(() => {
+          if (alive) setReady(true);
+        });
+      })
+      .catch(() => {
         if (alive) setReady(true);
       });
-    });
     const { data: sub } = folio.auth.onAuthStateChange((event, next) => {
       setSession(next);
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
@@ -147,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => {
       alive = false;
+      window.clearTimeout(arm);
       sub.subscription.unsubscribe();
     };
   }, [hydrate]);
@@ -308,15 +331,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStartSent.current = false;
   }, []);
 
+  const useThisDevice = useCallback(async () => {
+    const uid = session?.user?.id;
+    if (!uid) {
+      setModal("google");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await revokeUserSessions(uid);
+      await claimThisDevice();
+      deviceReady.current = true;
+      setDeviceWatch((n) => n + 1);
+      setModal("none");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : MSG_EQUIPO_OCUPADO);
+      setModal("google");
+    } finally {
+      setBusy(false);
+    }
+  }, [session?.user?.id]);
+
   useEffect(() => {
-    if (!session?.user || isControlSurface()) return;
+    if (!session?.user || !deviceReady.current || isControlSurface()) return;
     let alive = true;
     const tickLock = async () => {
       try {
         const ok = await thisDeviceIsActive();
         if (!alive || ok) return;
+        await new Promise((r) => setTimeout(r, 800));
+        if (!alive || !deviceReady.current) return;
+        const again = await thisDeviceIsActive();
+        if (!alive || again) return;
         await folio.auth.signOut();
         if (!alive) return;
+        deviceReady.current = false;
         setProfile(null);
         setPlan(null);
         setError(MSG_SESION_CERRADA);
@@ -331,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       alive = false;
       window.clearInterval(id);
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, deviceWatch]);
 
   const track = useCallback(
     (ev: UsageEvent) => {
@@ -407,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (canEdit || isControlSurface()) return;
+    if (!ready || canEdit || isControlSurface()) return;
     const halt = (e: Event) => {
       if (!isEditAttempt(e)) return;
       e.preventDefault();
@@ -426,7 +476,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("paste", halt, true);
       document.removeEventListener("change", halt, true);
     };
-  }, [canEdit, requestEdit]);
+  }, [ready, canEdit, requestEdit]);
 
   useEffect(() => {
     if (isControlSurface() || !plansLive || isPro) return;
@@ -504,6 +554,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveProfile,
     skipProfile,
     signOut,
+    useThisDevice,
     track,
     setError,
     plan,
