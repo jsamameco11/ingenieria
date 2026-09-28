@@ -255,7 +255,10 @@ export async function exchangeGoogleSession(identity: GoogleIdentity, installId:
     install_id: installId,
     app: "memorcalc",
   };
-  const endpoint = GOOGLE_SESSION_URL;
+  const endpoint =
+    typeof window !== "undefined" && window.location?.origin
+      ? `${window.location.origin}/api/google-session`
+      : GOOGLE_SESSION_URL;
 
   try {
     return await exchangeAt(endpoint, payload);
